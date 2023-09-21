@@ -15,10 +15,13 @@ endif()
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
 #----------------------------------------------------
 
-
 #-------------------- viewer -------------------------
 add_executable(rqsViewer
-  viewer.cpp)
+  viewer.cpp
+  renderer.h
+  renderer.cpp
+  stb_image_write.h)
+
 target_link_libraries(rqsViewer
     PUBLIC
     owl)
