@@ -3,7 +3,7 @@ project(rqs-renderer VERSION 0.0.1 LANGUAGES C CXX CUDA)
 
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
@@ -15,7 +15,22 @@ endif()
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
 #----------------------------------------------------
 
-#-------------------- viewer -------------------------
+#------------------ device code ---------------------
+
+embed_ptx(
+  OUTPUT_TARGET
+    deviceCode_ptx
+  EMBEDDED_SYMBOL_NAMES
+    deviceCode_ptx
+  PTX_LINK_LIBRARIES
+    owl::owl
+  SOURCES
+    deviceCode.cu
+)
+
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --generate-line-info")
+
+#-------------------- viewer ------------------------
 add_executable(rqsViewer
   viewer.cpp
   renderer.h
@@ -23,6 +38,8 @@ add_executable(rqsViewer
   stb_image_write.h)
 
 target_link_libraries(rqsViewer
-    PUBLIC
-    owl)
+  PRIVATE 
+  deviceCode_ptx
+  PUBLIC
+  owl::owl)
 #----------------------------------------------------
