@@ -1,5 +1,10 @@
 #include <iostream>
 
+#ifdef __linux__ 
+#include "GL/gl.h"
+#endif
+#include "GLFW/glfw3.h"
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
@@ -22,6 +27,8 @@ Viewer::Viewer(/* args */)
 
 void Viewer::Run()
 {
+    glfwInit();
+    glfwCreateWindow(1920, 720, "potato", NULL, NULL);
     while (true)
     {
         renderer->Render();

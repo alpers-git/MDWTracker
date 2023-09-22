@@ -1,4 +1,9 @@
 cmake_policy(SET CMP0048 NEW)
+
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES 75)
+endif()
+
 project(rqs-renderer VERSION 0.0.1 LANGUAGES C CXX CUDA)
 
 cmake_minimum_required(VERSION 3.16)
@@ -8,14 +13,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL 3.18)
-  cmake_policy(SET CMP0104 NEW)
+cmake_policy(SET CMP0104 NEW)
 endif()
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+find_package(OpenGL REQUIRED)
+
+#--------------------GLFW---------------------#
+set(GLFW_BUILD_DOCS OFF CACHE STRING "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE STRING "" FORCE)
+set(GLFW_BUILD_TESTS    OFF CACHE STRING "" FORCE)
+set(GLFW_INSTALL        OFF CACHE STRING "" FORCE)
+add_subdirectory(submodules/glfw)
+set_property(TARGET glfw PROPERTY FOLDER "submodules/GLFW3" )
+#----------------------------------------------#
 
 #--------------------- owl --------------------------
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
 #----------------------------------------------------
 
 #------------------ device code ---------------------
+include(embed_ptx)
 
 embed_ptx(
   OUTPUT_TARGET
@@ -41,5 +60,7 @@ target_link_libraries(rqsViewer
   PRIVATE 
   deviceCode_ptx
   PUBLIC
-  owl::owl)
+  ${OPENGL_LIBRARIES}
+  owl::owl
+  glfw)
 #----------------------------------------------------
