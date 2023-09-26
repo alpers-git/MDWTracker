@@ -1,12 +1,17 @@
 #pragma once
 
 #include <iostream>
+
+#include "camera.h"
+
 #include "owl/owl.h"
 
+namespace dtracker
+{
 class Renderer
 {
 private:
-    /* data */
+    Camera camera;
 public:
     /* data */
     OWLRayGen  rayGen  { 0 };
