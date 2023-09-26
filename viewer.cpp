@@ -1,9 +1,6 @@
 #include <iostream>
 
-#ifdef __linux__ 
-#include "GL/gl.h"
-#endif
-#include "GLFW/glfw3.h"
+#include "glfwHandler.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -23,17 +20,20 @@ private:
 Viewer::Viewer(/* args */)
 {
     renderer = new Renderer();
+    GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
 }
 
 void Viewer::Run()
 {
-    glfwInit();
-    glfwCreateWindow(1920, 720, "potato", NULL, NULL);
-    while (true)
+    GLFWHandler* glfw = GLFWHandler::getInstance();
+    while (!glfw->windowShouldClose())
     {
+        glfw->pollEvents();
         renderer->Render();
         renderer->Update();
+        glfw->swapBuffers();
     }
+    glfw->destroyWindow();
 }
 
 

@@ -51,10 +51,11 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --generate-line-info")
 
 #-------------------- viewer ------------------------
 add_executable(rqsViewer
-  viewer.cpp
-  renderer.h
+  glfwHandler.cpp
   renderer.cpp
-  stb_image_write.h)
+  stb_image_write.h
+  viewer.cpp
+  )
 
 target_link_libraries(rqsViewer
   PRIVATE 
