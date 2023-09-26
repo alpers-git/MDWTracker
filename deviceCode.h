@@ -3,7 +3,6 @@
 #include <owl/owl.h>
 #include <owl/common/math/vec.h>
 #include "owl/common/math/random.h"
-
 #include <cuda_runtime.h>
 
 using namespace owl;
@@ -36,7 +35,7 @@ struct UnstructuredElementData
   uint64_t numWedges;
   uint64_t numHexahedra;
   uint8_t *maxima;
-  half *bboxes;
+  //half *bboxes;
 };
 
 struct MacrocellData
