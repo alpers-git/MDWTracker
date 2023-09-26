@@ -10,6 +10,10 @@
   std::cout << OWL_TERMINAL_LIGHT_BLUE;                       \
   std::cout << "#owl.sample(main): " << message << std::endl; \
   std::cout << OWL_TERMINAL_DEFAULT;
+#define LOG_ERROR(message)                                    \
+  std::cout << OWL_TERMINAL_RED;                              \
+  std::cout << "#owl.sample(main): " << message << std::endl; \
+  std::cout << OWL_TERMINAL_DEFAULT;
 
 extern "C" char deviceCode_ptx[];
 
@@ -58,11 +62,12 @@ Renderer::~Renderer()
 void Renderer::Init()
 {
     // Init owl
-    LOG("Initializing owl...\n");
+    LOG("Initializing owl...");
     context = owlContextCreate(nullptr, 1);
     module = owlModuleCreate(context,deviceCode_ptx);
     owlContextSetRayTypeCount(context, 1);
-
+    
+    LOG("Creating programs...");
     rayGen = owlRayGenCreate(context, module, "testRayGen",
                              sizeof(RayGenData),
                              rayGenVars, -1);
@@ -74,29 +79,33 @@ void Renderer::Init()
     // ----------- create object  ----------------------------
     OWLMissProg missProg = owlMissProgCreate(context, module, "miss", sizeof(MissProgData),
                                              missProgVars, -1);
+    owlMissProgSet3f(missProg, "color0", owl3f{.2f, .2f, .26f});
+    owlMissProgSet3f(missProg, "color1", owl3f{.1f, .1f, .16f});
 
     lp = owlParamsCreate(context, sizeof(LaunchParams), launchParamVars, -1);
 
     owlBuildPrograms(context);
 
+    LOG("Setting buffers ...");
     frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
     if (!accumBuffer)
       accumBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4, 1, nullptr);
     owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
     owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
+    
     accumID = 0;
-    frameID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
+    frameID = 0;
     owlParamsSet1i(lp, "frameID", frameID);
 
-    owlMissProgSet3f(missProg, "color0", owl3f{.2f, .2f, .26f});
-    owlMissProgSet3f(missProg, "color1", owl3f{.1f, .1f, .16f});
+    LOG("Building geometries ...");
 
     owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
     owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
 
     cudaDeviceSynchronize();
 
+    LOG("Building programs...");
     owlBuildPrograms(context);
     owlBuildPipeline(context);
     owlBuildSBT(context);

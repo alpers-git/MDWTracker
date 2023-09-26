@@ -13,6 +13,7 @@ public:
     /* data */
     Viewer(/* args */);
     void Run();
+    void TakeSnapshot();
 private:
     dtracker::Renderer* renderer;
 };
@@ -21,7 +22,15 @@ Viewer::Viewer(/* args */)
 {
     renderer = new dtracker::Renderer();
     GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
-    //renderer->Resize(vec2i(1024,1024));
+}
+
+void Viewer::TakeSnapshot()
+{
+    const uint32_t *fb = (const uint32_t *)
+            owlBufferGetPointer(renderer->frameBuffer, 0);
+    stbi_write_png(std::string("frame.png").c_str(), 
+            renderer->fbSize.x, renderer->fbSize.y, 4,
+            fb, renderer->fbSize.x * sizeof(uint32_t));
 }
 
 void Viewer::Run()
@@ -31,12 +40,20 @@ void Viewer::Run()
     while (!glfw->windowShouldClose())
     {
         glfw->pollEvents();
+
         renderer->Render();
-        const uint32_t *fb = 
-            (const uint32_t *)owlBufferGetPointer(renderer->frameBuffer, 0);
-        glfw->draw(fb);
+        
         renderer->Update();
+        
+        glfw->draw((const uint32_t *)
+            owlBufferGetPointer(renderer->frameBuffer, 0));
+
         glfw->swapBuffers();
+
+        // Taking a snapshot of the current frame
+        if (glfw->key.isPressed(GLFW_KEY_1) && 
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
+         TakeSnapshot();
     }
     renderer->Terminate();
     glfw->destroyWindow();
