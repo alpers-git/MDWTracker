@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include "owl/owl.h"
 
@@ -16,3 +18,5 @@ public:
     void Update();
     void Resize();
 };
+
+} // namespace dtracker

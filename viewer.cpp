@@ -14,12 +14,12 @@ public:
     Viewer(/* args */);
     void Run();
 private:
-    Renderer* renderer;
+    dtracker::Renderer* renderer;
 };
 
 Viewer::Viewer(/* args */)
 {
-    renderer = new Renderer();
+    renderer = new dtracker::Renderer();
     GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
 }
 

@@ -1,5 +1,8 @@
 #include "renderer.h"
 
+namespace dtracker
+{
+
 Renderer::Renderer(/* args */)
 {
 }
@@ -18,3 +21,4 @@ void Renderer::Update()
     printf("Updating...\n");
 }
 
+} // namespace dtracker

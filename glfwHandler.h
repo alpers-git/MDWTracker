@@ -1,3 +1,5 @@
+#pragma once
+
 //A singleton class that handles all GLFW related functions
 #include <iostream>
 #include <string>
