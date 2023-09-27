@@ -56,7 +56,8 @@ public:
     void Terminate();
     /*! resizes the frame buffer */
     void Resize(vec2i newSize);
-    
+    /*! updates camera at device*/
+    void UpdateCamera();
 };
 
 } // namespace dtracker

@@ -15,9 +15,19 @@ public:
     Viewer(int argc, char *argv[]);
     void Run();
     void TakeSnapshot(std::string filename = "frame.png");
+    void LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
+    void RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
+    void CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
 
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
+    std::shared_ptr<camera::Manipulator> manipulator;
+
+    const float kbd_rotate_degrees = 100.f;
+    const float degrees_per_drag_fraction = 250;
+    const float pixels_per_move = 90.f;
+
+    friend class dtracker::Renderer;
 };
 
 Viewer::Viewer(int argc, char *argv[])
@@ -53,6 +63,7 @@ Viewer::Viewer(int argc, char *argv[])
     renderer = std::make_shared<dtracker::Renderer>();
     GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
     renderer->umeshPtr = umeshHdlPtr;
+    manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
 }
 
 void Viewer::TakeSnapshot(std::string filename)
@@ -62,6 +73,34 @@ void Viewer::TakeSnapshot(std::string filename)
     stbi_write_png(filename.c_str(),
                    renderer->fbSize.x, renderer->fbSize.y, 4,
                    fb, renderer->fbSize.x * sizeof(uint32_t));
+}
+
+void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
+{
+    auto glfw = GLFWHandler::getInstance();
+    const owl::vec2f fraction = owl::vec2f(delta) /
+                                owl::vec2f(glfw->getWindowSize());
+    manipulator->rotate(fraction.x * degrees_per_drag_fraction,
+                        fraction.y * degrees_per_drag_fraction);
+    renderer->UpdateCamera();
+}
+
+void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
+{
+    auto glfw = GLFWHandler::getInstance();
+    const owl::vec2f fraction = owl::vec2f(delta) /
+                                owl::vec2f(glfw->getWindowSize());
+    manipulator->move(fraction.y * pixels_per_move);
+    renderer->UpdateCamera();
+}
+
+void Viewer::CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
+{
+    auto glfw = GLFWHandler::getInstance();
+    const owl::vec2f fraction = owl::vec2f(delta) /
+                                owl::vec2f(glfw->getWindowSize());
+    manipulator->strafe(fraction * pixels_per_move);
+    renderer->UpdateCamera();
 }
 
 void Viewer::Run()
@@ -81,10 +120,21 @@ void Viewer::Run()
 
         glfw->swapBuffers();
 
+        //==== Input Processing ====
+
         // Taking a snapshot of the current frame
         if (glfw->key.isPressed(GLFW_KEY_1) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
             TakeSnapshot();
+        // Camera movement
+        if (glfw->mouseState.leftButtonDown)
+            LeftMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
+
+        if (glfw->mouseState.rightButtonDown)
+            RightMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
+
+        if (glfw->mouseState.middleButtonDown)
+            CenterMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
     }
     renderer->Terminate();
     glfw->destroyWindow();

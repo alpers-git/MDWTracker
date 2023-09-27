@@ -142,7 +142,41 @@ void Renderer::Resize(const vec2i newSize)
       accumBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4, 1, nullptr);
     owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
     owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
-    //OnCameraChange();
+    UpdateCamera();
+  }
+
+  void Renderer::UpdateCamera()
+  {
+    const vec3f lookFrom = camera.getFrom();
+    const vec3f lookAt = camera.getAt();
+    const vec3f lookUp = camera.getUp();
+    const float cosFovy = camera.getCosFovy();
+    const float vfov = toDegrees(acosf(cosFovy));
+    // ........... compute variable values  ..................
+    const vec3f vup = lookUp;
+    const float aspect = fbSize.x / float(fbSize.y);
+    const float theta = vfov * ((float)M_PI) / 180.0f;
+    const float half_height = tanf(theta / 2.0f);
+    const float half_width = aspect * half_height;
+    const float focusDist = 10.f;
+    const vec3f origin = lookFrom;
+    const vec3f w = normalize(lookFrom - lookAt);
+    const vec3f u = normalize(cross(vup, w));
+    const vec3f v = cross(w, u);
+    const vec3f lower_left_corner = origin - half_width * focusDist * u - half_height * focusDist * v - focusDist * w;
+    const vec3f horizontal = 2.0f * half_width * focusDist * u;
+    const vec3f vertical = 2.0f * half_height * focusDist * v;
+    camera.motionSpeed = umesh::length(umeshPtr->getBounds().size()) / 50.f;
+
+    accumID = 0;
+
+    // ----------- set variables  ----------------------------
+    owlParamsSetGroup(lp, "triangleTLAS", triangleTLAS);
+    owlParamsSet3f(lp, "camera.org", (const owl3f &)origin);
+    owlParamsSet3f(lp, "camera.llc", (const owl3f &)lower_left_corner);
+    owlParamsSet3f(lp, "camera.horiz", (const owl3f &)horizontal);
+    owlParamsSet3f(lp, "camera.vert", (const owl3f &)vertical);
+    owlParamsSet1i(lp, "accumID", accumID);
   }
 
 } // namespace dtracker
