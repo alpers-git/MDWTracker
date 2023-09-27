@@ -60,6 +60,11 @@ Viewer::Viewer(int argc, char *argv[])
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
     std::cout << "Time taken by function: " << duration.count() << " milliseconds" << std::endl;
+    std::cout << "found " << umeshHdlPtr->tets.size() << " tetrahedra" << std::endl;
+    std::cout << "found " << umeshHdlPtr->pyrs.size() << " pyramids" << std::endl;
+    std::cout << "found " << umeshHdlPtr->wedges.size() << " wedges" << std::endl;
+    std::cout << "found " << umeshHdlPtr->hexes.size() << " hexahedra" << std::endl;
+    std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
     renderer = std::make_shared<dtracker::Renderer>();
     GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
     renderer->umeshPtr = umeshHdlPtr;
