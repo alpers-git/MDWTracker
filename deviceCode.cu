@@ -39,6 +39,21 @@ inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
     ray.direction = normalize(direction - ray.origin);
 }
 
+inline __device__
+vec3f missColor(const Ray &ray)
+{
+    const vec2i pixelID = owl::getLaunchIndex();
+    
+    // Calculate the intersection point in world coordinates
+    vec3f intersectionPoint = ray.origin + ray.direction * 1e20f;
+    
+    // Calculate the grid pattern based on the intersection point
+    int pattern = ((int)intersectionPoint.x / 18) ^ ((int)intersectionPoint.y / 18);
+    
+    vec3f color = (pattern & 1) ? vec3f(.2f, .2f, .26f) : vec3f(.1f, .1f, .16f);
+    return color;
+}
+
 // Simple raygen that creates a checker-board pattern
 OPTIX_RAYGEN_PROGRAM(testRayGen)
 ()
@@ -56,7 +71,8 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
     traceRay(/*accel to trace against*/ lp.volume.elementTLAS,
              /*the ray to trace*/ ray,
              /*prd*/ prd);
-
+             
+    //prd.rgba = vec4f(missColor(ray), 1);
     // Choose the appropriate color based on the checkerboard pattern
     lp.fbPtr[fbOfs] = owl::make_rgba(prd.rgba);
 }
