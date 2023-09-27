@@ -20,6 +20,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 find_package(OpenGL REQUIRED)
 
+#---------------- argparse -------------------#
+add_subdirectory(submodules/argparse)
+#---------------------------------------------#
+
 #--------------------GLFW---------------------#
 set(GLFW_BUILD_DOCS OFF CACHE STRING "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE STRING "" FORCE)
@@ -61,12 +65,13 @@ add_executable(rqsViewer
   renderer.cpp
   stb_image_write.h
   viewer.cpp)
-  
+
 target_link_libraries(rqsViewer
   PRIVATE 
   deviceCode_ptx
   PUBLIC
   ${OPENGL_LIBRARIES}
+  argparse
   glfw
   owl::owl
   umesh)

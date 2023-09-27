@@ -7,3 +7,6 @@
 [submodule "submodules/umesh"]
 	path = submodules/umesh
 	url = git@gitlab.com:ingowald/umesh.git
+[submodule "submodules/argparse"]
+	path = submodules/argparse
+	url = https://github.com/p-ranav/argparse.git
