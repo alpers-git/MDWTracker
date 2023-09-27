@@ -31,112 +31,168 @@ inline float toDegrees(float rad) { return rad / float(M_PI / 180.f); }
 struct OWLViewer;
 using namespace owl;
 
-namespace dtracker
+namespace camera
 {
-/*! the entire state for someting that can 'control' a camera -
-    ie, that can rotate, move, focus, force-up, etc, a
-    camera... for which it needs way more information than the
-    simple camera.
+    /*! the entire state for someting that can 'control' a camera -
+        ie, that can rotate, move, focus, force-up, etc, a
+        camera... for which it needs way more information than the
+        simple camera.
 
-    Note this uses a RIGHT HANDED camera as follows:
-    - logical "up" is y axis
-    - right is x axis
-    - depth is _NEGATIVE_ z axis
-*/
-struct Camera
-{
-    Camera()
-    {}
-
-    /*! get the point of interest */
-    vec3f getPOI() const { return position - poiDistance * frame.vz; }
-    /*! get field of view (degrees)*/
-    inline float getFovyInDegrees() const { return fovyInDegrees; }
-    /*! get cos of field of view */
-    inline float getCosFovy() const { return cosf(toRadian(fovyInDegrees)); }
-    /*! get camera eye position*/
-    inline vec3f getFrom() const { return position; }
-    /*! get camera center */
-    inline vec3f getAt() const { return position - frame.vz; }
-    /*! get camera up vector */
-    inline vec3f getUp() const { return frame.vy; }
-
-    /*! set field of view (degrees)*/
-    inline void setFovy(const float fovy) { fovyInDegrees = fovy; }
-    /*! set camera focal distance*/
-    inline void setFocalDistance(float dist) { this->focalDistance = dist; }
-    /*! set given aspect ratio */
-    inline void setAspect(const float aspect) { this->aspect = aspect; }
-    /*! tilt the frame around the z axis such that the y axis is "facing upwards" */
-    inline void forceUpFrame()
+        Note this uses a RIGHT HANDED camera as follows:
+        - logical "up" is y axis
+        - right is x axis
+        - depth is _NEGATIVE_ z axis
+    */
+    struct Camera
     {
-        // frame.vz remains unchanged
-        if (fabsf(dot(frame.vz, upVector)) < 1e-6f)
-            // looking along upvector; not much we can do here ...
-            return;
-        frame.vx = normalize(cross(upVector, frame.vz));
-        frame.vy = normalize(cross(frame.vz, frame.vx));
-    }
-    /*! re-compute all orientation related fields from given
-        'user-style' camera parameters */
-    inline void setOrientation(/* camera origin    : */ const vec3f &origin,
-                        /* point of interest: */ const vec3f &interest,
-                        /* up-vector        : */ const vec3f &up,
-                        /* fovy, in degrees : */ float fovyInDegrees,
-                        /* set focal dist?  : */ bool setFocalDistance = true)
+        Camera()
+        {
+        }
+
+        /*! get the point of interest */
+        vec3f getPOI() const { return position - poiDistance * frame.vz; }
+        /*! get field of view (degrees)*/
+        inline float getFovyInDegrees() const { return fovyInDegrees; }
+        /*! get cos of field of view */
+        inline float getCosFovy() const { return cosf(toRadian(fovyInDegrees)); }
+        /*! get camera eye position*/
+        inline vec3f getFrom() const { return position; }
+        /*! get camera center */
+        inline vec3f getAt() const { return position - frame.vz; }
+        /*! get camera up vector */
+        inline vec3f getUp() const { return frame.vy; }
+
+        /*! set field of view (degrees)*/
+        inline void setFovy(const float fovy) { fovyInDegrees = fovy; }
+        /*! set camera focal distance*/
+        inline void setFocalDistance(float dist) { this->focalDistance = dist; }
+        /*! set given aspect ratio */
+        inline void setAspect(const float aspect) { this->aspect = aspect; }
+        /*! tilt the frame around the z axis such that the y axis is "facing upwards" */
+        inline void forceUpFrame()
+        {
+            // frame.vz remains unchanged
+            if (fabsf(dot(frame.vz, upVector)) < 1e-6f)
+                // looking along upvector; not much we can do here ...
+                return;
+            frame.vx = normalize(cross(upVector, frame.vz));
+            frame.vy = normalize(cross(frame.vz, frame.vx));
+        }
+        /*! re-compute all orientation related fields from given
+            'user-style' camera parameters */
+        inline void setOrientation(/* camera origin    : */ const vec3f &origin,
+                                   /* point of interest: */ const vec3f &interest,
+                                   /* up-vector        : */ const vec3f &up,
+                                   /* fovy, in degrees : */ float fovyInDegrees,
+                                   /* set focal dist?  : */ bool setFocalDistance = true)
+        {
+            this->fovyInDegrees = fovyInDegrees;
+            position = origin;
+            upVector = up;
+            frame.vz = (interest == origin)
+                           ? vec3f(0, 0, 1)
+                           : /* negative because we use NEGATIZE z axis */
+                           -normalize(interest - origin);
+            frame.vx = cross(up, frame.vz);
+            if (dot(frame.vx, frame.vx) < 1e-8f)
+                frame.vx = vec3f(0, 1, 0);
+            else
+                frame.vx = normalize(frame.vx);
+            // frame.vx
+            //   = (fabs(dot(up,frame.vz)) < 1e-6f)
+            //   ? vec3f(0,1,0)
+            //   : normalize(cross(up,frame.vz));
+            frame.vy = normalize(cross(frame.vz, frame.vx));
+            poiDistance = length(interest - origin);
+            if (setFocalDistance)
+                focalDistance = poiDistance;
+            forceUpFrame();
+        }
+
+        inline void setUpVector(const vec3f &up)
+        {
+            upVector = up;
+            forceUpFrame();
+        }
+
+        linear3f frame{one};
+        vec3f position{0, -1, 0};
+        /*! distance to the 'point of interst' (poi); e.g., the point we
+            will rotate around */
+        float poiDistance{1.f};
+        float focalDistance{1.f};
+        vec3f upVector{0, 1, 0};
+        /* if set to true, any change to the frame will always use to
+           upVector to 'force' the frame back upwards; if set to false,
+           the upVector will be ignored */
+        bool forceUp{true};
+
+        /*! multiplier how fast the camera should move in world space
+            for each unit of "user specifeid motion" (ie, pixel
+            count). Initial value typically should depend on the world
+            size, but can also be adjusted. This is actually something
+            that should be more part of the manipulator viewer(s), but
+            since that same value is shared by multiple such viewers
+            it's easiest to attach it to the camera here ...*/
+        float motionSpeed{1.f};
+        float aspect{1.f};
+        float fovyInDegrees{60.f};
+
+        double lastModified = 0.;
+    };
+
+    struct Manipulator
     {
-        this->fovyInDegrees = fovyInDegrees;
-        position = origin;
-        upVector = up;
-        frame.vz = (interest == origin)
-                    ? vec3f(0, 0, 1)
-                    : /* negative because we use NEGATIZE z axis */ 
-                    -normalize(interest - origin);
-        frame.vx = cross(up, frame.vz);
-        if (dot(frame.vx, frame.vx) < 1e-8f)
-            frame.vx = vec3f(0, 1, 0);
-        else
-            frame.vx = normalize(frame.vx);
-        // frame.vx
-        //   = (fabs(dot(up,frame.vz)) < 1e-6f)
-        //   ? vec3f(0,1,0)
-        //   : normalize(cross(up,frame.vz));
-        frame.vy = normalize(cross(frame.vz, frame.vx));
-        poiDistance = length(interest - origin);
-        if (setFocalDistance)
-            focalDistance = poiDistance;
-        forceUpFrame();
-    }
+    public:
+        Manipulator(Camera *camera)
+            : camera(camera)
+        {
+        }
 
-    inline void setUpVector(const vec3f &up)
-    {
-        upVector = up;
-        forceUpFrame();
-    }
+    public:
+        /*! helper function: rotate camera frame by given degrees, then
+          make sure the frame, poidistance etc are all properly set,
+          the widget gets notified, etc */
+        void rotate(const float deg_u, const float deg_v)
+        {
+            float rad_u = -(float)M_PI / 180.f * deg_u;
+            float rad_v = -(float)M_PI / 180.f * deg_v;
 
-    linear3f frame{one};
-    vec3f position{0, -1, 0};
-    /*! distance to the 'point of interst' (poi); e.g., the point we
-        will rotate around */
-    float poiDistance{1.f};
-    float focalDistance{1.f};
-    vec3f upVector{0, 1, 0};
-    /* if set to true, any change to the frame will always use to
-       upVector to 'force' the frame back upwards; if set to false,
-       the upVector will be ignored */
-    bool forceUp{true};
+            camera->frame =
+                owl::linear3f::rotate(camera->frame.vy, rad_u) *
+                owl::linear3f::rotate(camera->frame.vx, rad_v) *
+                camera->frame;
 
-    /*! multiplier how fast the camera should move in world space
-        for each unit of "user specifeid motion" (ie, pixel
-        count). Initial value typically should depend on the world
-        size, but can also be adjusted. This is actually something
-        that should be more part of the manipulator viewer(s), but
-        since that same value is shared by multiple such viewers
-        it's easiest to attach it to the camera here ...*/
-    float motionSpeed{1.f};
-    float aspect{1.f};
-    float fovyInDegrees{60.f};
+            if (camera->forceUp)
+                camera->forceUpFrame();
+        }
 
-    double lastModified = 0.;
-};
-} // namespace dtracker
+        /*! move forward/backward */
+        void move(const float step)
+        {
+            camera->position = camera->position + step * camera->motionSpeed *
+                camera->frame.vz;
+        }
+
+        /*! strafe in camera plane */
+        void strafe(const owl::vec2f step)
+        {
+            camera->position = camera->position - step.x * camera->motionSpeed *
+                camera->frame.vx + step.y * camera->motionSpeed * camera->frame.vy;
+        }
+
+        /*! mouse got dragged with left button pressed, by 'delta'
+            pixels, at last position where */
+        void mouseDragLeft(const owl::vec2i &where, const owl::vec2i &delta);
+
+        /*! mouse got dragged with left button pressed, by 'delta'
+            pixels, at last position where */
+        void mouseDragRight(const owl::vec2i &where, const owl::vec2i &delta);
+
+        /*! mouse got dragged with left button pressed, by 'delta'
+            pixels, at last position where */
+        void mouseDragCenter(const owl::vec2i &where, const owl::vec2i &delta);
+
+        Camera *camera;
+    };
+} // namespace camera
