@@ -97,13 +97,52 @@ namespace dtracker
         {"color0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color0)},
         {"color1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color1)},
         {/* sentinel to mark end of list */}};
-    // ----------- create object  ----------------------------
+
     OWLMissProg missProg = owlMissProgCreate(context, module, "miss", sizeof(MissProgData),
                                              missProgVars, -1);
     owlMissProgSet3f(missProg, "color0", owl3f{.2f, .2f, .26f});
     owlMissProgSet3f(missProg, "color1", owl3f{.1f, .1f, .16f});
 
     lp = owlParamsCreate(context, sizeof(LaunchParams), launchParamVars, -1);
+    // -------------------------------------------------------
+    // declare geometry types
+    // -------------------------------------------------------
+    // Different intersection programs for different element types
+    OWLVarDecl unstructuredElementVars[] = {
+        {"tetrahedra", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, tetrahedra)},
+        {"pyramids", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, pyramids)},
+        {"hexahedra", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, hexahedra)},
+        {"wedges", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, wedges)},
+        {"bytesPerIndex", OWL_UINT, OWL_OFFSETOF(UnstructuredElementData, bytesPerIndex)},
+        {"vertices", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, vertices)},
+        {"scalars", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, scalars)},
+        {"offset", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, offset)},
+        {"numTetrahedra", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numTetrahedra)},
+        {"numPyramids", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numPyramids)},
+        {"numWedges", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numWedges)},
+        {"numHexahedra", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numHexahedra)},
+        {"maxima", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, maxima)},
+        //{"bboxes", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, bboxes)},
+        {/* sentinel to mark end of list */}};
+
+    OWLVarDecl triangleVars[] = {
+        {"triVertices", OWL_BUFPTR, OWL_OFFSETOF(TriangleData, vertices)},
+        {"indices", OWL_BUFPTR, OWL_OFFSETOF(TriangleData, indices)},
+        {"color", OWL_FLOAT3, OWL_OFFSETOF(TriangleData, color)},
+        {/* sentinel to mark end of list */}};
+
+    OWLVarDecl macrocellVars[] = {
+        {"bboxes", OWL_BUFPTR, OWL_OFFSETOF(MacrocellData, bboxes)},
+        {"maxima", OWL_BUFPTR, OWL_OFFSETOF(MacrocellData, maxima)},
+        {/* sentinel to mark end of list */}};
+
+    // Declare the geometry types
+    macrocellType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(MacrocellData), macrocellVars, -1);
+    tetrahedraType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
+    pyramidType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
+    wedgeType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
+    hexahedraType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
+    triangleType = owlGeomTypeCreate(context, OWL_GEOMETRY_TRIANGLES, sizeof(TriangleData), triangleVars, -1);
 
     owlBuildPrograms(context);
 
@@ -119,16 +158,47 @@ namespace dtracker
     frameID = 0;
     owlParamsSet1i(lp, "frameID", frameID);
 
+    owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
+    owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
+
     // camera
     auto center = umeshPtr->getBounds().center();
     vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
     camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
     UpdateCamera();
 
+    // Allocate buffers for volume data
+    tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
+    pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
+    wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->wedges.size() * 6, nullptr);
+    hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->hexes.size() * 8, nullptr);
+    verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
+    scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtr->perVertex->values.size(), nullptr);
+
+    // Upload data
+    owlBufferUpload(tetrahedraData, umeshPtr->tets.data());
+    owlBufferUpload(pyramidsData, umeshPtr->pyrs.data());
+    owlBufferUpload(wedgesData, umeshPtr->wedges.data());
+    owlBufferUpload(hexahedraData, umeshPtr->hexes.data());
+    owlBufferUpload(verticesData, umeshPtr->vertices.data());
+    owlBufferUpload(scalarData, umeshPtr->perVertex->values.data());
+
+    indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, NUM_INDICES, indices);
+    vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, NUM_VERTICES, vertices);
+
     LOG("Building geometries ...");
 
-    owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
-    owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
+    trianglesGeom = owlGeomCreate(context, triangleType);
+    owlTrianglesSetIndices(trianglesGeom, indexBuffer, NUM_INDICES, sizeof(vec3i), 0);
+    owlTrianglesSetVertices(trianglesGeom, vertexBuffer, NUM_VERTICES, sizeof(vec3f), 0);
+    owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
+    owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
+    owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 0});
+
+    trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
+    owlGroupBuildAccel(trianglesGroup);
+    triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
+    owlGroupBuildAccel(triangleTLAS);
 
     cudaDeviceSynchronize();
 
@@ -136,31 +206,32 @@ namespace dtracker
     owlBuildPrograms(context);
     owlBuildPipeline(context);
     owlBuildSBT(context);
-}
+  }
 
-void Renderer::Render(bool heatMap)
-{
+  void Renderer::Render(bool heatMap)
+  {
     owlBuildSBT(context);
     owlLaunch2D(rayGen, fbSize.x, fbSize.y, lp);
 
     owlParamsSet1i(lp, "accumID", accumID++);
     owlParamsSet1i(lp, "frameID", frameID++);
-}
+  }
 
-void Renderer::Update()
-{
+  void Renderer::Update()
+  {
     auto glfw = GLFWHandler::getInstance();
     if (glfw->getWindowSize() != fbSize)
       Resize(glfw->getWindowSize());
-}
+    //UpdateCamera();
+  }
 
-void Renderer::Terminate()
-{
+  void Renderer::Terminate()
+  {
     LOG("Terminating...\n");
     owlContextDestroy(context);
-}
+  }
 
-void Renderer::Resize(const vec2i newSize)
+  void Renderer::Resize(const vec2i newSize)
   {
     fbSize = newSize;
     owlBufferResize(frameBuffer, fbSize.x * fbSize.y);

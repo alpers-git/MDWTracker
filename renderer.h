@@ -23,28 +23,54 @@ public:
     std::shared_ptr<umesh::UMesh> umeshPtr;
 
     /* raygen */
-    OWLRayGen  rayGen       { 0 };
-    OWLParams  lp           { 0 };
-    
+    OWLRayGen rayGen{0};
+    OWLParams lp{0};
+
     /* owl */
-    OWLContext context      { 0 };
+    OWLContext context{0};
     OWLModule module;
 
     /* geom */
+    std::vector<OWLGeom> elementGeom;
+    std::vector<OWLGroup> elementBLAS;
+    OWLGroup elementTLAS;
+    // OWLGroup rootMacrocellBLAS;
+    OWLGroup macrocellTLAS;
+
+    OWLGeom trianglesGeom;
+    OWLGroup trianglesGroup;
+    OWLGroup   triangleTLAS   { 0 };
+
+    OWLGeomType macrocellType;
+    OWLGeomType tetrahedraType;
+    OWLGeomType pyramidType;
+    OWLGeomType wedgeType;
+    OWLGeomType hexahedraType;
+
+    OWLGeomType triangleType;
+
+    OWLBuffer tetrahedraData;
+    OWLBuffer pyramidsData;
+    OWLBuffer hexahedraData;
+    OWLBuffer wedgesData;
+    OWLBuffer verticesData;
+    OWLBuffer scalarData;
+    OWLBuffer gridBuffer;
+    OWLBuffer majorantBuffer;
     OWLBuffer vertexBuffer;
     OWLBuffer indexBuffer;
 
     /* frame */
-    OWLBuffer  accumBuffer  { 0 };
-    OWLBuffer  frameBuffer  { 0 };
-    int        accumID      { 0 };
-    int        frameID      { 0 };
+    OWLBuffer accumBuffer{0};
+    OWLBuffer frameBuffer{0};
+    int accumID{0};
+    int frameID{0};
 
     /* scene */
     float dt = 0.5f;
     bool shadows = false;
-    vec3f lightDir = vec3f(0.f,-1.f,0.f);
-    vec2i fbSize = vec2i(1024,1024);
+    vec3f lightDir = vec3f(0.f, -1.f, 0.f);
+    vec2i fbSize = vec2i(1024, 1024);
 
     /*! initializes renderer */
     void Init();
