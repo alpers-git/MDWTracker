@@ -5,7 +5,7 @@
 using namespace owl;
 using namespace dtracker;
 
-extern "C" __constant__ LaunchParams optixLaunchParams;
+extern "C" __constant__ static LaunchParams optixLaunchParams;
 
 inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
 {

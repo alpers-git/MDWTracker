@@ -33,6 +33,12 @@ set_property(TARGET glfw PROPERTY FOLDER "submodules/GLFW3" )
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
 #----------------------------------------------------
 
+#-------------------- umesh -------------------------
+add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
+add_definitions(${UMESH_DEFINITIONS})
+include_directories(submodules/umesh)
+#----------------------------------------------------
+
 #------------------ device code ---------------------
 include(embed_ptx)
 
@@ -54,14 +60,14 @@ add_executable(rqsViewer
   glfwHandler.cpp
   renderer.cpp
   stb_image_write.h
-  viewer.cpp
-  )
-
+  viewer.cpp)
+  
 target_link_libraries(rqsViewer
   PRIVATE 
   deviceCode_ptx
   PUBLIC
   ${OPENGL_LIBRARIES}
+  glfw
   owl::owl
-  glfw)
+  umesh)
 #----------------------------------------------------
