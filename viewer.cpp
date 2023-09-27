@@ -15,12 +15,12 @@ public:
     void Run();
     void TakeSnapshot();
 private:
-    dtracker::Renderer* renderer;
+    std::shared_ptr<dtracker::Renderer> renderer;
 };
 
 Viewer::Viewer(/* args */)
 {
-    renderer = new dtracker::Renderer();
+    renderer = std::make_shared<dtracker::Renderer>();
     GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
 }
 
