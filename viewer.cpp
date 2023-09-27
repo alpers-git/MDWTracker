@@ -112,6 +112,7 @@ void Viewer::Run()
 {
     GLFWHandler *glfw = GLFWHandler::getInstance();
     renderer->Init();
+    renderer->UpdateCamera();
     while (!glfw->windowShouldClose())
     {
         glfw->pollEvents();

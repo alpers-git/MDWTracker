@@ -146,6 +146,8 @@ namespace dtracker
 
     owlBuildPrograms(context);
 
+    owlGeomTypeSetClosestHit(triangleType, 0, module, "triangle_test");
+
     LOG("Setting buffers ...");
     frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
     if (!accumBuffer)
@@ -222,7 +224,6 @@ namespace dtracker
     auto glfw = GLFWHandler::getInstance();
     if (glfw->getWindowSize() != fbSize)
       Resize(glfw->getWindowSize());
-    //UpdateCamera();
   }
 
   void Renderer::Terminate()
