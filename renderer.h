@@ -15,11 +15,11 @@ namespace dtracker
 class Renderer
 {
 private:
-    Camera camera;
 public:
     Renderer();
     ~Renderer();
 
+    camera::Camera camera;
     std::shared_ptr<umesh::UMesh> umeshPtr;
 
     /* raygen */

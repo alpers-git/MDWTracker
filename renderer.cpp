@@ -17,6 +17,25 @@
 
 extern "C" char deviceCode_ptx[];
 
+// test data for cube
+
+const int NUM_VERTICES = 8;
+vec3f vertices[NUM_VERTICES] =
+    {
+        {-1.f, -1.f, -1.f},
+        {+1.f, -1.f, -1.f},
+        {-1.f, +1.f, -1.f},
+        {+1.f, +1.f, -1.f},
+        {-1.f, -1.f, +1.f},
+        {+1.f, -1.f, +1.f},
+        {-1.f, +1.f, +1.f},
+        {+1.f, +1.f, +1.f}};
+
+const int NUM_INDICES = 12;
+vec3i indices[NUM_INDICES] =
+    {
+        {0, 1, 3}, {2, 3, 0}, {5, 7, 6}, {5, 6, 4}, {0, 4, 5}, {0, 5, 1}, {2, 3, 7}, {2, 7, 6}, {1, 5, 7}, {1, 7, 3}, {4, 0, 2}, {4, 2, 6}};
+
 OWLVarDecl rayGenVars[] = {
     {nullptr /* sentinel to mark end of list */}};
 
@@ -53,20 +72,22 @@ OWLVarDecl launchParamVars[] = {
 namespace dtracker
 {
 
-Renderer::Renderer()
-{}
+  Renderer::Renderer()
+  {
+  }
 
-Renderer::~Renderer()
-{}
+  Renderer::~Renderer()
+  {
+  }
 
-void Renderer::Init()
-{
+  void Renderer::Init()
+  {
     // Init owl
     LOG("Initializing owl...");
     context = owlContextCreate(nullptr, 1);
-    module = owlModuleCreate(context,deviceCode_ptx);
+    module = owlModuleCreate(context, deviceCode_ptx);
     owlContextSetRayTypeCount(context, 1);
-    
+
     LOG("Creating programs...");
     rayGen = owlRayGenCreate(context, module, "testRayGen",
                              sizeof(RayGenData),
@@ -92,11 +113,17 @@ void Renderer::Init()
       accumBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4, 1, nullptr);
     owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
     owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
-    
+
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
     frameID = 0;
     owlParamsSet1i(lp, "frameID", frameID);
+
+    // camera
+    auto center = umeshPtr->getBounds().center();
+    vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
+    camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
+    UpdateCamera();
 
     LOG("Building geometries ...");
 
