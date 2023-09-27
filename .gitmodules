@@ -4,3 +4,6 @@
 [submodule "submodules/glfw"]
 	path = submodules/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "submodules/umesh"]
+	path = submodules/umesh
+	url = git@gitlab.com:ingowald/umesh.git
