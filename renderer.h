@@ -6,6 +6,7 @@
 
 #include "owl/owl.h"
 #include "owl/owl_host.h"
+#include "umesh/io/UMesh.h"
 
 #include "deviceCode.h"
 
@@ -19,12 +20,14 @@ public:
     Renderer();
     ~Renderer();
 
+    std::shared_ptr<umesh::UMesh> umeshPtr;
+
     /* raygen */
     OWLRayGen  rayGen       { 0 };
     OWLParams  lp           { 0 };
     
     /* owl */
-    OWLContext context          { 0 };
+    OWLContext context      { 0 };
     OWLModule module;
 
     /* geom */
