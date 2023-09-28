@@ -148,6 +148,7 @@ void Viewer::Run()
 
 int main(int argc, char *argv[])
 {
+    stbi_flip_vertically_on_write(true);
     Viewer viewer(argc, argv);
     viewer.Run();
     return 0;
