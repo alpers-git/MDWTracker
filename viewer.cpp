@@ -32,6 +32,9 @@ private:
 
 Viewer::Viewer(int argc, char *argv[])
 {
+    // invert image
+    stbi_flip_vertically_on_write(true);
+    
     // parse arguments
     argparse::ArgumentParser program("rqs-viewer");
 
@@ -148,7 +151,6 @@ void Viewer::Run()
 
 int main(int argc, char *argv[])
 {
-    stbi_flip_vertically_on_write(true);
     Viewer viewer(argc, argv);
     viewer.Run();
     return 0;
