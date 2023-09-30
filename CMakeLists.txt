@@ -43,6 +43,21 @@ add_definitions(${UMESH_DEFINITIONS})
 include_directories(submodules/umesh)
 #----------------------------------------------------
 
+#-------------------- imgui -------------------------
+# Set where the ImGui files are stored
+set(IMGUI_PATH  submodules/imgui)
+
+# Compile as static library 
+file(GLOB IMGUI_SOURCES ${IMGUI_PATH}/*.cpp)
+add_library("ImGui" STATIC ${IMGUI_SOURCES}
+            ${IMGUI_PATH}/backends/imgui_impl_glfw.cpp
+            ${IMGUI_PATH}/backends/imgui_impl_opengl3.cpp)
+target_include_directories("ImGui" PUBLIC ${IMGUI_PATH} ${IMGUI_PATH}/backends glfw)
+#link with glfw and opengl
+target_link_libraries("ImGui" PUBLIC glfw)
+include_directories(submodules/imgui)
+#----------------------------------------------------
+
 #------------------ device code ---------------------
 include(embed_ptx)
 
@@ -66,13 +81,15 @@ add_executable(rqsViewer
   stb_image_write.h
   viewer.cpp)
 
+#target_link_libraries(rqsViewer PRIVATE -lGL -lGLX)
 target_link_libraries(rqsViewer
-  PRIVATE 
+  PRIVATE
   deviceCode_ptx
   PUBLIC
   ${OPENGL_LIBRARIES}
   argparse
   glfw
   owl::owl
-  umesh)
+  umesh
+  ImGui)
 #----------------------------------------------------

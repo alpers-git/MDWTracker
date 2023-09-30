@@ -3,6 +3,9 @@
 #include "glfwHandler.h"
 
 #include <argparse/argparse.hpp>
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
@@ -69,7 +72,18 @@ Viewer::Viewer(int argc, char *argv[])
     std::cout << "found " << umeshHdlPtr->hexes.size() << " hexahedra" << std::endl;
     std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
     renderer = std::make_shared<dtracker::Renderer>();
+
     GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
+
+    // init imgui
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+
+    // init ImGui
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(GLFWHandler::getInstance()->getWindow(), true);
+    ImGui_ImplOpenGL3_Init("#version 130");
+
     renderer->umeshPtr = umeshHdlPtr;
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
 }
@@ -126,6 +140,14 @@ void Viewer::Run()
 
         glfw->draw((const uint32_t *)
                        owlBufferGetPointer(renderer->frameBuffer, 0));
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        //ImGui Code here
+        ImGui::End();
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfw->swapBuffers();
 
