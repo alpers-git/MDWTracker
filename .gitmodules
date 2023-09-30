@@ -10,3 +10,6 @@
 [submodule "submodules/argparse"]
 	path = submodules/argparse
 	url = https://github.com/p-ranav/argparse.git
+[submodule "submodules/imgui"]
+	path = submodules/imgui
+	url = https://github.com/ocornut/imgui.git
