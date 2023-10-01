@@ -140,7 +140,7 @@ void Viewer::CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 
 void Viewer::InitImGui()
 {
-    ImGui::StyleColorsDark();
+    ImGui::StyleColorsDark(); //We always want dark mode
     ImGui_ImplGlfw_InitForOpenGL(GLFWHandler::getInstance()->getWindow(), true);
     ImGui_ImplOpenGL3_Init("#version 130");
 }
