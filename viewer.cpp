@@ -17,6 +17,7 @@ public:
     /* data */
     Viewer(int argc, char *argv[]);
     void Run();
+
     void TakeSnapshot(std::string filename = "frame.png");
     void LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
@@ -25,6 +26,11 @@ public:
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
     std::shared_ptr<camera::Manipulator> manipulator;
+
+    // imgui
+    void InitImGui();
+    void RequestImGuiFrame();
+    void RenderImGuiFrame();
 
     const float kbd_rotate_degrees = 100.f;
     const float degrees_per_drag_fraction = 250;
@@ -79,10 +85,8 @@ Viewer::Viewer(int argc, char *argv[])
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
 
-    // init ImGui
-    ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForOpenGL(GLFWHandler::getInstance()->getWindow(), true);
-    ImGui_ImplOpenGL3_Init("#version 130");
+    // Initialize ImGui
+    InitImGui();
 
     renderer->umeshPtr = umeshHdlPtr;
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
@@ -99,6 +103,9 @@ void Viewer::TakeSnapshot(std::string filename)
 
 void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
+    // Disable mouseinput if imgui wants it
+    if(ImGui::GetIO().WantCaptureMouse)
+        return;
     auto glfw = GLFWHandler::getInstance();
     const owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
@@ -109,6 +116,9 @@ void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 
 void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
+    // Disable mouseinput if imgui wants it
+    if(ImGui::GetIO().WantCaptureMouse)
+        return;
     auto glfw = GLFWHandler::getInstance();
     const owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
@@ -118,11 +128,34 @@ void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 
 void Viewer::CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
+    // Disable mouseinput if imgui wants it
+    if(ImGui::GetIO().WantCaptureMouse)
+        return;
     auto glfw = GLFWHandler::getInstance();
     const owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
     manipulator->strafe(fraction * pixels_per_move);
     renderer->UpdateCamera();
+}
+
+void Viewer::InitImGui()
+{
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(GLFWHandler::getInstance()->getWindow(), true);
+    ImGui_ImplOpenGL3_Init("#version 130");
+}
+
+void Viewer::RequestImGuiFrame()
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void Viewer::RenderImGuiFrame()
+{
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void Viewer::Run()
@@ -141,13 +174,12 @@ void Viewer::Run()
         glfw->draw((const uint32_t *)
                        owlBufferGetPointer(renderer->frameBuffer, 0));
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-        //ImGui Code here
+        RequestImGuiFrame();
+        ImGui::Begin("RQS-Viewer");
+        ImGui::Text("UI");
         ImGui::End();
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        RenderImGuiFrame();
+        
 
         glfw->swapBuffers();
 
