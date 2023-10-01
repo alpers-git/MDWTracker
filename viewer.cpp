@@ -1,7 +1,9 @@
 #include <iostream>
 
-#include "glfwHandler.h"
+#define TFN_WIDGET_NO_STB_IMAGE_IMPL
+#include "transfer_function_widget.h"
 
+#include "glfwHandler.h"
 #include <argparse/argparse.hpp>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>

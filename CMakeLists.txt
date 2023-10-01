@@ -57,6 +57,15 @@ target_include_directories("ImGui" PUBLIC ${IMGUI_PATH} ${IMGUI_PATH}/backends g
 target_link_libraries("ImGui" PUBLIC glfw)
 include_directories(submodules/imgui)
 #----------------------------------------------------
+#--------------------imgui-tfn-----------------------
+set(IMGUI_TFN_PATH  submodules/imgui-transfer-function)
+
+# Compile as static library
+file(GLOB IMGUI_TFN_SOURCES ${IMGUI_TFN_PATH}/*.cpp ${IMGUI_TFN_PATH}/*.c)
+add_library("ImGuiTFN" STATIC ${IMGUI_TFN_SOURCES})
+target_include_directories("ImGuiTFN" PUBLIC ${IMGUI_TFN_PATH})
+include_directories(submodules/imgui-transfer-function)
+#----------------------------------------------------
 
 #------------------ device code ---------------------
 include(embed_ptx)
@@ -91,5 +100,6 @@ target_link_libraries(rqsViewer
   glfw
   owl::owl
   umesh
-  ImGui)
+  ImGui
+  ImGuiTFN)
 #----------------------------------------------------
