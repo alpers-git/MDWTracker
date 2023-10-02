@@ -28,6 +28,7 @@ public:
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
     std::shared_ptr<camera::Manipulator> manipulator;
+    std::shared_ptr<ImTF::TransferFunctionWidget> tfnWidget;
 
     // imgui
     void InitImGui();
@@ -56,6 +57,8 @@ Viewer::Viewer(int argc, char *argv[])
         .help("camera pos<x,y,z>, gaze<x,y,z>, up<x,y,z>, cosfovy(degrees)")
         .nargs(10)
         .scan<'g', float>();
+    program.add_argument("-t", "--transfer-function")
+        .help("path to the .tf file");
 
     try
     {
@@ -90,6 +93,14 @@ Viewer::Viewer(int argc, char *argv[])
     // Initialize ImGui
     InitImGui();
 
+    // Initialize transfer function editor
+    tfnWidget = std::make_shared<ImTF::TransferFunctionWidget>();
+    // if tf argument is given, load it
+    if (program.is_used("-t"))
+    {
+        tfnWidget->LoadState(program.get<std::string>("-t"));
+    }
+
     renderer->umeshPtr = umeshHdlPtr;
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
 }
@@ -105,9 +116,6 @@ void Viewer::TakeSnapshot(std::string filename)
 
 void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
-    // Disable mouseinput if imgui wants it
-    if(ImGui::GetIO().WantCaptureMouse)
-        return;
     auto glfw = GLFWHandler::getInstance();
     const owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
@@ -118,9 +126,6 @@ void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 
 void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
-    // Disable mouseinput if imgui wants it
-    if(ImGui::GetIO().WantCaptureMouse)
-        return;
     auto glfw = GLFWHandler::getInstance();
     const owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
@@ -130,9 +135,6 @@ void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 
 void Viewer::CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
-    // Disable mouseinput if imgui wants it
-    if(ImGui::GetIO().WantCaptureMouse)
-        return;
     auto glfw = GLFWHandler::getInstance();
     const owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
@@ -165,10 +167,11 @@ void Viewer::Run()
     GLFWHandler *glfw = GLFWHandler::getInstance();
     renderer->Init();
     renderer->UpdateCamera();
-    ImTF::TransferFunctionWidget tfn_widget;
     while (!glfw->windowShouldClose())
     {
         glfw->pollEvents();
+
+        glfw->mouseState.imGuiPolling = ImGui::GetIO().WantCaptureMouse;
 
         renderer->Render();
 
@@ -179,9 +182,9 @@ void Viewer::Run()
 
         RequestImGuiFrame();
         ImGui::Begin("RQS-Viewer");
-        tfn_widget.DrawColorMap();
-        tfn_widget.DrawOpacityScale();
-        tfn_widget.DrawRanges();
+        tfnWidget->DrawColorMap();
+        tfnWidget->DrawOpacityScale();
+        tfnWidget->DrawRanges();
         ImGui::End();
         RenderImGuiFrame();
         
@@ -192,12 +195,13 @@ void Viewer::Run()
 
         // Taking a snapshot of the current frame
         if (glfw->key.isPressed(GLFW_KEY_1) &&
-            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
+            glfw->key.isPressed(GLFW_KEY_RIGHT_SHIFT)) //"!"
             TakeSnapshot();
 
-        if(glfw->key.isPressed(GLFW_KEY_RIGHT_SHIFT) &&
-            glfw->key.isDown(GLFW_KEY_T)) //"T"
-            tfn_widget.SaveState("tfn_state.tf");
+        if(glfw->key.isPressed(GLFW_KEY_T) && 
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
+            tfnWidget->SaveState("tfn_state.tf");
+
         // Camera movement
         if (glfw->mouseState.leftButtonDown)
             LeftMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
