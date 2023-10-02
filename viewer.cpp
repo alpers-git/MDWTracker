@@ -179,8 +179,9 @@ void Viewer::Run()
 
         RequestImGuiFrame();
         ImGui::Begin("RQS-Viewer");
-        ImGui::Text("UI");
-        tfn_widget.Draw();
+        tfn_widget.DrawColorMap();
+        tfn_widget.DrawOpacityScale();
+        tfn_widget.DrawRanges();
         ImGui::End();
         RenderImGuiFrame();
         
@@ -193,6 +194,10 @@ void Viewer::Run()
         if (glfw->key.isPressed(GLFW_KEY_1) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
             TakeSnapshot();
+
+        if(glfw->key.isPressed(GLFW_KEY_RIGHT_SHIFT) &&
+            glfw->key.isDown(GLFW_KEY_T)) //"T"
+            tfn_widget.SaveState("tfn_state.tf");
         // Camera movement
         if (glfw->mouseState.leftButtonDown)
             LeftMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
