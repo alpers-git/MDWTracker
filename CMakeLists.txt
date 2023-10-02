@@ -18,6 +18,8 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+
+find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 
 #---------------- argparse -------------------#
@@ -90,7 +92,7 @@ add_executable(rqsViewer
   stb_image_write.h
   viewer.cpp)
 
-#target_link_libraries(rqsViewer PRIVATE -lGL -lGLX)
+target_link_libraries(rqsViewer PRIVATE -lGL -lGLX)
 target_link_libraries(rqsViewer
   PRIVATE
   deviceCode_ptx

@@ -165,6 +165,7 @@ void Viewer::Run()
     GLFWHandler *glfw = GLFWHandler::getInstance();
     renderer->Init();
     renderer->UpdateCamera();
+    ImTF::TransferFunctionWidget tfn_widget;
     while (!glfw->windowShouldClose())
     {
         glfw->pollEvents();
@@ -179,6 +180,7 @@ void Viewer::Run()
         RequestImGuiFrame();
         ImGui::Begin("RQS-Viewer");
         ImGui::Text("UI");
+        tfn_widget.Draw();
         ImGui::End();
         RenderImGuiFrame();
         
