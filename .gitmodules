@@ -13,3 +13,6 @@
 [submodule "submodules/imgui"]
 	path = submodules/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "submodules/imgui-transfer-function"]
+	path = submodules/imgui-transfer-function
+	url = https://github.com/alpers-git/imgui-transfer-function-ext.git
