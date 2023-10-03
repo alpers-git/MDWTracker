@@ -195,7 +195,7 @@ void Viewer::Run()
 
         // Taking a snapshot of the current frame
         if (glfw->key.isPressed(GLFW_KEY_1) &&
-            glfw->key.isPressed(GLFW_KEY_RIGHT_SHIFT)) //"!"
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
             TakeSnapshot();
 
         if(glfw->key.isPressed(GLFW_KEY_T) && 

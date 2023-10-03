@@ -81,11 +81,7 @@ void GLFWHandler::SetCallbacks()
 
     glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
         auto glfw = GLFWHandler::getInstance();
-        if( glfw->key.keys.find(key) != glfw->key.keys.end() && (action != GLFW_RELEASE))
-        {
-            glfw->key.keys[key] = GLFW_REPEAT;
-        }
-        else if((action == GLFW_PRESS) && (glfw->key.keys.find(key) != glfw->key.keys.end()))
+        if(action != GLFW_RELEASE)
         {
             glfw->key.keys[key] = action;
         }

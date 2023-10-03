@@ -18,8 +18,10 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-
-find_package(SDL2 REQUIRED)
+# if linux
+if(UNIX)
+  find_package(SDL2 REQUIRED)
+endif()
 find_package(OpenGL REQUIRED)
 
 #---------------- argparse -------------------#
