@@ -112,6 +112,7 @@ void Viewer::TakeSnapshot(std::string filename)
     stbi_write_png(filename.c_str(),
                    renderer->fbSize.x, renderer->fbSize.y, 4,
                    fb, renderer->fbSize.x * sizeof(uint32_t));
+    printf("Saved current frame to '%s'\n", filename.c_str());
 }
 
 void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
