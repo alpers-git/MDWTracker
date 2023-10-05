@@ -85,6 +85,8 @@ class GLFWHandler
 
         struct KeyboardState {
             std::unordered_map<int, int> keys;// Keys and their last GLFW action
+
+            // Returns true if the key is currently down
             bool isDown(int key) {
                 if (keys.find(key) == keys.end()) 
                 {
@@ -93,20 +95,26 @@ class GLFWHandler
                 return true; 
             }
 
+            // Returns true if the key was pressed this frame
             bool isPressed(int key) {
-                if (keys.find(key) == keys.end()) 
+                auto& foundKey = keys.find(key);
+                if (foundKey == keys.end()) 
                 {
                     return false;
                 }
-                return keys[key] == GLFW_PRESS;
+                bool rtn = (foundKey->second == GLFW_PRESS);//to avoid returning repeated keys
+                foundKey->second = GLFW_REPEAT;
+                return rtn;
             }
 
+            // Returns true if the key was held down multiple frames
             bool isRepeated(int key) {
-                if (keys.find(key) == keys.end()) 
+                auto& foundKey = keys.find(key);
+                if (foundKey == keys.end()) 
                 {
                     return false;
                 }
-                return keys[key] == GLFW_REPEAT;
+                return foundKey->second == GLFW_REPEAT;
             }
         } key;
     private:
