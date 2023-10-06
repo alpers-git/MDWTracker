@@ -195,6 +195,7 @@ namespace dtracker
     auto center = umeshPtr->getBounds().center();
     vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
     camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
+    camera.setFocalDistance(umesh::length(umeshPtr->getBounds().size()) / 2.f);
     UpdateCamera();
 
     // Allocate buffers for volume data
@@ -325,7 +326,6 @@ namespace dtracker
     owlGroupGetAccelSize(elementTLAS, &final, &peak);
 
     LOG("Building programs...");
-    //owlBuildPrograms(context);
     owlBuildPipeline(context);
     owlBuildSBT(context);
   }

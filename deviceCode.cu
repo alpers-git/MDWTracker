@@ -94,7 +94,9 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
     const vec2i pixelID = owl::getLaunchIndex();
     const int fbOfs = pixelID.x + lp.fbSize.x * pixelID.y;
 
-    const vec2f screen = (vec2f(pixelID) + vec2f(0.5f)) / vec2f(lp.fbSize);
+    int seed = owl::getLaunchDims().x * owl::getLaunchDims().y * lp.frameID;
+    owl::common::LCG<4> random(threadIdx.x + seed, threadIdx.y + seed);
+    const vec2f screen = (vec2f(pixelID) + vec2f(.5f)) / vec2f(lp.fbSize);
     Ray ray;
     generateRay(screen, ray);
 
@@ -107,24 +109,36 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
          color = surfPrd.rgba;
 
     const float tMax = surfPrd.missed ? 1000.f : surfPrd.tHit;
-    for(float t = 0.f; t < tMax; t+=25.f )
+    int numSteps = 0;
+    for(float t = 0.f; t < tMax || numSteps < 10; t+=5.f )
     {
         RayPayload volPrd;
         traceRay(lp.volume.elementTLAS, ray, volPrd); //volume
         if(!volPrd.missed)
         {
             color = over(transferFunction(volPrd.dataValue), color);
+            //do opacity correction using exp and step size
+            color.w *= 1.f - exp(-color.w * 5.f);
+            color.x *= color.w;
+            color.y *= color.w;
+            color.z *= color.w;
+            //clamp color
+            color =clamp(color, vec4f(0.f), vec4f(1.f));
         }
         if(color.w > 0.99f)
             break;
-        ray.origin += ray.direction * 25.f;
+        ray.origin += ray.direction * 5.f;
+        numSteps++;
     }
 
     // if(!volPrd.missed)
     //     finalColor = 0.3f * vec3f(1.0f,0.0f,0.0f) + 0.7f * finalColor;
     finalColor = over(color, finalColor);
     
-    lp.fbPtr[fbOfs] = owl::make_rgba(finalColor);
+    vec4f oldColor = lp.accumBuffer[fbOfs];
+    vec4f newColor = (vec4f(finalColor) + float(lp.accumID) * oldColor) / float(lp.accumID + 1);
+    lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor));
+    lp.accumBuffer[fbOfs] = vec4f(newColor);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(triangle_test)
