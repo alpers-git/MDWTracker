@@ -306,7 +306,6 @@ namespace dtracker
       owlGroupGetAccelSize(elementBLAS[i], &final, &peak);
     }
     owlGroupBuildAccel(elementTLAS);
-    // owlParamsSetGroup(lp, "volume.elementTLAS", elementTLAS);
     owlParamsSetGroup(lp, "volume.elementTLAS", elementTLAS);
 
     size_t peak = 0;

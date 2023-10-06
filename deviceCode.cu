@@ -41,18 +41,12 @@ inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
 }
 
 inline __device__
-    vec3f
-    missColor(const Ray &ray)
+    vec3f missColor(const vec3f& color0, const vec3f& color1)
 {
     const vec2i pixelID = owl::getLaunchIndex();
 
-    // Calculate the intersection point in world coordinates
-    vec3f intersectionPoint = ray.origin + ray.direction * 1e20f;
-
-    // Calculate the grid pattern based on the intersection point
-    int pattern = ((int)intersectionPoint.x / 18) ^ ((int)intersectionPoint.y / 18);
-
-    vec3f color = (pattern & 1) ? vec3f(.2f, .2f, .26f) : vec3f(.1f, .1f, .16f);
+    int pattern = (pixelID.x / 18) ^ (pixelID.y / 18);
+    vec3f color = (pattern & 1) ? color1 : color0;
     return color;
 }
 
@@ -68,15 +62,27 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
     Ray ray;
     generateRay(screen, ray);
 
-    RayPayload prd;
+    RayPayload surfPrd;
+    const MissProgData &missData = owl::getProgramData<MissProgData>();
+    vec3f finalColor = missColor(vec3f(0.4f), vec3f(0.2f));
+    traceRay(lp.triangleTLAS, ray, surfPrd); //surface
+    if (!surfPrd.missed)
+        finalColor = vec3f(surfPrd.rgba);
 
-    traceRay(/*accel to trace against*/ lp.triangleTLAS,
-             /*the ray to trace*/ ray,
-             /*prd*/ prd);
+    const float tMax = surfPrd.missed ? 1000.f : surfPrd.tHit;
+    for(float t = 0.f; t < tMax; t+=25.f )
+    {
+        RayPayload volPrd;
+        traceRay(lp.volume.elementTLAS, ray, volPrd); //volume
+        if(!volPrd.missed)
+            finalColor = 0.00052f * vec3f(1.0f,0.0f,0.0f) + 0.3f * finalColor;
+        ray.origin += ray.direction * 25.f;
+    }
 
-    // prd.rgba = vec4f(missColor(ray), 1);
-    // Choose the appropriate color based on the checkerboard pattern
-    lp.fbPtr[fbOfs] = owl::make_rgba(prd.rgba);
+    // if(!volPrd.missed)
+    //     finalColor = 0.3f * vec3f(1.0f,0.0f,0.0f) + 0.7f * finalColor;
+    
+    lp.fbPtr[fbOfs] = owl::make_rgba(finalColor);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(triangle_test)
@@ -93,22 +99,22 @@ OPTIX_CLOSEST_HIT_PROGRAM(triangle_test)
     const vec3f &B = self.vertices[index.y];
     const vec3f &C = self.vertices[index.z];
     const vec3f Ng = normalize(cross(B - A, C - A));
+    const vec2f bary = optixGetTriangleBarycentrics();
+    const vec3f P = bary.x * A + bary.y * B + (1.f - bary.x - bary.y) * C;
 
     const vec3f rayDir = optixGetWorldRayDirection();
     RayPayload &prd = owl::getPRD<RayPayload>();
+    prd.tHit = length(P - vec3f(optixGetWorldRayOrigin()));
+    prd.missed = false;
     prd.rgba = vec4f((.2f + .8f * fabs(dot(rayDir, Ng))) * self.color, 1);
 }
 
 OPTIX_MISS_PROGRAM(miss)
 ()
 {
-    const vec2i pixelID = owl::getLaunchIndex();
-
-    const MissProgData &self = owl::getProgramData<MissProgData>();
-
     RayPayload &prd = owl::getPRD<RayPayload>();
-    int pattern = (pixelID.x / 18) ^ (pixelID.y / 18);
-    prd.rgba = (pattern & 1) ? vec4f(self.color1, 1) : vec4f(self.color0, 1);
+    // const MissProgData &self = owl::getProgramData<MissProgData>();
+    // prd.rgba = vec4f(missColor(self.color0, self.color1), 1.0f);
     prd.missed = true;
 }
 
