@@ -39,7 +39,7 @@ public:
 
     OWLGeom trianglesGeom;
     OWLGroup trianglesGroup;
-    OWLGroup   triangleTLAS   { 0 };
+    OWLGroup triangleTLAS   { 0 };
 
     OWLGeomType macrocellType;
     OWLGeomType tetrahedraType;

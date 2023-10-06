@@ -137,16 +137,32 @@ namespace dtracker
         {/* sentinel to mark end of list */}};
 
     // Declare the geometry types
-    macrocellType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(MacrocellData), macrocellVars, -1);
+    //macrocellType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(MacrocellData), macrocellVars, -1);
     tetrahedraType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
     pyramidType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
     wedgeType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
     hexahedraType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
     triangleType = owlGeomTypeCreate(context, OWL_GEOMETRY_TRIANGLES, sizeof(TriangleData), triangleVars, -1);
 
-    owlBuildPrograms(context);
 
-    owlGeomTypeSetClosestHit(triangleType, 0, module, "triangle_test");
+    // Set intersection programs
+    //owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 1, module, "MacrocellIntersection");
+    //owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 0, module, "VolumeIntersection");
+    owlGeomTypeSetIntersectProg(tetrahedraType, /*ray type */ 0, module, "TetrahedraPointQuery");
+    owlGeomTypeSetIntersectProg(pyramidType, /*ray type */ 0, module, "PyramidPointQuery");
+    owlGeomTypeSetIntersectProg(wedgeType, /*ray type */ 0, module, "WedgePointQuery");
+    owlGeomTypeSetIntersectProg(hexahedraType, /*ray type */ 0, module, "HexahedraPointQuery");
+
+    // Set boundary programs
+    owlGeomTypeSetBoundsProg(tetrahedraType, module, "TetrahedraBounds");
+    owlGeomTypeSetBoundsProg(pyramidType, module, "PyramidBounds");
+    owlGeomTypeSetBoundsProg(wedgeType, module, "WedgeBounds");
+    owlGeomTypeSetBoundsProg(hexahedraType, module, "HexahedraBounds");
+    //owlGeomTypeSetBoundsProg(macrocellType, module, "MacrocellBounds");
+
+    owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangle_test");
+    
+    owlBuildPrograms(context);
 
     LOG("Setting buffers ...");
     frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
@@ -190,22 +206,115 @@ namespace dtracker
 
     LOG("Building geometries ...");
 
+    cudaDeviceSynchronize();
+    // Surface geometry
+    //just loads a cube for now
     trianglesGeom = owlGeomCreate(context, triangleType);
     owlTrianglesSetIndices(trianglesGeom, indexBuffer, NUM_INDICES, sizeof(vec3i), 0);
     owlTrianglesSetVertices(trianglesGeom, vertexBuffer, NUM_VERTICES, sizeof(vec3f), 0);
     owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
     owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
-    owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 0});
+    owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
 
     trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
     owlGroupBuildAccel(trianglesGroup);
     triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
     owlGroupBuildAccel(triangleTLAS);
 
-    cudaDeviceSynchronize();
+    // Volume geometry
+    if (umeshPtr->tets.size() > 0)
+    {
+      OWLGeom tetrahedraGeom = owlGeomCreate(context, tetrahedraType);
+      owlGeomSetPrimCount(tetrahedraGeom, umeshPtr->tets.size() * 4);
+      owlGeomSetBuffer(tetrahedraGeom, "tetrahedra", tetrahedraData);
+      owlGeomSetBuffer(tetrahedraGeom, "vertices", verticesData);
+      owlGeomSetBuffer(tetrahedraGeom, "scalars", scalarData);
+      owlGeomSet1ul(tetrahedraGeom, "offset", 0);
+      owlGeomSet1ui(tetrahedraGeom, "bytesPerIndex", 4);
+      owlGeomSet1ul(tetrahedraGeom, "numTetrahedra", umeshPtr->tets.size());
+      owlGeomSet1ul(tetrahedraGeom, "numPyramids", umeshPtr->pyrs.size());
+      owlGeomSet1ul(tetrahedraGeom, "numWedges", umeshPtr->wedges.size());
+      owlGeomSet1ul(tetrahedraGeom, "numHexahedra", umeshPtr->hexes.size());
+      OWLGroup tetBLAS = owlUserGeomGroupCreate(context, 1, &tetrahedraGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
+      owlGroupBuildAccel(tetBLAS);
+      elementBLAS.push_back(tetBLAS);
+      elementGeom.push_back(tetrahedraGeom);
+    }
+    if (umeshPtr->pyrs.size() > 0)
+    {
+      OWLGeom pyramidGeom = owlGeomCreate(context, pyramidType);
+      owlGeomSetPrimCount(pyramidGeom, umeshPtr->pyrs.size());
+      owlGeomSetBuffer(pyramidGeom, "pyramids", pyramidsData);
+      owlGeomSetBuffer(pyramidGeom, "vertices", verticesData);
+      owlGeomSetBuffer(pyramidGeom, "scalars", scalarData);
+      owlGeomSet1ul(pyramidGeom, "offset", 0);
+      owlGeomSet1ui(pyramidGeom, "bytesPerIndex", 4);
+      owlGeomSet1ul(pyramidGeom, "numTetrahedra", umeshPtr->tets.size());
+      owlGeomSet1ul(pyramidGeom, "numPyramids", umeshPtr->pyrs.size());
+      owlGeomSet1ul(pyramidGeom, "numWedges", umeshPtr->wedges.size());
+      owlGeomSet1ul(pyramidGeom, "numHexahedra", umeshPtr->hexes.size());
+      OWLGroup pyramidBLAS = owlUserGeomGroupCreate(context, 1, &pyramidGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
+      owlGroupBuildAccel(pyramidBLAS);
+      elementBLAS.push_back(pyramidBLAS);
+      elementGeom.push_back(pyramidGeom);
+    }
+
+    if (umeshPtr->wedges.size() > 0)
+    {
+      OWLGeom wedgeGeom = owlGeomCreate(context, wedgeType);
+      owlGeomSetPrimCount(wedgeGeom, umeshPtr->wedges.size());
+      owlGeomSetBuffer(wedgeGeom, "wedges", wedgesData);
+      owlGeomSetBuffer(wedgeGeom, "vertices", verticesData);
+      owlGeomSetBuffer(wedgeGeom, "scalars", scalarData);
+      owlGeomSet1ul(wedgeGeom, "offset", 0);
+      owlGeomSet1ui(wedgeGeom, "bytesPerIndex", 4);
+      owlGeomSet1ul(wedgeGeom, "numTetrahedra", umeshPtr->tets.size());
+      owlGeomSet1ul(wedgeGeom, "numPyramids", umeshPtr->pyrs.size());
+      owlGeomSet1ul(wedgeGeom, "numWedges", umeshPtr->wedges.size());
+      owlGeomSet1ul(wedgeGeom, "numHexahedra", umeshPtr->hexes.size());
+      OWLGroup wedgeBLAS = owlUserGeomGroupCreate(context, 1, &wedgeGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
+      owlGroupBuildAccel(wedgeBLAS);
+      elementBLAS.push_back(wedgeBLAS);
+      elementGeom.push_back(wedgeGeom);
+    }
+
+    if (umeshPtr->hexes.size() > 0)
+    {
+      OWLGeom hexahedraGeom = owlGeomCreate(context, hexahedraType);
+      owlGeomSetPrimCount(hexahedraGeom, umeshPtr->hexes.size());
+      owlGeomSetBuffer(hexahedraGeom, "hexahedra", hexahedraData);
+      owlGeomSetBuffer(hexahedraGeom, "vertices", verticesData);
+      owlGeomSetBuffer(hexahedraGeom, "scalars", scalarData);
+      owlGeomSet1ul(hexahedraGeom, "offset", 0);
+      owlGeomSet1ui(hexahedraGeom, "bytesPerIndex", 4);
+      owlGeomSet1ul(hexahedraGeom, "numTetrahedra", umeshPtr->tets.size());
+      owlGeomSet1ul(hexahedraGeom, "numPyramids", umeshPtr->pyrs.size());
+      owlGeomSet1ul(hexahedraGeom, "numWedges", umeshPtr->wedges.size());
+      owlGeomSet1ul(hexahedraGeom, "numHexahedra", umeshPtr->hexes.size());
+      OWLGroup hexBLAS = owlUserGeomGroupCreate(context, 1, &hexahedraGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
+      owlGroupBuildAccel(hexBLAS);
+      elementBLAS.push_back(hexBLAS);
+      elementGeom.push_back(hexahedraGeom);
+    }
+
+    elementTLAS = owlInstanceGroupCreate(context, elementBLAS.size(), nullptr, nullptr, nullptr, OWL_MATRIX_FORMAT_OWL, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
+    for (int i = 0; i < elementBLAS.size(); ++i)
+    {
+      size_t peak = 0;
+      size_t final = 0;
+      owlInstanceGroupSetChild(elementTLAS, i, elementBLAS[i]);
+      owlGroupGetAccelSize(elementBLAS[i], &final, &peak);
+    }
+    owlGroupBuildAccel(elementTLAS);
+    // owlParamsSetGroup(lp, "volume.elementTLAS", elementTLAS);
+    owlParamsSetGroup(lp, "volume.elementTLAS", elementTLAS);
+
+    size_t peak = 0;
+    size_t final = 0;
+    owlGroupGetAccelSize(elementTLAS, &final, &peak);
 
     LOG("Building programs...");
-    owlBuildPrograms(context);
+    //owlBuildPrograms(context);
     owlBuildPipeline(context);
     owlBuildSBT(context);
   }
