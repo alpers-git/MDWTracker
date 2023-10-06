@@ -23,6 +23,41 @@ inline __device__ bool dbg()
 #endif
 }
 
+inline __both__ 
+float4 transferFunction(float f)
+{
+  auto &lp = optixLaunchParams;
+  if (f < lp.transferFunction.volumeDomain.x ||
+      f > lp.transferFunction.volumeDomain.y)
+  {
+    return make_float4(1.f, 0.f, 1.f, 0.0f);
+  }
+  float remapped = (f - lp.transferFunction.volumeDomain.x) /
+                   (lp.transferFunction.volumeDomain.y - lp.transferFunction.volumeDomain.x);
+
+  float4 xf = tex2D<float4>(lp.transferFunction.xf, remapped, 0.5f);
+  xf.w *= lp.transferFunction.opacityScale;
+
+  return xf;
+}
+
+inline __device__ vec3f over(vec3f Cin, vec3f Cx, float Ain, float Ax)
+{
+  return Cin + Cx * Ax * (1.f - Ain);
+}
+
+inline __device__ float over(const float Ain, const float Ax)
+{
+  return Ain + (1.f - Ain) * Ax;
+}
+
+inline __device__ vec4f over(const vec4f &in, const vec4f &x)
+{
+  auto c = over(vec3f(in), vec3f(x), in.w, x.w);
+  auto a = over(in.w, x.w);
+  return vec4f(c, a);
+}
+
 inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
 {
     auto &lp = optixLaunchParams;
@@ -41,11 +76,12 @@ inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
 }
 
 inline __device__
-    vec3f missColor(const vec3f& color0, const vec3f& color1)
+vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f), 
+    const vec3f& color1 = vec3f(.1f, .1f, .16f), int gap = 25)
 {
     const vec2i pixelID = owl::getLaunchIndex();
 
-    int pattern = (pixelID.x / 18) ^ (pixelID.y / 18);
+    int pattern = (pixelID.x / gap) ^ (pixelID.y / gap);
     vec3f color = (pattern & 1) ? color1 : color0;
     return color;
 }
@@ -64,10 +100,11 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
 
     RayPayload surfPrd;
     const MissProgData &missData = owl::getProgramData<MissProgData>();
-    vec3f finalColor = missColor(vec3f(0.4f), vec3f(0.2f));
+    vec4f finalColor = vec4f(missCheckerBoard(), 1.0f);
+    vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
     traceRay(lp.triangleTLAS, ray, surfPrd); //surface
     if (!surfPrd.missed)
-        finalColor = vec3f(surfPrd.rgba);
+         color = surfPrd.rgba;
 
     const float tMax = surfPrd.missed ? 1000.f : surfPrd.tHit;
     for(float t = 0.f; t < tMax; t+=25.f )
@@ -75,12 +112,17 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
         RayPayload volPrd;
         traceRay(lp.volume.elementTLAS, ray, volPrd); //volume
         if(!volPrd.missed)
-            finalColor = 0.00052f * vec3f(1.0f,0.0f,0.0f) + 0.3f * finalColor;
+        {
+            color = over(transferFunction(volPrd.dataValue), color);
+        }
+        if(color.w > 0.99f)
+            break;
         ray.origin += ray.direction * 25.f;
     }
 
     // if(!volPrd.missed)
     //     finalColor = 0.3f * vec3f(1.0f,0.0f,0.0f) + 0.7f * finalColor;
+    finalColor = over(color, finalColor);
     
     lp.fbPtr[fbOfs] = owl::make_rgba(finalColor);
 }
@@ -113,8 +155,6 @@ OPTIX_MISS_PROGRAM(miss)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
-    // const MissProgData &self = owl::getProgramData<MissProgData>();
-    // prd.rgba = vec4f(missColor(self.color0, self.color1), 1.0f);
     prd.missed = true;
 }
 

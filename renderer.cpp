@@ -179,6 +179,18 @@ namespace dtracker
     owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
     owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
 
+    // transfer function
+    SetXFOpacityScale(1.0f);
+    volDomain = interval<float>({umeshPtr->getBounds4f().lower.w, umeshPtr->getBounds4f().upper.w});
+    owlParamsSet4f(lp, "volume.globalBoundsLo",
+                   owl4f{umeshPtr->getBounds4f().lower.x, umeshPtr->getBounds4f().lower.y,
+                         umeshPtr->getBounds4f().lower.z, umeshPtr->getBounds4f().lower.w});
+    owlParamsSet4f(lp, "volume.globalBoundsHi",
+                   owl4f{umeshPtr->getBounds4f().upper.x, umeshPtr->getBounds4f().upper.y,
+                         umeshPtr->getBounds4f().upper.z, umeshPtr->getBounds4f().upper.w});
+    printf("volDomain: %f %f\n", volDomain.lower, volDomain.upper);
+    owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
+
     // camera
     auto center = umeshPtr->getBounds().center();
     vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
@@ -383,6 +395,90 @@ namespace dtracker
     owlParamsSet3f(lp, "camera.llc", (const owl3f &)lower_left_corner);
     owlParamsSet3f(lp, "camera.horiz", (const owl3f &)horizontal);
     owlParamsSet3f(lp, "camera.vert", (const owl3f &)vertical);
+    owlParamsSet1i(lp, "accumID", accumID);
+  }
+
+  void Renderer::SetXFColormap(std::vector<vec4f> newCM)
+  {
+    for (uint32_t i = 0; i < newCM.size(); ++i)
+    {
+      newCM[i].w = powf(newCM[i].w, 3.f);
+    }
+
+    this->colorMap = newCM;
+    if (!colorMapBuffer)
+      colorMapBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4,
+                                             newCM.size(), nullptr);
+    owlBufferUpload(colorMapBuffer, newCM.data());
+
+    if (colorMapTexture != 0)
+    {
+      (cudaDestroyTextureObject(colorMapTexture));
+      colorMapTexture = 0;
+    }
+
+    cudaResourceDesc res_desc = {};
+    cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float4>();
+
+    // cudaArray_t   voxelArray;
+    if (colorMapArray == 0)
+    {
+      (cudaMallocArray(&colorMapArray,
+                       &channel_desc,
+                       newCM.size(), 1));
+    }
+
+    int pitch = newCM.size() * sizeof(newCM[0]);
+    (cudaMemcpy2DToArray(colorMapArray,
+                         /* offset */ 0, 0,
+                         newCM.data(),
+                         pitch, pitch, 1,
+                         cudaMemcpyHostToDevice));
+
+    res_desc.resType = cudaResourceTypeArray;
+    res_desc.res.array.array = colorMapArray;
+
+    cudaTextureDesc tex_desc = {};
+    tex_desc.addressMode[0] = cudaAddressModeClamp;
+    tex_desc.addressMode[1] = cudaAddressModeClamp;
+    tex_desc.filterMode = cudaFilterModeLinear;
+    tex_desc.normalizedCoords = 1;
+    tex_desc.maxAnisotropy = 1;
+    tex_desc.maxMipmapLevelClamp = 99;
+    tex_desc.minMipmapLevelClamp = 0;
+    tex_desc.mipmapFilterMode = cudaFilterModePoint;
+    tex_desc.borderColor[0] = 0.0f;
+    tex_desc.borderColor[1] = 0.0f;
+    tex_desc.borderColor[2] = 0.0f;
+    tex_desc.borderColor[3] = 0.0f;
+    tex_desc.sRGB = 0;
+    (cudaCreateTextureObject(&colorMapTexture, &res_desc, &tex_desc,
+                             nullptr));
+
+    // OWLTexture xfTexture
+    //   = owlTexture2DCreate(owl,OWL_TEXEL_FORMAT_RGBA32F,
+    //                        colorMap.size(),1,
+    //                        colorMap.data());
+    owlParamsSetRaw(lp, "transferFunction.xf", &colorMapTexture);
+    accumID = 0;
+    owlParamsSet1i(lp, "accumID", accumID);
+    //RecalculateDensityRanges();
+  }
+
+  void Renderer::SetXFOpacityScale(float newOpacityScale)
+  {
+    opacityScale = newOpacityScale;
+    owlParamsSet1f(lp, "transferFunction.opacityScale", opacityScale);
+    accumID = 0;
+    owlParamsSet1i(lp, "accumID", accumID);
+  }
+
+
+  void Renderer::SetXFRange(const vec2f newRange)
+  {
+    range = interval<float>(newRange.x, newRange.y);
+    //owlParamsSet2f(lp, "transferFunction.volumeDomain", (const owl2f &)volDomain); TODO: fix this
+    accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
   }
 

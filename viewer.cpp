@@ -188,6 +188,20 @@ void Viewer::Run()
         tfnWidget->DrawRanges();
         ImGui::End();
         RenderImGuiFrame();
+
+        if(tfnWidget->Changed())
+        {
+            auto cm = tfnWidget->GetColormapf();
+            std::vector<owl::vec4f> colorMapVec;
+            for (int i = 0; i < cm.size(); i += 4)
+            {
+                colorMapVec.push_back(owl::vec4f(cm[i],
+                                                cm[i + 1], cm[i + 2], cm[i + 3]));
+            }
+            renderer->SetXFColormap(colorMapVec);
+            renderer->SetXFOpacityScale(tfnWidget->opacity_scale);
+            renderer->SetXFRange(vec2f(tfnWidget->range.x, tfnWidget->range.y));
+        }
         
 
         glfw->swapBuffers();

@@ -72,6 +72,16 @@ public:
     vec3f lightDir = vec3f(0.f, -1.f, 0.f);
     vec2i fbSize = vec2i(1024, 1024);
 
+    /* transfer function */
+    OWLBuffer colorMapBuffer { 0 };
+    cudaArray_t colorMapArray { 0 };
+    cudaTextureObject_t colorMapTexture { 0 };
+
+    interval<float> volDomain;
+    interval<float> range;//todo wire-in
+    std::vector<vec4f> colorMap;
+    float opacityScale = 1.0f;
+
     /*! initializes renderer */
     void Init();
     /*! renders the scene, visualizes heatmaps if param is true*/
@@ -84,6 +94,12 @@ public:
     void Resize(vec2i newSize);
     /*! updates camera at device*/
     void UpdateCamera();
+    /*! sets the colormap texture on device*/
+    void SetXFColormap(std::vector<vec4f> newCM);
+    /*! sets opacity scale*/
+    void SetXFOpacityScale(float opacityScale);
+    /*! sets the transfer function domain*/
+    void SetXFRange(vec2f range);
 };
 
 } // namespace dtracker
