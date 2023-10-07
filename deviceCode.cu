@@ -86,8 +86,8 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
     return color;
 }
 
-// Simple raygen that creates a checker-board pattern
-OPTIX_RAYGEN_PROGRAM(testRayGen)
+// Delta tracking
+OPTIX_RAYGEN_PROGRAM(mainRG)
 ()
 {
     auto &lp = optixLaunchParams;
@@ -96,7 +96,7 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
 
     int seed = owl::getLaunchDims().x * owl::getLaunchDims().y * lp.frameID;
     owl::common::LCG<4> random(threadIdx.x + seed, threadIdx.y + seed);
-    const vec2f screen = (vec2f(pixelID) + vec2f(.5f)) / vec2f(lp.fbSize);
+    const vec2f screen = (vec2f(pixelID) + random()) / vec2f(lp.fbSize);
     Ray ray;
     generateRay(screen, ray);
 
@@ -116,23 +116,19 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
         traceRay(lp.volume.elementTLAS, ray, volPrd); //volume
         if(!volPrd.missed)
         {
-            color = over(transferFunction(volPrd.dataValue), color);
-            //do opacity correction using exp and step size
-            color.w *= 1.f - exp(-color.w * 5.f);
-            color.x *= color.w;
-            color.y *= color.w;
-            color.z *= color.w;
-            //clamp color
-            color =clamp(color, vec4f(0.f), vec4f(1.f));
+            vec4f xfValue = transferFunction(volPrd.dataValue);
+            if(xfValue.w > random() * 0.5f)
+            {
+                color = xfValue;
+                color =clamp(color, vec4f(0.f), vec4f(1.f));
+                color.w = 1.f;
+                break;
+            }
         }
-        if(color.w > 0.99f)
-            break;
         ray.origin += ray.direction * 5.f;
         numSteps++;
     }
 
-    // if(!volPrd.missed)
-    //     finalColor = 0.3f * vec3f(1.0f,0.0f,0.0f) + 0.7f * finalColor;
     finalColor = over(color, finalColor);
     
     vec4f oldColor = lp.accumBuffer[fbOfs];
@@ -141,7 +137,7 @@ OPTIX_RAYGEN_PROGRAM(testRayGen)
     lp.accumBuffer[fbOfs] = vec4f(newColor);
 }
 
-OPTIX_CLOSEST_HIT_PROGRAM(triangle_test)
+OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
 ()
 {
     // get light direction and do a simple lambert shading

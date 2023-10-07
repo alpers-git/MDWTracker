@@ -89,7 +89,7 @@ namespace dtracker
     owlContextSetRayTypeCount(context, 1);
 
     LOG("Creating programs...");
-    rayGen = owlRayGenCreate(context, module, "testRayGen",
+    rayGen = owlRayGenCreate(context, module, "mainRG",
                              sizeof(RayGenData),
                              rayGenVars, -1);
 
@@ -160,7 +160,7 @@ namespace dtracker
     owlGeomTypeSetBoundsProg(hexahedraType, module, "HexahedraBounds");
     //owlGeomTypeSetBoundsProg(macrocellType, module, "MacrocellBounds");
 
-    owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangle_test");
+    owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
     
     owlBuildPrograms(context);
 
