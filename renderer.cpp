@@ -476,7 +476,7 @@ namespace dtracker
 
   void Renderer::SetXFRange(const vec2f newRange)
   {
-    range = interval<float>(newRange.x, newRange.y);
+    xfDomain = interval<float>(newRange.x, newRange.y);
     //owlParamsSet2f(lp, "transferFunction.volumeDomain", (const owl2f &)volDomain); TODO: fix this
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);

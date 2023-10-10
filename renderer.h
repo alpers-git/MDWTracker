@@ -34,8 +34,8 @@ public:
     std::vector<OWLGeom> elementGeom;
     std::vector<OWLGroup> elementBLAS;
     OWLGroup elementTLAS;
-    // OWLGroup rootMacrocellBLAS;
-    OWLGroup macrocellTLAS;
+    OWLGroup rootMacrocellBLAS;
+    OWLGroup rootMacrocellTLAS;
 
     OWLGeom trianglesGeom;
     OWLGroup trianglesGroup;
@@ -60,6 +60,14 @@ public:
     OWLBuffer vertexBuffer;
     OWLBuffer indexBuffer;
 
+    OWLBuffer macrocellsBuffer;
+    OWLBuffer rootBBoxBuffer;
+    OWLBuffer rootMaximaBuffer;
+    OWLBuffer gridMaximaBuffer;
+    OWLBuffer clusterMaximaBuffer;
+
+    OWLBuffer clusterBBoxBuffer;
+
     /* frame */
     OWLBuffer accumBuffer{0};
     OWLBuffer frameBuffer{0};
@@ -78,9 +86,13 @@ public:
     cudaTextureObject_t colorMapTexture { 0 };
 
     interval<float> volDomain;
-    interval<float> range;//todo wire-in
+    interval<float> xfDomain;//todo wire-in
     std::vector<vec4f> colorMap;
     float opacityScale = 1.0f;
+
+    /* density majorants */
+    uint32_t numClusters = 0;
+    unsigned macrocellsPerSide = 512; // 4096 exceeds the size of a uint32_t when squared...
 
     /*! initializes renderer */
     void Init();
@@ -99,7 +111,15 @@ public:
     /*! sets opacity scale*/
     void SetXFOpacityScale(float opacityScale);
     /*! sets the transfer function domain*/
-    void SetXFRange(vec2f range);
+    void SetXFRange(vec2f xfDomain);
+    /*! recalculates the majorants*/
+    void recalculateDensityRanges();
+
+
+    // For umeshes, use this to generate some object oriented macrocells.
+    // idea, rasterize elements into a grid, expand or shrink bounding boxes to contain elements,
+    // avoid making macrocells in empty regions. Empty macrocells will have negative volume.
+    OWLBuffer buildObjectOrientedMacrocells(const vec3i &dims, const box3f &bounds);
 };
 
 } // namespace dtracker
