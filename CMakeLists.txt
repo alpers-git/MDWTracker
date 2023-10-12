@@ -39,6 +39,7 @@ set_property(TARGET glfw PROPERTY FOLDER "submodules/GLFW3" )
 
 #--------------------- owl --------------------------
 add_subdirectory(submodules/owl EXCLUDE_FROM_ALL)
+set(OWL_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
 #----------------------------------------------------
 
 #-------------------- umesh -------------------------
@@ -90,6 +91,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --generate-line-info")
 #-------------------- viewer ------------------------
 add_executable(rqsViewer
   glfwHandler.cpp
+  hilbert.h
   renderer.cpp
   renderer.cu
   stb_image_write.h
@@ -99,11 +101,11 @@ target_link_libraries(rqsViewer PRIVATE -lGL -lGLX)
 target_link_libraries(rqsViewer
   PRIVATE
   deviceCode_ptx
+  argparse
+  owl::owl
   PUBLIC
   ${OPENGL_LIBRARIES}
-  argparse
   glfw
-  owl::owl
   umesh
   ImGui
   ImGuiTFN)

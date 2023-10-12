@@ -58,6 +58,7 @@ OWLVarDecl launchParamVars[] = {
     // Volume data
     {"volume.elementTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.elementTLAS)},
     {"volume.macrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.macrocellTLAS)},
+    {"volume.rootMacrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.rootMacrocellTLAS)},
     {"volume.macrocellDims", OWL_INT3, OWL_OFFSETOF(LaunchParams, volume.macrocellDims)},
     {"volume.dt", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, volume.dt)},
     {"volume.globalBoundsLo", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsLo)},
@@ -121,8 +122,8 @@ namespace dtracker
         {"numPyramids", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numPyramids)},
         {"numWedges", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numWedges)},
         {"numHexahedra", OWL_ULONG, OWL_OFFSETOF(UnstructuredElementData, numHexahedra)},
-        {"maxima", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, maxima)},
-        //{"bboxes", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, bboxes)},
+        { "maxima", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, maxima)},
+        { "bboxes", OWL_BUFPTR, OWL_OFFSETOF(UnstructuredElementData, bboxes)},
         {/* sentinel to mark end of list */}};
 
     OWLVarDecl triangleVars[] = {
@@ -134,10 +135,11 @@ namespace dtracker
     OWLVarDecl macrocellVars[] = {
         {"bboxes", OWL_BUFPTR, OWL_OFFSETOF(MacrocellData, bboxes)},
         {"maxima", OWL_BUFPTR, OWL_OFFSETOF(MacrocellData, maxima)},
+        {"offset", OWL_INT, OWL_OFFSETOF(MacrocellData, offset)},
         {/* sentinel to mark end of list */}};
 
     // Declare the geometry types
-    //macrocellType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(MacrocellData), macrocellVars, -1);
+    macrocellType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(MacrocellData), macrocellVars, -1);
     tetrahedraType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
     pyramidType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
     wedgeType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(UnstructuredElementData), unstructuredElementVars, -1);
@@ -147,7 +149,7 @@ namespace dtracker
 
     // Set intersection programs
     //owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 1, module, "MacrocellIntersection");
-    //owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 0, module, "VolumeIntersection");
+    owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 0, module, "VolumeIntersection");
     owlGeomTypeSetIntersectProg(tetrahedraType, /*ray type */ 0, module, "TetrahedraPointQuery");
     owlGeomTypeSetIntersectProg(pyramidType, /*ray type */ 0, module, "PyramidPointQuery");
     owlGeomTypeSetIntersectProg(wedgeType, /*ray type */ 0, module, "WedgePointQuery");
@@ -158,7 +160,7 @@ namespace dtracker
     owlGeomTypeSetBoundsProg(pyramidType, module, "PyramidBounds");
     owlGeomTypeSetBoundsProg(wedgeType, module, "WedgeBounds");
     owlGeomTypeSetBoundsProg(hexahedraType, module, "HexahedraBounds");
-    //owlGeomTypeSetBoundsProg(macrocellType, module, "MacrocellBounds");
+    owlGeomTypeSetBoundsProg(macrocellType, module, "MacrocellBounds");
 
     owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
     
@@ -217,6 +219,19 @@ namespace dtracker
     indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, NUM_INDICES, indices);
     vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, NUM_VERTICES, vertices);
 
+    // Macrocell data
+    int macrocellLevel = 3;
+    int numMacrocells = 1;
+    std::vector<box4f> bboxes;
+    auto bb = umeshPtr->getBounds4f();
+    bboxes.resize(numMacrocells);
+
+    rootMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numMacrocells, nullptr);
+    rootBBoxBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numMacrocells, nullptr);
+    owlBufferUpload(rootBBoxBuffer, bboxes.data());
+    //owlParamsSetBuffer(lp, "volume.rootMacrocellStats", rootMaximaBuffer);
+
+
     LOG("Building geometries ...");
 
     cudaDeviceSynchronize();
@@ -233,6 +248,15 @@ namespace dtracker
     owlGroupBuildAccel(trianglesGroup);
     triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
     owlGroupBuildAccel(triangleTLAS);
+
+    OWLGeom macrocellGeom = owlGeomCreate(context, macrocellType);
+    owlGeomSetPrimCount(macrocellGeom, numMacrocells);
+    owlGeomSet1i(macrocellGeom, "offset", 0);
+    owlGeomSetBuffer(macrocellGeom, "maxima", rootMaximaBuffer);
+    owlGeomSetBuffer(macrocellGeom, "bboxes", rootBBoxBuffer);
+    
+    rootMacrocellBLAS = owlUserGeomGroupCreate(context, numMacrocells, &macrocellGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE);
+    owlGroupBuildAccel(rootMacrocellBLAS);
 
     // Volume geometry
     if (umeshPtr->tets.size() > 0)
@@ -310,6 +334,11 @@ namespace dtracker
       elementGeom.push_back(hexahedraGeom);
     }
 
+    rootMacrocellTLAS = owlInstanceGroupCreate(context, 1, nullptr, nullptr, nullptr, OWL_MATRIX_FORMAT_OWL, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE);
+    owlInstanceGroupSetChild(rootMacrocellTLAS, 0, rootMacrocellBLAS); 
+    owlGroupBuildAccel(rootMacrocellTLAS);
+    owlParamsSetGroup(lp, "volume.rootMacrocellTLAS", rootMacrocellTLAS);
+
     elementTLAS = owlInstanceGroupCreate(context, elementBLAS.size(), nullptr, nullptr, nullptr, OWL_MATRIX_FORMAT_OWL, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
     for (int i = 0; i < elementBLAS.size(); ++i)
     {
@@ -321,9 +350,12 @@ namespace dtracker
     owlGroupBuildAccel(elementTLAS);
     owlParamsSetGroup(lp, "volume.elementTLAS", elementTLAS);
 
+
     size_t peak = 0;
     size_t final = 0;
     owlGroupGetAccelSize(elementTLAS, &final, &peak);
+
+    xfDomain = interval<float>({0.f, 1.f});
 
     LOG("Building programs...");
     owlBuildPipeline(context);
@@ -462,7 +494,50 @@ namespace dtracker
     owlParamsSetRaw(lp, "transferFunction.xf", &colorMapTexture);
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
-    //RecalculateDensityRanges();
+
+    uint64_t* codesSorted;
+      uint32_t* elementIdsSorted;
+      std::cout<<"Sorting elements...";
+      sortElements(codesSorted, elementIdsSorted);
+      std::cout<<" done! " << std::endl;
+      // // buildClusters(codesSorted, elementIdsSorted, 64, numClusters, clusterBBoxBuffer);
+
+      macrocellsPerSide = 100;
+      
+      std::cout<<"Clustering elements...";
+      buildClusters(codesSorted, elementIdsSorted, 1000000, numClusters, clusterBBoxBuffer);
+      // buildClusters(codesSorted, elementIdsSorted, 100000, numClusters, clusterBBoxBuffer);
+      std::cout<<" done! " << std::endl;
+
+      // quick validation code...
+      {
+        for (uint32_t i = 0; i < umeshPtr->tets.size(); ++i) {
+          assert(umeshPtr->tets[i].x < umeshPtr->vertices.size());
+          assert(umeshPtr->tets[i].y < umeshPtr->vertices.size());
+          assert(umeshPtr->tets[i].z < umeshPtr->vertices.size());
+
+          assert(umeshPtr->tets[i].x < umeshPtr->perVertex->values.size());
+          assert(umeshPtr->tets[i].y < umeshPtr->perVertex->values.size());
+          assert(umeshPtr->tets[i].z < umeshPtr->perVertex->values.size());
+
+          assert(umeshPtr->tets[i].x >= 0);
+          assert(umeshPtr->tets[i].y >= 0);
+          assert(umeshPtr->tets[i].z >= 0);
+        }
+      }
+      // macrocellsPerSide = int(powf(numClusters, 1.f / 3.f));
+      // macrocellsPerSide = 1024;
+      // macrocellsPerSide = 512;
+      
+      box3f bounds = {
+        {umeshPtr->bounds.lower.x, umeshPtr->bounds.lower.y, umeshPtr->bounds.lower.z},
+        {umeshPtr->bounds.upper.x, umeshPtr->bounds.upper.y, umeshPtr->bounds.upper.z}
+      }; 
+
+      macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
+      // std::cout<<"Generated " << uint32_t(powf(macrocellsPerSide, 3)) << " macrocells"<<std::endl;      
+      cudaFree(codesSorted);
+      cudaFree(elementIdsSorted);
   }
 
   void Renderer::SetXFOpacityScale(float newOpacityScale)
@@ -471,6 +546,8 @@ namespace dtracker
     owlParamsSet1f(lp, "transferFunction.opacityScale", opacityScale);
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
+
+    //RecalculateDensityRanges();
   }
 
 
@@ -480,6 +557,7 @@ namespace dtracker
     //owlParamsSet2f(lp, "transferFunction.volumeDomain", (const owl2f &)volDomain); TODO: fix this
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
+    //RecalculateDensityRanges();
   }
 
 } // namespace dtracker

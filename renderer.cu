@@ -8,16 +8,17 @@
 
 #include "hilbert.h"
 
-#define CUDA_SYNC_CHECK()                                       \
-  {                                                             \
-    cudaDeviceSynchronize();                                    \
-    cudaError_t rc = cudaGetLastError();                        \
-    if (rc != cudaSuccess) {                                    \
-      fprintf(stderr, "error (%s: line %d): %s\n",              \
-              __FILE__, __LINE__, cudaGetErrorString(rc));      \
-      throw std::runtime_error("fatal cuda error");             \
-    }                                                           \
-  }
+#define CUDA_SYNC_CHECK()                                     \
+{                                                             \
+  cudaDeviceSynchronize();                                    \
+  cudaError_t rc = cudaGetLastError();                        \
+  if (rc != cudaSuccess) {                                    \
+    fprintf(stderr, "error (%s: line %d): %s\n",              \
+            __FILE__, __LINE__, cudaGetErrorString(rc));      \
+    throw std::runtime_error("fatal cuda error");             \
+  }                                                           \
+}
+
 
 __global__
 void _recalculateDensityRanges(
@@ -164,7 +165,7 @@ void _recalculateDensityRanges(
 }
 
 namespace dtracker {
-  void Renderer::recalculateDensityRanges()
+  void Renderer::RecalculateDensityRanges()
   {
     float2 volumeDomain = {volDomain.lower, volDomain.upper};
     float2 tfnDomain = {xfDomain.lower, xfDomain.upper};
@@ -177,51 +178,146 @@ namespace dtracker {
     dim3 gridSize;
     owl::box4f *bboxes;
     float* majorantBuffer;
+    // root
+    {
+      bboxes = (owl::box4f*)owlBufferGetPointer(rootBBoxBuffer, 0);
+      isBackground = false;
+      numThreads = 1;
+      gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+      majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
+      _recalculateDensityRanges<<<gridSize,blockSize>>>(
+        numThreads, isBackground, bboxes, 
+        colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+        majorantBuffer);
+      
+      CUDA_SYNC_CHECK();
+      
+      owlGroupBuildAccel(rootMacrocellBLAS);
+      owlGroupBuildAccel(rootMacrocellTLAS);
+    }
+    {
+      float2* macrocells = (float2*)owlBufferGetPointer(macrocellsBuffer, 0); 
+      numThreads = macrocellsPerSide * macrocellsPerSide * macrocellsPerSide;
+      gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+      majorantBuffer = (float*)owlBufferGetPointer(gridMaximaBuffer, 0);
+      
+      //Calculate Boxes
+      _recalculateDensityRanges<<<gridSize,blockSize>>>(
+        numThreads, macrocells, colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+        majorantBuffer);
+    }
 
     {
-      // root
-      {
-        bboxes = (owl::box4f*)owlBufferGetPointer(rootBBoxBuffer, 0);
-        isBackground = false;
-        numThreads = 1;
-        gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-        majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
-        _recalculateDensityRanges<<<gridSize,blockSize>>>(
-          numThreads, isBackground, bboxes, 
-          colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-          majorantBuffer);
-        
-        CUDA_SYNC_CHECK();
-        
-        owlGroupBuildAccel(rootMacrocellBLAS);
-        owlGroupBuildAccel(rootMacrocellTLAS);
-      }
-      {
-        float2* macrocells = (float2*)owlBufferGetPointer(macrocellsBuffer, 0); 
-        numThreads = macrocellsPerSide * macrocellsPerSide * macrocellsPerSide;
-        gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-        majorantBuffer = (float*)owlBufferGetPointer(gridMaximaBuffer, 0);
-        
-        //Calculate Boxes
-        _recalculateDensityRanges<<<gridSize,blockSize>>>(
-          numThreads, macrocells, colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-          majorantBuffer);
-      }
-
-      {
-        bboxes = (owl::box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
-        isBackground = false;
-        numThreads = numClusters;
-        gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-        majorantBuffer = (float*)owlBufferGetPointer(clusterMaximaBuffer, 0);
-        _recalculateDensityRanges<<<gridSize,blockSize>>>(
-          numThreads, /*lvl*/ isBackground, bboxes, 
-          colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-          majorantBuffer);
-      }
+      bboxes = (owl::box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
+      isBackground = false;
+      numThreads = numClusters;
+      gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+      majorantBuffer = (float*)owlBufferGetPointer(clusterMaximaBuffer, 0);
+      _recalculateDensityRanges<<<gridSize,blockSize>>>(
+        numThreads, /*lvl*/ isBackground, bboxes, 
+        colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+        majorantBuffer);
+    }
 
       CUDA_SYNC_CHECK();
-    }
+
+    // else 
+    // {
+    //   // background
+    //   bboxes = nullptr;
+    //   numThreads = 1;
+    //   isBackground = true;
+    //   gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+    //   majorantBuffer = (float*)owlBufferGetPointer(backgroundMaximaBuffer, 0);
+    //   _recalculateDensityRanges<<<gridSize,blockSize>>>(
+    //     numThreads, isBackground, bboxes, 
+    //     colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+    //     majorantBuffer);
+    
+    //   // root
+    //   bboxes = (owl::box4f*)owlBufferGetPointer(rootBBoxBuffer, 0);
+    //   isBackground = false;
+    //   gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+    //   majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
+    //   _recalculateDensityRanges<<<gridSize,blockSize>>>(
+    //     numThreads, isBackground, bboxes, 
+    //     colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+    //     majorantBuffer);
+
+    //   // coarse
+    //   bboxes = (owl::box4f*)owlBufferGetPointer(coarseBBoxBuffer, 0);
+    //   isBackground = false;
+    //   numThreads = numCoarseBBoxes;
+    //   gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+    //   majorantBuffer = (float*)owlBufferGetPointer(coarseMaximaBuffer, 0);
+    //   _recalculateDensityRanges<<<gridSize,blockSize>>>(
+    //     numThreads, /*lvl*/ isBackground, bboxes, 
+    //     colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+    //     majorantBuffer);
+      
+    //   // // medium
+    //   // bboxes = (owl::box4f*)owlBufferGetPointer(mediumBBoxBuffer, 0);
+    //   // isBackground = false;
+    //   // numThreads = numMediumBBoxes;
+    //   // gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+    //   // majorantBuffer = (float*)owlBufferGetPointer(mediumMaximaBuffer, 0);
+    //   // _recalculateDensityRanges<<<gridSize,blockSize>>>(
+    //   //   numThreads, isBackground, bboxes, 
+    //   //   colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+    //   //   majorantBuffer);
+
+    //   // // fine
+    //   // bboxes = (owl::box4f*)owlBufferGetPointer(fineBBoxBuffer, 0);
+    //   // isBackground = false;
+    //   // numThreads = numFineBBoxes;
+    //   // gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+    //   // majorantBuffer = (float*)owlBufferGetPointer(fineMaximaBuffer, 0);
+    //   // _recalculateDensityRanges<<<gridSize,blockSize>>>(
+    //   //   numThreads, isBackground, bboxes, 
+    //   //   colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+    //   //   majorantBuffer);
+
+    //   CUDA_SYNC_CHECK();
+
+    //   owlGroupBuildAccel(rootMacrocellBLAS);
+    //   owlGroupBuildAccel(rootMacrocellTLAS);
+    //   owlGroupBuildAccel(coarseMacrocellBLAS);
+    //   owlGroupBuildAccel(coarseMacrocellTLAS);
+    //   // owlGroupBuildAccel(mediumMacrocellBLAS);
+    //   // owlGroupBuildAccel(mediumMacrocellTLAS);
+    //   // for (auto &group : fineMacrocellBLAS)
+    //   //   owlGroupBuildAccel(group);
+    //   // owlGroupBuildAccel(fineMacrocellTLAS);
+    // }
+    
+    // // update elements
+    // for (auto &geom : elementGeom) {
+    //   owlGeomSet2f(geom, "xfDomain", tfnDomain.x, tfnDomain.y);
+    //   owlGeomSet2f(geom, "volumeDomain", volumeDomain.x, volumeDomain.y);
+    //   owlGeomSetRaw(geom, "xf", &colorMapTexture);
+    //   owlGeomSet1f(geom, "opacityScale", opacityScale);
+    //   owlGeomSet1i(geom, "numTexels", colorMapSize);
+    // }
+    // for (auto &group : elementBLAS) {
+    //   owlGroupBuildAccel(group);
+    // }
+    // owlGroupBuildAccel(elementTLAS);
+
+    // owlBuildSBT(owl);
+
+    // // fine
+    // // Note, this kernel must be called for kd, bvh, and macrocells because
+    // // the fine fine majorants are used to make point queries on "empty" elements
+    // // faster
+    // bboxes = (owl::box4f*)owlBufferGetPointer(fineBBoxBuffer, 0);
+    // isBackground = false;
+    // numThreads = numFineBBoxes;
+    // gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+    // majorantBuffer = (float*)owlBufferGetPointer(fineMaximaBuffer, 0);
+    // _recalculateDensityRanges<<<gridSize,blockSize>>>(
+    //   numThreads, isBackground, bboxes, 
+    //   colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+    //   majorantBuffer);
     
     CUDA_SYNC_CHECK();
 
@@ -385,6 +481,12 @@ namespace dtracker {
           cb.lower = worldBounds.lower + (cb.lower * vec3f(1.f / dims.x, 1.f / dims.y, 1.f / dims.z)) * (worldBounds.upper - worldBounds.lower);
           cb.upper = worldBounds.lower + (cb.upper * vec3f(1.f / dims.x, 1.f / dims.y, 1.f / dims.z)) * (worldBounds.upper - worldBounds.lower);
 
+          // cell.lower.x = cb.lower.x;
+          // cell.upper.x = cb.upper.x;
+          // cell.lower.y = cb.lower.y;
+          // cell.upper.y = cb.upper.y;
+          // cell.lower.z = cb.lower.z;
+          // cell.upper.z = cb.upper.z;
           atomicMin(&cell.lower.x,primBounds4.lower.x);
           atomicMax(&cell.upper.x,primBounds4.upper.x);
           atomicMin(&cell.lower.y,primBounds4.lower.y);
@@ -639,6 +741,41 @@ namespace dtracker {
     }
 
     ranges[index] = primRange;
+  }
+
+  void Renderer::computeRanges(OWLBuffer &ranges) {
+    unsigned numThreads = 1024;
+    unsigned numElements = umeshPtr->numVolumeElements();
+
+    const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
+    const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
+    const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
+    const int *d_hexahedra = (const int*)owlBufferGetPointer(hexahedraData,0);
+    float2 *d_ranges = (float2*)owlBufferGetPointer(ranges,0);
+    {
+      _computeRanges<<<div_up(numElements, numThreads), numThreads>>>(
+        d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
+        umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(),umeshPtr->vertices.size(),
+        d_ranges
+      );
+    }
+
+    {
+      // make the host block until the device is finished with foo
+      cudaDeviceSynchronize();
+
+      // check for error
+      cudaError_t error = cudaGetLastError();
+      if(error != cudaSuccess)
+      {
+        // print the CUDA error message and exit
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        throw std::runtime_error(cudaGetErrorString(error));
+      }
+    }
+
   }
 
 
@@ -925,6 +1062,169 @@ namespace dtracker {
     }
 
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4);
+  }
+
+  OWLBuffer Renderer::buildObjectOrientedMacrocells(const vec3i &dims, const box3f &bounds) {
+    OWLBuffer BBoxBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numClusters, nullptr);
+    box4f *d_mcGrid = (box4f*)owlBufferGetPointer(BBoxBuffer, 0);
+
+    const vec3i blockSize = vec3i(4);
+    clearMCs<<<to_dims(divRoundUp(dims,blockSize)),to_dims(blockSize)>>>
+      (d_mcGrid,dims);
+    CUDA_SYNC_CHECK();
+
+    const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
+    const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
+    const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
+    const int *d_hexahedra = (const int*)owlBufferGetPointer(hexahedraData,0);
+    {
+      const int blockSize = 32;
+
+      const int numBlocks = divRoundUp(int(umeshPtr->numVolumeElements()), blockSize);
+      vec3i grid(min(numBlocks,MAX_GRID_SIZE),
+                  divRoundUp(numBlocks,MAX_GRID_SIZE),
+                  1);
+
+      clusterElementsIntoGrid<<<to_dims(grid),blockSize>>>
+        (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
+          umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
+
+    }
+    CUDA_SYNC_CHECK();
+    return BBoxBuffer;
+  }
+
+  OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds) {
+    uint32_t numMacrocells = dims.x * dims.y * dims.z;
+    OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), numMacrocells, nullptr);
+    float2 *d_mcGrid = (float2*)owlBufferGetPointer(MacrocellBuffer, 0);
+
+    const vec3i blockSize = vec3i(4);
+    sizeMCs<<<to_dims(divRoundUp(dims,blockSize)),to_dims(blockSize)>>>
+      (d_mcGrid,dims,bounds);
+    CUDA_SYNC_CHECK();
+
+    const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
+    const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
+    const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
+    const int *d_hexahedra = (const int*)owlBufferGetPointer(hexahedraData,0);
+    {
+      const int blockSize = 32;
+
+      const int numBlocks = divRoundUp(int(umeshPtr->numVolumeElements()), blockSize);
+      vec3i grid(min(numBlocks,MAX_GRID_SIZE),
+                  divRoundUp(numBlocks,MAX_GRID_SIZE),
+                  1);
+
+      rasterElements<<<to_dims(grid),blockSize>>>
+        (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
+          umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
+
+    }
+    CUDA_SYNC_CHECK();
+    return MacrocellBuffer;
+  }
+  
+  __global__ void computeCentroidsAndIndices(
+    float4 *centroids,
+    uint32_t *indices,
+    const vec3f *vertices,
+    const float *scalars,
+    const int *tetrahedra,
+    const int *pyramids,
+    const int *wedges,
+    const int *hexahedra,
+    const uint64_t numTetrahedra,
+    const uint64_t numPyramids,
+    const uint64_t numWedges,
+    const uint64_t numHexahedra
+    )
+  {
+    const uint64_t blockID
+      = blockIdx.x
+      + blockIdx.y * MAX_GRID_SIZE;
+    uint64_t index = blockID*blockDim.x + threadIdx.x;
+    uint64_t primIdx = blockID*blockDim.x + threadIdx.x;
+    
+    uint64_t pyrOffset = numTetrahedra;
+    uint64_t wedOffset = numTetrahedra + numPyramids;
+    uint64_t hexOffset = numTetrahedra + numPyramids + numWedges;
+    uint64_t totalElements = numTetrahedra + numPyramids + numWedges + numHexahedra;
+    if (primIdx >= totalElements) return;
+
+    box4f primBounds4 = box4f();
+    if (primIdx < pyrOffset) {
+      uint64_t i0 = tetrahedra[primIdx * 4ull + 0ull];
+      uint64_t i1 = tetrahedra[primIdx * 4ull + 1ull];
+      uint64_t i2 = tetrahedra[primIdx * 4ull + 2ull];
+      uint64_t i3 = tetrahedra[primIdx * 4ull + 3ull];
+      primBounds4 = primBounds4.extend({vertices[i0].x, vertices[i0].y, vertices[i0].z, scalars[i0]} );
+      primBounds4 = primBounds4.extend({vertices[i1].x, vertices[i1].y, vertices[i1].z, scalars[i1]} );
+      primBounds4 = primBounds4.extend({vertices[i2].x, vertices[i2].y, vertices[i2].z, scalars[i2]} );
+      primBounds4 = primBounds4.extend({vertices[i3].x, vertices[i3].y, vertices[i3].z, scalars[i3]} );
+    } 
+    else if (primIdx < wedOffset) {
+      primIdx -= pyrOffset;
+      uint64_t i0 = pyramids[primIdx * 5ull + 0ull];
+      uint64_t i1 = pyramids[primIdx * 5ull + 1ull];
+      uint64_t i2 = pyramids[primIdx * 5ull + 2ull];
+      uint64_t i3 = pyramids[primIdx * 5ull + 3ull];
+      uint64_t i4 = pyramids[primIdx * 5ull + 4ull];
+      primBounds4 = primBounds4.extend({vertices[i0].x, vertices[i0].y, vertices[i0].z, scalars[i0]} );
+      primBounds4 = primBounds4.extend({vertices[i1].x, vertices[i1].y, vertices[i1].z, scalars[i1]} );
+      primBounds4 = primBounds4.extend({vertices[i2].x, vertices[i2].y, vertices[i2].z, scalars[i2]} );
+      primBounds4 = primBounds4.extend({vertices[i3].x, vertices[i3].y, vertices[i3].z, scalars[i3]} );
+      primBounds4 = primBounds4.extend({vertices[i4].x, vertices[i4].y, vertices[i4].z, scalars[i4]} );
+    }
+    else if (primIdx < hexOffset) {
+      primIdx -= wedOffset;
+      uint64_t i0 = wedges[primIdx * 6ull + 0ull];
+      uint64_t i1 = wedges[primIdx * 6ull + 1ull];
+      uint64_t i2 = wedges[primIdx * 6ull + 2ull];
+      uint64_t i3 = wedges[primIdx * 6ull + 3ull];
+      uint64_t i4 = wedges[primIdx * 6ull + 4ull];
+      uint64_t i5 = wedges[primIdx * 6ull + 5ull];
+      primBounds4 = primBounds4.extend({vertices[i0].x, vertices[i0].y, vertices[i0].z, scalars[i0]} );
+      primBounds4 = primBounds4.extend({vertices[i1].x, vertices[i1].y, vertices[i1].z, scalars[i1]} );
+      primBounds4 = primBounds4.extend({vertices[i2].x, vertices[i2].y, vertices[i2].z, scalars[i2]} );
+      primBounds4 = primBounds4.extend({vertices[i3].x, vertices[i3].y, vertices[i3].z, scalars[i3]} );
+      primBounds4 = primBounds4.extend({vertices[i4].x, vertices[i4].y, vertices[i4].z, scalars[i4]} );
+      primBounds4 = primBounds4.extend({vertices[i5].x, vertices[i5].y, vertices[i5].z, scalars[i5]} );
+    }
+    else {
+      primIdx -= hexOffset;
+      uint64_t i0 = hexahedra[primIdx * 8ull + 0ull];
+      uint64_t i1 = hexahedra[primIdx * 8ull + 1ull];
+      uint64_t i2 = hexahedra[primIdx * 8ull + 2ull];
+      uint64_t i3 = hexahedra[primIdx * 8ull + 3ull];
+      uint64_t i4 = hexahedra[primIdx * 8ull + 4ull];
+      uint64_t i5 = hexahedra[primIdx * 8ull + 5ull];
+      uint64_t i6 = hexahedra[primIdx * 8ull + 6ull];
+      uint64_t i7 = hexahedra[primIdx * 8ull + 7ull];
+      primBounds4 = primBounds4.extend({vertices[i0].x, vertices[i0].y, vertices[i0].z, scalars[i0]} );
+      primBounds4 = primBounds4.extend({vertices[i1].x, vertices[i1].y, vertices[i1].z, scalars[i1]} );
+      primBounds4 = primBounds4.extend({vertices[i2].x, vertices[i2].y, vertices[i2].z, scalars[i2]} );
+      primBounds4 = primBounds4.extend({vertices[i3].x, vertices[i3].y, vertices[i3].z, scalars[i3]} );
+      primBounds4 = primBounds4.extend({vertices[i4].x, vertices[i4].y, vertices[i4].z, scalars[i4]} );
+      primBounds4 = primBounds4.extend({vertices[i5].x, vertices[i5].y, vertices[i5].z, scalars[i5]} );
+      primBounds4 = primBounds4.extend({vertices[i6].x, vertices[i6].y, vertices[i6].z, scalars[i6]} );
+      primBounds4 = primBounds4.extend({vertices[i7].x, vertices[i7].y, vertices[i7].z, scalars[i7]} );
+    }
+
+    float4 pt = make_float4(
+      (primBounds4.upper.x + primBounds4.lower.x) * .5f,
+      (primBounds4.upper.y + primBounds4.lower.y) * .5f,
+      (primBounds4.upper.z + primBounds4.lower.z) * .5f,
+      (primBounds4.upper.w + primBounds4.lower.w) * .5f);
+    
+    // printf("Centroid %f %f %f %f\n", pt.x, pt.y, pt.z, pt.w/*, code*/);
+
+    centroids[index] = pt;
+    indices[index] = index;
   }
 
   __global__ void computeCentroidBounds(const float4* centroids, uint64_t N, box4f* centroidBoundsPtr)
@@ -1287,7 +1587,7 @@ namespace dtracker {
   void Renderer::sortElements(uint64_t* &codesSorted, uint32_t* &elementIdsSorted)
   {
     unsigned numThreads = 1024;
-    unsigned numElements = umeshHdl->numVolumeElements();
+    unsigned numElements = umeshPtr->numVolumeElements();
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
     const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
@@ -1327,7 +1627,7 @@ namespace dtracker {
     {
       computeCentroidsAndIndices<<<div_up(numElements, numThreads), numThreads>>>(
         centroids, elementIdsUnsorted, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-        umeshHdl->tets.size(), umeshHdl->pyrs.size(), umeshHdl->wedges.size(), umeshHdl->hexes.size()
+        umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size()
       );
     }
 
@@ -1430,7 +1730,7 @@ namespace dtracker {
     bool returnSortedIndexToCluster, uint32_t* sortedIndexToCluster)
   {
     unsigned numThreads = 1024;
-    unsigned numElements = umeshHdl->numVolumeElements();
+    unsigned numElements = umeshPtr->numVolumeElements();
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
     const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
     const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
@@ -1541,7 +1841,7 @@ namespace dtracker {
     cudaFree(uniqueSortedIndexToCluster);
     cudaFree(uniqueSortedIndexToClusterCount);
     
-    clustersBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(box4f), numClusters, nullptr);
+    clustersBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numClusters, nullptr);
     box4f* clusters = (box4f*)owlBufferGetPointer(clustersBuffer, 0);
 
     // fill in clusters
@@ -1554,7 +1854,7 @@ namespace dtracker {
         numClusters,
         elementIdsSorted,
         d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-        umeshHdl->tets.size(), umeshHdl->pyrs.size(), umeshHdl->wedges.size(), umeshHdl->hexes.size()
+        umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size()
       ); 
     }
 
@@ -1981,3 +2281,4 @@ namespace dtracker {
     return output;
   }
 };
+

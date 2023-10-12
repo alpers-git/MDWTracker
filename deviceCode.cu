@@ -23,22 +23,20 @@ inline __device__ bool dbg()
 #endif
 }
 
-inline __both__ 
-float4 transferFunction(float f)
+inline __both__ float4 transferFunction(float f)
 {
-  auto &lp = optixLaunchParams;
-  if (f < lp.transferFunction.volumeDomain.x ||
-      f > lp.transferFunction.volumeDomain.y)
-  {
-    return make_float4(1.f, 0.f, 1.f, 0.0f);
-  }
-  float remapped = (f - lp.transferFunction.volumeDomain.x) /
-                   (lp.transferFunction.volumeDomain.y - lp.transferFunction.volumeDomain.x);
+    auto &lp = optixLaunchParams;
+    if (f < lp.transferFunction.volumeDomain.x ||
+        f > lp.transferFunction.volumeDomain.y)
+    {
+        return make_float4(1.f, 0.f, 1.f, 0.0f);
+    }
+    float remapped1 = (f - lp.transferFunction.volumeDomain.x) / (lp.transferFunction.volumeDomain.y - lp.transferFunction.volumeDomain.x);
+    float remapped2 = remapped1;//(remapped1 - lp.transferFunction.xfDomain.x) / (lp.transferFunction.xfDomain.y - lp.transferFunction.xfDomain.x);
+    float4 xf = tex2D<float4>(lp.transferFunction.xf, remapped2, 0.5f);
+    xf.w *= lp.transferFunction.opacityScale;
 
-  float4 xf = tex2D<float4>(lp.transferFunction.xf, remapped, 0.5f);
-  xf.w *= lp.transferFunction.opacityScale;
-
-  return xf;
+    return xf;
 }
 
 inline __device__ vec3f over(vec3f Cin, vec3f Cx, float Ain, float Ax)
@@ -172,33 +170,33 @@ OPTIX_MISS_PROGRAM(miss)
 // Bounds programs for volume elements
 // ------------------------------------------------------------------
 
-// OPTIX_BOUNDS_PROGRAM(MacrocellBounds)
-// (
-//     const void *geomData,
-//     owl::common::box3f &primBounds,
-//     const int primID)
-// {
-//     const MacrocellData &self = *(const MacrocellData *)geomData;
-//     // if (self.maxima[primID] <= 0.f) {
-//     //    primBounds = box3f(); // empty box
-//     //  }
-//     //  else
-//     {
-//         primBounds = box3f();
-//         primBounds = primBounds.including(vec3f(self.bboxes[(primID * 2 + 0)].x,
-//                                                 self.bboxes[(primID * 2 + 0)].y,
-//                                                 self.bboxes[(primID * 2 + 0)].z));
-//         primBounds = primBounds.including(vec3f(self.bboxes[(primID * 2 + 1)].x,
-//                                                 self.bboxes[(primID * 2 + 1)].y,
-//                                                 self.bboxes[(primID * 2 + 1)].z));
-//         // primBounds.lower.x = self.bboxes[(primID * 2 + 0)].x;
-//         // primBounds.lower.y = self.bboxes[(primID * 2 + 0)].y;
-//         // primBounds.lower.z = self.bboxes[(primID * 2 + 0)].z;
-//         // primBounds.upper.x = self.bboxes[(primID * 2 + 1)].x;
-//         // primBounds.upper.y = self.bboxes[(primID * 2 + 1)].y;
-//         // primBounds.upper.z = self.bboxes[(primID * 2 + 1)].z;
-//     }
-// }
+OPTIX_BOUNDS_PROGRAM(MacrocellBounds)
+(
+    const void *geomData,
+    owl::common::box3f &primBounds,
+    const int primID)
+{
+    const MacrocellData &self = *(const MacrocellData *)geomData;
+    // if (self.maxima[primID] <= 0.f) {
+    //    primBounds = box3f(); // empty box
+    //  }
+    //  else
+    {
+        primBounds = box3f();
+        primBounds = primBounds.including(vec3f(self.bboxes[(primID)].lower.x,
+                                                self.bboxes[(primID)].lower.y,
+                                                self.bboxes[(primID)].lower.z));
+        primBounds = primBounds.including(vec3f(self.bboxes[(primID)].upper.x,
+                                                self.bboxes[(primID)].upper.y,
+                                                self.bboxes[(primID)].upper.z));
+        // primBounds.lower.x = self.bboxes[(primID * 2 + 0)].x;
+        // primBounds.lower.y = self.bboxes[(primID * 2 + 0)].y;
+        // primBounds.lower.z = self.bboxes[(primID * 2 + 0)].z;
+        // primBounds.upper.x = self.bboxes[(primID * 2 + 1)].x;
+        // primBounds.upper.y = self.bboxes[(primID * 2 + 1)].y;
+        // primBounds.upper.z = self.bboxes[(primID * 2 + 1)].z;
+    }
+}
 
 OPTIX_BOUNDS_PROGRAM(TetrahedraBounds)
 (
@@ -558,3 +556,64 @@ OPTIX_INTERSECT_PROGRAM(HexahedraPointQuery)
         return;
     }
 }
+
+  OPTIX_INTERSECT_PROGRAM(VolumeIntersection)()
+  {
+    auto &lp = optixLaunchParams;
+    RayPayload &prd = owl::getPRD<RayPayload>();
+    const auto &self = owl::getProgramData<MacrocellData>();
+    const int primID = optixGetPrimitiveIndex() + self.offset; 
+    
+    // avoid intersecting the same brick twice
+    // if (primID == prd.prevNode) return;
+
+    if (prd.rgba.w > .99f) return;
+
+    box4f bbox = self.bboxes[primID];
+    float3 lb = make_float3(bbox.lower.x, bbox.lower.y, bbox.lower.z);
+    float3 rt = make_float3(bbox.upper.x, bbox.upper.y, bbox.upper.z);
+    float3 origin = optixGetObjectRayOrigin();
+
+    // note, this is _not_ normalized. Useful for computing world space tmin/mmax
+    float3 direction = optixGetObjectRayDirection();
+
+    // float3 rt = make_float3(mx.x(), mx.y(), mx.z() + 1.f);
+
+    // typical ray AABB intersection test
+    float3 dirfrac;
+
+    // direction is unit direction vector of ray
+    dirfrac.x = 1.0f / direction.x;
+    dirfrac.y = 1.0f / direction.y;
+    dirfrac.z = 1.0f / direction.z;
+
+    // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+    // origin is origin of ray
+    float t1 = (lb.x - origin.x)*dirfrac.x;
+    float t2 = (rt.x - origin.x)*dirfrac.x;
+    float t3 = (lb.y - origin.y)*dirfrac.y;
+    float t4 = (rt.y - origin.y)*dirfrac.y;
+    float t5 = (lb.z - origin.z)*dirfrac.z;
+    float t6 = (rt.z - origin.z)*dirfrac.z;
+
+    float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+    float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+    // if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
+    if (thit1 < 0) { return; }
+
+
+    // if tmin > tmax, ray doesn't intersect AABB
+    if (thit0 >= thit1) { return; }
+
+    // clip hit to near position
+    thit0 = max(thit0, optixGetRayTmin());
+
+    if (optixReportIntersection(thit0, /* hit kind */ 0)) 
+    {
+      prd.t0 = max(prd.t0, thit0);
+      prd.t1 = min(prd.t1, thit1);
+    }
+  }
+
+

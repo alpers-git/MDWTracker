@@ -5,6 +5,8 @@
 #include "owl/common/math/random.h"
 #include <cuda_runtime.h>
 
+#include "cuda_fp16.h"
+
 using namespace owl;
 
 #define NUM_BINS 32
@@ -35,15 +37,15 @@ struct UnstructuredElementData
   uint64_t numWedges;
   uint64_t numHexahedra;
   uint8_t *maxima;
-  //half *bboxes;
+  half *bboxes;
 };
 
-struct MacrocellData
-{
-  float4 *bboxes;
-  float* maxima;
-  // int offset; // for pre-split geom
+struct MacrocellData {
+    float* maxima;        
+    box4f* bboxes;
+    int offset; // for pre-split geom
 };
+
 
 /* variables for the ray generation program */
 struct LaunchParams
@@ -60,6 +62,8 @@ struct LaunchParams
 
   struct
   {
+    //interval<float> domain;
+    OptixTraversableHandle rootMacrocellTLAS;
     OptixTraversableHandle elementTLAS;
     OptixTraversableHandle macrocellTLAS;
 
@@ -69,7 +73,6 @@ struct LaunchParams
     float dt;
 
     vec3i macrocellDims;
-    // float* macrocells;
 
     float4 globalBoundsLo;
     float4 globalBoundsHi;
@@ -81,7 +84,7 @@ struct LaunchParams
     cudaTextureObject_t xf;
     // int numTexels;
     float2 volumeDomain;
-    //float2 xfDomain;
+    float2 xfDomain;
     float opacityScale;
   } transferFunction;
 

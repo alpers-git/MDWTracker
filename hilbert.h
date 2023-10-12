@@ -1,5 +1,5 @@
 //source: https://gitlab.com/n8vm/owlptdvr/-/blob/master/hilbert.h?ref_type=heads  
-
+#pragma once
 /* C header file for Hilbert curve functions */
 #if !defined(_hilbert_h_)
 #define _hilbert_h_
