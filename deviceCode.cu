@@ -32,7 +32,8 @@ inline __both__ float4 transferFunction(float f)
         return make_float4(1.f, 0.f, 1.f, 0.0f);
     }
     float remapped1 = (f - lp.transferFunction.volumeDomain.x) / (lp.transferFunction.volumeDomain.y - lp.transferFunction.volumeDomain.x);
-    float remapped2 = remapped1;//(remapped1 - lp.transferFunction.xfDomain.x) / (lp.transferFunction.xfDomain.y - lp.transferFunction.xfDomain.x);
+    float remapped2 = (remapped1 - lp.transferFunction.xfDomain.x) / (lp.transferFunction.xfDomain.y - lp.transferFunction.xfDomain.x);
+    
     float4 xf = tex2D<float4>(lp.transferFunction.xf, remapped2, 0.5f);
     xf.w *= lp.transferFunction.opacityScale;
 
@@ -92,12 +93,14 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     const vec2i pixelID = owl::getLaunchIndex();
     const int fbOfs = pixelID.x + lp.fbSize.x * pixelID.y;
 
+    //generate ray
     int seed = owl::getLaunchDims().x * owl::getLaunchDims().y * lp.frameID;
-    owl::common::LCG<4> random(threadIdx.x + seed, threadIdx.y + seed);
+    owl::common::LCG<4> random(threadIdx.x + seed, threadIdx.y + seed);//jittered sampling
     const vec2f screen = (vec2f(pixelID) + random()) / vec2f(lp.fbSize);
     Ray ray;
     generateRay(screen, ray);
 
+    //test surface intersections first
     RayPayload surfPrd;
     const MissProgData &missData = owl::getProgramData<MissProgData>();
     vec4f finalColor = vec4f(missCheckerBoard(), 1.0f);
@@ -108,7 +111,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
     const float tMax = surfPrd.missed ? 1000.f : surfPrd.tHit;
     int numSteps = 0;
-    for(float t = 0.f; t < tMax || numSteps < 10; t+=5.f )
+    for(float t = 0.f; t < tMax || numSteps < 1; t+=5.f )
     {
         RayPayload volPrd;
         traceRay(lp.volume.elementTLAS, ray, volPrd); //volume
@@ -170,7 +173,7 @@ OPTIX_MISS_PROGRAM(miss)
 // Bounds programs for volume elements
 // ------------------------------------------------------------------
 
-OPTIX_BOUNDS_PROGRAM(MacrocellBounds)
+OPTIX_BOUNDS_PROGRAM(macrocellBounds)
 (
     const void *geomData,
     owl::common::box3f &primBounds,
@@ -198,7 +201,7 @@ OPTIX_BOUNDS_PROGRAM(MacrocellBounds)
     }
 }
 
-OPTIX_BOUNDS_PROGRAM(TetrahedraBounds)
+OPTIX_BOUNDS_PROGRAM(tetrahedraBounds)
 (
     const void *geomData,
     owl::common::box3f &primBounds,
@@ -227,7 +230,7 @@ OPTIX_BOUNDS_PROGRAM(TetrahedraBounds)
                      .including(P3);
 }
 
-OPTIX_BOUNDS_PROGRAM(PyramidBounds)
+OPTIX_BOUNDS_PROGRAM(pyramidBounds)
 (
     const void *geomData,
     owl::common::box3f &primBounds,
@@ -260,7 +263,7 @@ OPTIX_BOUNDS_PROGRAM(PyramidBounds)
                      .including(P4);
 }
 
-OPTIX_BOUNDS_PROGRAM(WedgeBounds)
+OPTIX_BOUNDS_PROGRAM(wedgeBounds)
 (
     const void *geomData,
     owl::common::box3f &primBounds,
@@ -295,7 +298,7 @@ OPTIX_BOUNDS_PROGRAM(WedgeBounds)
                      .including(P5);
 }
 
-OPTIX_BOUNDS_PROGRAM(HexahedraBounds)
+OPTIX_BOUNDS_PROGRAM(hexahedraBounds)
 (
     const void *geomData,
     owl::common::box3f &primBounds,
@@ -339,7 +342,7 @@ OPTIX_BOUNDS_PROGRAM(HexahedraBounds)
 // ------------------------------------------------------------------
 // intersection programs
 // ------------------------------------------------------------------
-OPTIX_INTERSECT_PROGRAM(TetrahedraPointQuery)
+OPTIX_INTERSECT_PROGRAM(tetrahedraPointQuery)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
@@ -388,7 +391,7 @@ OPTIX_INTERSECT_PROGRAM(TetrahedraPointQuery)
     }
 }
 
-OPTIX_INTERSECT_PROGRAM(PyramidPointQuery)
+OPTIX_INTERSECT_PROGRAM(pyramidPointQuery)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
@@ -440,7 +443,7 @@ OPTIX_INTERSECT_PROGRAM(PyramidPointQuery)
     }
 }
 
-OPTIX_INTERSECT_PROGRAM(WedgePointQuery)
+OPTIX_INTERSECT_PROGRAM(wedgePointQuery)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
@@ -495,7 +498,7 @@ OPTIX_INTERSECT_PROGRAM(WedgePointQuery)
     }
 }
 
-OPTIX_INTERSECT_PROGRAM(HexahedraPointQuery)
+OPTIX_INTERSECT_PROGRAM(hexahedraPointQuery)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
@@ -557,7 +560,7 @@ OPTIX_INTERSECT_PROGRAM(HexahedraPointQuery)
     }
 }
 
-  OPTIX_INTERSECT_PROGRAM(VolumeIntersection)()
+  OPTIX_INTERSECT_PROGRAM(volumeIntersection)()
   {
     auto &lp = optixLaunchParams;
     RayPayload &prd = owl::getPRD<RayPayload>();

@@ -67,7 +67,7 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction.xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction.xf)},
     {"transferFunction.volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.volumeDomain)},
     {"transferFunction.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction.opacityScale)},
-    //{"volume.mecrocells"}
+    {"transferFunction.xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.xfDomain)},
     {/* sentinel to mark end of list */}};
 
 namespace dtracker
@@ -149,18 +149,18 @@ namespace dtracker
 
     // Set intersection programs
     //owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 1, module, "MacrocellIntersection");
-    owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 0, module, "VolumeIntersection");
-    owlGeomTypeSetIntersectProg(tetrahedraType, /*ray type */ 0, module, "TetrahedraPointQuery");
-    owlGeomTypeSetIntersectProg(pyramidType, /*ray type */ 0, module, "PyramidPointQuery");
-    owlGeomTypeSetIntersectProg(wedgeType, /*ray type */ 0, module, "WedgePointQuery");
-    owlGeomTypeSetIntersectProg(hexahedraType, /*ray type */ 0, module, "HexahedraPointQuery");
+    owlGeomTypeSetIntersectProg(macrocellType, /*ray type */ 0, module, "volumeIntersection");
+    owlGeomTypeSetIntersectProg(tetrahedraType, /*ray type */ 0, module, "tetrahedraPointQuery");
+    owlGeomTypeSetIntersectProg(pyramidType, /*ray type */ 0, module, "pyramidPointQuery");
+    owlGeomTypeSetIntersectProg(wedgeType, /*ray type */ 0, module, "wedgePointQuery");
+    owlGeomTypeSetIntersectProg(hexahedraType, /*ray type */ 0, module, "hexahedraPointQuery");
 
     // Set boundary programs
-    owlGeomTypeSetBoundsProg(tetrahedraType, module, "TetrahedraBounds");
-    owlGeomTypeSetBoundsProg(pyramidType, module, "PyramidBounds");
-    owlGeomTypeSetBoundsProg(wedgeType, module, "WedgeBounds");
-    owlGeomTypeSetBoundsProg(hexahedraType, module, "HexahedraBounds");
-    owlGeomTypeSetBoundsProg(macrocellType, module, "MacrocellBounds");
+    owlGeomTypeSetBoundsProg(tetrahedraType, module, "tetrahedraBounds");
+    owlGeomTypeSetBoundsProg(pyramidType, module, "pyramidBounds");
+    owlGeomTypeSetBoundsProg(wedgeType, module, "wedgeBounds");
+    owlGeomTypeSetBoundsProg(hexahedraType, module, "hexahedraBounds");
+    owlGeomTypeSetBoundsProg(macrocellType, module, "macrocellBounds");
 
     owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
     
@@ -506,8 +506,6 @@ namespace dtracker
       
       std::cout<<"Clustering elements...";
       buildClusters(codesSorted, elementIdsSorted, 1000000, numClusters, clusterBBoxBuffer);
-      // buildClusters(codesSorted, elementIdsSorted, 100000, numClusters, clusterBBoxBuffer);
-      std::cout<<" done! " << std::endl;
 
       // quick validation code...
       {
@@ -525,9 +523,6 @@ namespace dtracker
           assert(umeshPtr->tets[i].z >= 0);
         }
       }
-      // macrocellsPerSide = int(powf(numClusters, 1.f / 3.f));
-      // macrocellsPerSide = 1024;
-      // macrocellsPerSide = 512;
       
       box3f bounds = {
         {umeshPtr->bounds.lower.x, umeshPtr->bounds.lower.y, umeshPtr->bounds.lower.z},
@@ -538,6 +533,7 @@ namespace dtracker
       // std::cout<<"Generated " << uint32_t(powf(macrocellsPerSide, 3)) << " macrocells"<<std::endl;      
       cudaFree(codesSorted);
       cudaFree(elementIdsSorted);
+      //RecalculateDensityRanges();
   }
 
   void Renderer::SetXFOpacityScale(float newOpacityScale)
@@ -554,7 +550,7 @@ namespace dtracker
   void Renderer::SetXFRange(const vec2f newRange)
   {
     xfDomain = interval<float>(newRange.x, newRange.y);
-    //owlParamsSet2f(lp, "transferFunction.volumeDomain", (const owl2f &)volDomain); TODO: fix this
+    owlParamsSet2f(lp, "transferFunction.xfDomain", (const owl2f &)xfDomain);
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
     //RecalculateDensityRanges();
