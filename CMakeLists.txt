@@ -90,6 +90,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --generate-line-info")
 
 #-------------------- viewer ------------------------
 add_executable(rqsViewer
+  dda.h
   glfwHandler.cpp
   hilbert.h
   renderer.cpp

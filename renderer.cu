@@ -206,121 +206,20 @@ namespace dtracker {
         numThreads, macrocells, colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
         majorantBuffer);
     }
-
-    {
-      bboxes = (owl::box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
-      isBackground = false;
-      numThreads = numClusters;
-      gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-      majorantBuffer = (float*)owlBufferGetPointer(clusterMaximaBuffer, 0);
-      _recalculateDensityRanges<<<gridSize,blockSize>>>(
-        numThreads, /*lvl*/ isBackground, bboxes, 
-        colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-        majorantBuffer);
-    }
-
-      CUDA_SYNC_CHECK();
-
-    // else 
     // {
-    //   // background
-    //   bboxes = nullptr;
-    //   numThreads = 1;
-    //   isBackground = true;
-    //   gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-    //   majorantBuffer = (float*)owlBufferGetPointer(backgroundMaximaBuffer, 0);
-    //   _recalculateDensityRanges<<<gridSize,blockSize>>>(
-    //     numThreads, isBackground, bboxes, 
-    //     colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-    //     majorantBuffer);
-    
-    //   // root
-    //   bboxes = (owl::box4f*)owlBufferGetPointer(rootBBoxBuffer, 0);
+    //   bboxes = (owl::box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
     //   isBackground = false;
+    //   numThreads = numClusters;
     //   gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-    //   majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
-    //   _recalculateDensityRanges<<<gridSize,blockSize>>>(
-    //     numThreads, isBackground, bboxes, 
-    //     colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-    //     majorantBuffer);
-
-    //   // coarse
-    //   bboxes = (owl::box4f*)owlBufferGetPointer(coarseBBoxBuffer, 0);
-    //   isBackground = false;
-    //   numThreads = numCoarseBBoxes;
-    //   gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-    //   majorantBuffer = (float*)owlBufferGetPointer(coarseMaximaBuffer, 0);
+    //   majorantBuffer = (float*)owlBufferGetPointer(clusterMaximaBuffer, 0);
     //   _recalculateDensityRanges<<<gridSize,blockSize>>>(
     //     numThreads, /*lvl*/ isBackground, bboxes, 
     //     colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
     //     majorantBuffer);
-      
-    //   // // medium
-    //   // bboxes = (owl::box4f*)owlBufferGetPointer(mediumBBoxBuffer, 0);
-    //   // isBackground = false;
-    //   // numThreads = numMediumBBoxes;
-    //   // gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-    //   // majorantBuffer = (float*)owlBufferGetPointer(mediumMaximaBuffer, 0);
-    //   // _recalculateDensityRanges<<<gridSize,blockSize>>>(
-    //   //   numThreads, isBackground, bboxes, 
-    //   //   colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-    //   //   majorantBuffer);
-
-    //   // // fine
-    //   // bboxes = (owl::box4f*)owlBufferGetPointer(fineBBoxBuffer, 0);
-    //   // isBackground = false;
-    //   // numThreads = numFineBBoxes;
-    //   // gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-    //   // majorantBuffer = (float*)owlBufferGetPointer(fineMaximaBuffer, 0);
-    //   // _recalculateDensityRanges<<<gridSize,blockSize>>>(
-    //   //   numThreads, isBackground, bboxes, 
-    //   //   colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-    //   //   majorantBuffer);
-
-    //   CUDA_SYNC_CHECK();
-
-    //   owlGroupBuildAccel(rootMacrocellBLAS);
-    //   owlGroupBuildAccel(rootMacrocellTLAS);
-    //   owlGroupBuildAccel(coarseMacrocellBLAS);
-    //   owlGroupBuildAccel(coarseMacrocellTLAS);
-    //   // owlGroupBuildAccel(mediumMacrocellBLAS);
-    //   // owlGroupBuildAccel(mediumMacrocellTLAS);
-    //   // for (auto &group : fineMacrocellBLAS)
-    //   //   owlGroupBuildAccel(group);
-    //   // owlGroupBuildAccel(fineMacrocellTLAS);
     // }
-    
-    // // update elements
-    // for (auto &geom : elementGeom) {
-    //   owlGeomSet2f(geom, "xfDomain", tfnDomain.x, tfnDomain.y);
-    //   owlGeomSet2f(geom, "volumeDomain", volumeDomain.x, volumeDomain.y);
-    //   owlGeomSetRaw(geom, "xf", &colorMapTexture);
-    //   owlGeomSet1f(geom, "opacityScale", opacityScale);
-    //   owlGeomSet1i(geom, "numTexels", colorMapSize);
-    // }
-    // for (auto &group : elementBLAS) {
-    //   owlGroupBuildAccel(group);
-    // }
-    // owlGroupBuildAccel(elementTLAS);
 
-    // owlBuildSBT(owl);
-
-    // // fine
-    // // Note, this kernel must be called for kd, bvh, and macrocells because
-    // // the fine fine majorants are used to make point queries on "empty" elements
-    // // faster
-    // bboxes = (owl::box4f*)owlBufferGetPointer(fineBBoxBuffer, 0);
-    // isBackground = false;
-    // numThreads = numFineBBoxes;
-    // gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
-    // majorantBuffer = (float*)owlBufferGetPointer(fineMaximaBuffer, 0);
-    // _recalculateDensityRanges<<<gridSize,blockSize>>>(
-    //   numThreads, isBackground, bboxes, 
-    //   colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-    //   majorantBuffer);
-    
     CUDA_SYNC_CHECK();
-
+    CUDA_SYNC_CHECK();
 
   }
 
@@ -1119,11 +1018,9 @@ namespace dtracker {
       vec3i grid(min(numBlocks,MAX_GRID_SIZE),
                   divRoundUp(numBlocks,MAX_GRID_SIZE),
                   1);
-
       rasterElements<<<to_dims(grid),blockSize>>>
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
           umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
-
     }
     CUDA_SYNC_CHECK();
     return MacrocellBuffer;

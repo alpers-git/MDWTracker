@@ -72,7 +72,9 @@ struct LaunchParams
     int numAdaptiveSamplingRays;
     float dt;
 
-    vec3i macrocellDims;
+    vec3ui macrocellDims;
+    box3f rootDomain;
+    float* macrocells;
 
     float4 globalBoundsLo;
     float4 globalBoundsHi;
@@ -106,9 +108,6 @@ struct RayPayload
   float t1;
   owl::common::LCG<4> rng; // random number generator
   vec4f rgba;
-  float dataMax;
-  float dataMin;
-  float dataAvg;
   float dataValue;
   float tHit;
   int samples;

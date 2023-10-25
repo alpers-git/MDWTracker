@@ -1,4 +1,5 @@
 #include "deviceCode.h"
+#include "dda.h"
 #include <optix_device.h>
 #include "renderer.h"
 #include "unstructuredElementHelper.h"
@@ -6,7 +7,7 @@
 using namespace owl;
 using namespace dtracker;
 
-extern "C" __constant__ static LaunchParams optixLaunchParams;
+extern "C" __constant__ LaunchParams optixLaunchParams;
 
 #define DEBUG 0
 // create a debug function macro that gets called only for center pixel
@@ -102,7 +103,6 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
     //test surface intersections first
     RayPayload surfPrd;
-    const MissProgData &missData = owl::getProgramData<MissProgData>();
     vec4f finalColor = vec4f(missCheckerBoard(), 1.0f);
     vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
     traceRay(lp.triangleTLAS, ray, surfPrd); //surface
@@ -111,25 +111,16 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
     const float tMax = surfPrd.missed ? 1000.f : surfPrd.tHit;
     int numSteps = 0;
-    for(float t = 0.f; t < tMax || numSteps < 1; t+=5.f )
-    {
-        RayPayload volPrd;
-        traceRay(lp.volume.elementTLAS, ray, volPrd); //volume
-        if(!volPrd.missed)
-        {
-            vec4f xfValue = transferFunction(volPrd.dataValue);
-            if(xfValue.w > random() * 0.5f)
-            {
-                color = xfValue;
-                color =clamp(color, vec4f(0.f), vec4f(1.f));
-                color.w = 1.f;
-                break;
-            }
-        }
-        ray.origin += ray.direction * 5.f;
-        numSteps++;
-    }
 
+    //test for root macrocell intersection
+    RayPayload rootPrd;
+    traceRay(lp.volume.rootMacrocellTLAS, ray, rootPrd); //root macrocell to initiate dda traversal
+    if(!rootPrd.missed)
+    {
+        color = vec4f(0.f, 0.f, 1.f, 1.f);//rootPrd.rgba;
+        //printf ("root macrocell hit %f\n", rootPrd.tHit);
+    }
+    
     finalColor = over(color, finalColor);
     
     vec4f oldColor = lp.accumBuffer[fbOfs];
@@ -160,6 +151,67 @@ OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
     prd.tHit = length(P - vec3f(optixGetWorldRayOrigin()));
     prd.missed = false;
     prd.rgba = vec4f((.2f + .8f * fabs(dot(rayDir, Ng))) * self.color, 1);
+}
+
+OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
+()
+{
+    RayPayload &prd = owl::getPRD<RayPayload>();
+    auto &lp = optixLaunchParams;
+    const MacrocellData &self = owl::getProgramData<MacrocellData>();
+    prd.missed =false;
+
+    const interval<float> xfDomain(lp.transferFunction.xfDomain.x, 
+        lp.transferFunction.xfDomain.y);
+    const interval<float> volDomain(lp.transferFunction.volumeDomain.x,
+        lp.transferFunction.volumeDomain.y);
+
+    vec3f org = optixGetWorldRayOrigin();
+    vec3f dir = optixGetWorldRayDirection();
+
+    float majorant = lp.volume.macrocells[42];
+    //printf("cellID = %d, majorant = %f\\n", 42, majorant);
+    prd.tHit = majorant;
+    return;
+
+    // assuming ray is already in voxel space
+    box3f worlddim = lp.volume.rootDomain;
+    vec3ui griddim = lp.volume.macrocellDims;
+    auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
+    {
+    const int cellID
+        = cellIdx.x
+        + cellIdx.y * griddim.x
+        + cellIdx.z * griddim.x * griddim.y;
+    float majorant = lp.volume.macrocells[cellID];
+    // float4 c = make_float4(1.f, 1.1f, 1.f, .01f * exp(-majorant*(t1 - t0)));
+    float4 c = make_float4(1.f, 1.f, 1.f, majorant);
+    prd.rgba = over(prd.rgba, vec4f(c));
+    return false; // keep going
+    };
+
+    org = org - worlddim.lower; 
+    auto worldToUnit = affine3f(
+    linear3f(
+        vec3f((worlddim.upper.x - worlddim.lower.x), 0.f, 0.f),
+        vec3f(0.f, (worlddim.upper.y - worlddim.lower.y), 0.f),
+        vec3f(0.f, 0.f, (worlddim.upper.z - worlddim.lower.z))
+    ).inverse(),
+    vec3f(0.f, 0.f, 0.f)
+    );
+    
+    auto unitToGrid = affine3f(
+    linear3f(
+        vec3f(griddim.x, 0.f, 0.f),
+        vec3f(0.f, griddim.y, 0.f),
+        vec3f(0.f, 0.f, griddim.z)
+    ),
+    vec3f(0.f, 0.f, 0.f)
+    );
+    org = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org));
+    dir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
+    dir = normalize(dir);
+    dda::dda3(org,dir,1e20f,griddim,lambda,false);
 }
 
 OPTIX_MISS_PROGRAM(miss)
