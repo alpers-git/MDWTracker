@@ -61,6 +61,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.rootMacrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.rootMacrocellTLAS)},
     {"volume.macrocellDims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.macrocellDims)},
     {"volume.macrocells",   OWL_BUFPTR,       OWL_OFFSETOF(LaunchParams,volume.macrocells) },
+    {"volume.majorants",    OWL_BUFPTR,       OWL_OFFSETOF(LaunchParams,volume.majorants) },
     {"volume.dt", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, volume.dt)},
     {"volume.globalBoundsLo", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsLo)},
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
@@ -242,8 +243,8 @@ namespace dtracker
     bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
     gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
-    clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
-    owlParamsSetBuffer(lp, "volume.macrocells", gridMaximaBuffer);
+    //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
+    owlParamsSetBuffer(lp, "volume.majorants", gridMaximaBuffer);
 
     rootMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numMacrocells, nullptr);
     rootBBoxBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numMacrocells, nullptr);
@@ -254,6 +255,10 @@ namespace dtracker
         {umeshPtr->bounds.upper.x, umeshPtr->bounds.upper.y, umeshPtr->bounds.upper.z}
       };
     macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
+    owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
+    const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
+
+    owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
 
     LOG("Building geometries ...");
 
@@ -383,7 +388,10 @@ namespace dtracker
     LOG("Building programs...");
     owlBuildPipeline(context);
     owlBuildSBT(context);
-    RecalculateDensityRanges();
+
+    //TODO set using avg element bbox size/2
+    owlParamsSet1f(lp, "volume.dt", dt);
+    //RecalculateDensityRanges();
   }
 
   void Renderer::Render(bool heatMap)

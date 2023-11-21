@@ -151,6 +151,7 @@ void _recalculateDensityRanges(
     float addr1 = remappedMin * numTexels;
     float addr2 = remappedMax * numTexels;
 
+
     int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), numTexels-1);
     int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), numTexels-1);
 
@@ -219,8 +220,6 @@ namespace dtracker {
     // }
 
     CUDA_SYNC_CHECK();
-    CUDA_SYNC_CHECK();
-
   }
 
   // For umeshes
@@ -1004,6 +1003,8 @@ namespace dtracker {
     sizeMCs<<<to_dims(divRoundUp(dims,blockSize)),to_dims(blockSize)>>>
       (d_mcGrid,dims,bounds);
     CUDA_SYNC_CHECK();
+
+    printf("Building Spatial Macrocells\n");
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
     const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);

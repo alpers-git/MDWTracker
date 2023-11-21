@@ -109,18 +109,19 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if (!surfPrd.missed)
          color = surfPrd.rgba;
 
-    const float tMax = surfPrd.missed ? 1000.f : surfPrd.tHit;
+    const float tMax = surfPrd.missed ? 1e20 : surfPrd.tHit;
     int numSteps = 0;
 
     //test for root macrocell intersection
     RayPayload rootPrd;
+    rootPrd.debug = dbg();
+    rootPrd.t1 = tMax;
     traceRay(lp.volume.rootMacrocellTLAS, ray, rootPrd); //root macrocell to initiate dda traversal
     if(!rootPrd.missed)
     {
-        color = vec4f(0.f, 0.f, 1.f, 1.f);//rootPrd.rgba;
-        //printf ("root macrocell hit %f\n", rootPrd.tHit);
+        color = rootPrd.rgba;
     }
-    
+
     finalColor = over(color, finalColor);
     
     vec4f oldColor = lp.accumBuffer[fbOfs];
@@ -159,58 +160,125 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
-    prd.missed =false;
+    prd.missed = true;
 
     const interval<float> xfDomain(lp.transferFunction.xfDomain.x, 
         lp.transferFunction.xfDomain.y);
     const interval<float> volDomain(lp.transferFunction.volumeDomain.x,
         lp.transferFunction.volumeDomain.y);
 
+    float unit = lp.volume.dt;
+
+    vec3f worldOrg = optixGetWorldRayOrigin();
     vec3f org = optixGetWorldRayOrigin();
     vec3f dir = optixGetWorldRayDirection();
 
-    float majorant = lp.volume.macrocells[42];
-    //printf("cellID = %d, majorant = %f\\n", 42, majorant);
-    prd.tHit = majorant;
-    return;
-
     // assuming ray is already in voxel space
-    box3f worlddim = lp.volume.rootDomain;
+    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
     vec3ui griddim = lp.volume.macrocellDims;
-    auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
-    {
-    const int cellID
-        = cellIdx.x
-        + cellIdx.y * griddim.x
-        + cellIdx.z * griddim.x * griddim.y;
-    float majorant = lp.volume.macrocells[cellID];
-    // float4 c = make_float4(1.f, 1.1f, 1.f, .01f * exp(-majorant*(t1 - t0)));
-    float4 c = make_float4(1.f, 1.f, 1.f, majorant);
-    prd.rgba = over(prd.rgba, vec4f(c));
-    return false; // keep going
-    };
 
-    org = org - worlddim.lower; 
+    org = org - worlddim.lower;
+
+    // if(prd.debug)
+    // {
+    //     printf("org = (%f, %f, %f)\n", org.x, org.y, org.z);
+    //     printf("dir = (%f, %f, %f)\n", dir.x, dir.y, dir.z);
+    //     printf("worlddim.lower = (%f, %f, %f)\n", worlddim.lower.x, worlddim.lower.y, worlddim.lower.z);
+    //     printf("worlddim.upper = (%f, %f, %f)\n", worlddim.upper.x, worlddim.upper.y, worlddim.upper.z);
+    //     printf("griddim = (%d, %d, %d)\n", griddim.x, griddim.y, griddim.z);
+    // }
+
+
+    auto unitToWorld = affine3f(
+        linear3f(
+          vec3f((worlddim.upper.x - worlddim.lower.x), 0.f, 0.f),
+          vec3f(0.f, (worlddim.upper.y - worlddim.lower.y), 0.f),
+          vec3f(0.f, 0.f, (worlddim.upper.z - worlddim.lower.z))),
+            vec3f(0.f, 0.f, 0.f));
     auto worldToUnit = affine3f(
-    linear3f(
-        vec3f((worlddim.upper.x - worlddim.lower.x), 0.f, 0.f),
-        vec3f(0.f, (worlddim.upper.y - worlddim.lower.y), 0.f),
-        vec3f(0.f, 0.f, (worlddim.upper.z - worlddim.lower.z))
-    ).inverse(),
-    vec3f(0.f, 0.f, 0.f)
-    );
+        linear3f(
+            vec3f((worlddim.upper.x - worlddim.lower.x), 0.f, 0.f),
+            vec3f(0.f, (worlddim.upper.y - worlddim.lower.y), 0.f),
+            vec3f(0.f, 0.f, (worlddim.upper.z - worlddim.lower.z))).inverse(),
+            vec3f(0.f, 0.f, 0.f));
+    auto gridToUnit = affine3f(
+        linear3f(
+          vec3f(griddim.x, 0.f, 0.f),
+          vec3f(0.f, griddim.y, 0.f),
+          vec3f(0.f, 0.f, griddim.z)).inverse(),
+            vec3f(0.f, 0.f, 0.f));
     
     auto unitToGrid = affine3f(
-    linear3f(
-        vec3f(griddim.x, 0.f, 0.f),
-        vec3f(0.f, griddim.y, 0.f),
-        vec3f(0.f, 0.f, griddim.z)
-    ),
-    vec3f(0.f, 0.f, 0.f)
-    );
+        linear3f(
+            vec3f(griddim.x, 0.f, 0.f),
+            vec3f(0.f, griddim.y, 0.f),
+            vec3f(0.f, 0.f, griddim.z)),
+            vec3f(0.f, 0.f, 0.f));
+
     org = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org));
     dir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
     dir = normalize(dir);
+    auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
+    {
+        const int cellID = cellIdx.x + cellIdx.y * griddim.x + cellIdx.z * griddim.x * griddim.y;
+        float majorant = lp.volume.majorants[cellID];
+
+        if (prd.debug)
+        {
+            printf("cellID = %d, majorant = %f\n", cellID, majorant);
+        }
+
+        if (majorant <= 0.00001f)
+            return true;
+
+
+        float t = t0;
+
+        // Sample free-flight distance
+        while (true)
+        {
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit;
+
+            // if(prd.debug)
+            // {
+            //     printf("t = %f, unit=%f t0 = %f, t1 = %f, majorant = %f\n", t, unit, t0, t1, majorant);
+            // }
+
+            // A brick boundary has been hit
+            if (t >= t1)
+            {
+                break;
+            }
+
+            // Update current position
+            vec3f x = org + t * dir;
+            vec3f worldX = xfmPoint(gridToUnit, xfmPoint(unitToWorld, x)) + worlddim.lower;
+
+            float tWorld = length(worldX - worldOrg);
+            if(prd.debug)
+            {
+                printf("tWorld = %f, t1 = %f, majorant = %f\n", tWorld, prd.t1, majorant);
+            }
+            // A world boundary has been hit
+            if (tWorld >= prd.t1)
+                return false; // terminate traversal
+            
+            prd.rgba = transferFunction(majorant);
+            if(prd.rng() < prd.rgba.w)
+            {
+                prd.tHit = tWorld;
+                prd.missed = false;
+                if (prd.debug)
+                {
+                    printf("tWorld = %f, t1 = %f, majorant = %f\n", tWorld, prd.t1, majorant);
+                }
+                return false;
+            }
+        }
+
+        return true;
+    };
     dda::dda3(org,dir,1e20f,griddim,lambda,false);
 }
 

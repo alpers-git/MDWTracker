@@ -75,7 +75,7 @@ public:
     int frameID{0};
 
     /* scene */
-    float dt = 0.5f;
+    float dt = 0.05f;
     bool shadows = false;
     vec3f lightDir = vec3f(0.f, -1.f, 0.f);
     vec2i fbSize = vec2i(1024, 1024);
@@ -92,7 +92,7 @@ public:
 
     /* density majorants */
     uint32_t numClusters = 2;
-    unsigned macrocellsPerSide = 32; // 4096 exceeds the size of a uint32_t when squared...
+    unsigned macrocellsPerSide = 8; // 4096 exceeds the size of a uint32_t when squared...
 
     /*! initializes renderer */
     void Init();

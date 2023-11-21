@@ -84,7 +84,7 @@ Viewer::Viewer(int argc, char *argv[])
     std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
     renderer = std::make_shared<dtracker::Renderer>();
 
-    GLFWHandler::getInstance()->initWindow(1024, 1024, "RQS-Viewer");
+    GLFWHandler::getInstance()->initWindow(512, 512, "RQS-Viewer");
 
     // init imgui
     ImGui::CreateContext();
