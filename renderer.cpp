@@ -234,8 +234,8 @@ namespace dtracker
     owlBufferUpload(verticesData, umeshPtr->vertices.data());
     owlBufferUpload(scalarData, umeshPtr->perVertex->values.data());
 
-    indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, NUM_INDICES, indices);
-    vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, NUM_VERTICES, vertices);
+    indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtr->triangles.size() * 3, nullptr);
+    vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
 
     // Macrocell data
     int numMacrocells = 1;
@@ -266,12 +266,16 @@ namespace dtracker
 
     cudaDeviceSynchronize();
     // Surface geometry
-    //just loads a cube for now
     trianglesGeom = owlGeomCreate(context, triangleType);
-    owlTrianglesSetIndices(trianglesGeom, indexBuffer, NUM_INDICES, sizeof(vec3i), 0);
-    owlTrianglesSetVertices(trianglesGeom, vertexBuffer, NUM_VERTICES, sizeof(vec3f), 0);
-    owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
-    owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
+    if(umeshPtr->triangles.size() > 0)
+    {
+      owlBufferUpload(indexBuffer, umeshPtr->triangles.data());
+      owlBufferUpload(vertexBuffer, umeshPtr->vertices.data());
+      owlTrianglesSetIndices(trianglesGeom, indexBuffer, umeshPtr->triangles.size(), sizeof(vec3i), 0);
+      owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtr->triangles.size(), sizeof(vec3f), 0);
+      owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
+      owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
+    }
     owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
 
     trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
