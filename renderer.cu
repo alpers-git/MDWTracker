@@ -57,19 +57,13 @@ void _recalculateDensityRanges(
     int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), numTexels-1);
     int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), numTexels-1);
 
-    // // When does this occur?
-    // if (addrMin < 0) {
-    //   maxima[primID] = 0.f;
-    //   return;
-    // }
-
     float maxDensity;
     for (int i = addrMin; i <= addrMax; ++i) {
       float density = tex2D<float4>(texture, float(i)/numTexels ,0.5f).w * opacityScale;
       if (i == addrMin) maxDensity = density;
       else maxDensity = max(maxDensity, density);
     }
-    maxima[primID] = maxDensity;    
+    maxima[primID] = maxDensity;
 
     // if(!is_background) {
     //   printf("box %u bounds {%f %f %f %f %f %f} majorant %f\n", primID, 
@@ -161,8 +155,7 @@ void _recalculateDensityRanges(
       if (i == addrMin) maxDensity = density;
       else maxDensity = max(maxDensity, density);
     }
-    //printf("ID %d min %f max %f majorant %f\n", nodeID, mn, mx, maxDensity);
-    maxima[nodeID] = maxDensity;    
+    maxima[nodeID] = maxDensity;
 }
 
 namespace dtracker {
@@ -184,12 +177,12 @@ namespace dtracker {
       bboxes = (owl::box4f*)owlBufferGetPointer(rootBBoxBuffer, 0);
       isBackground = false;
       numThreads = 1;
-      gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
+      gridSize = dim3((numThreads + blockSize.x - 1) / blockSize.x);
       majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
       _recalculateDensityRanges<<<gridSize,blockSize>>>(
         numThreads, isBackground, bboxes, 
-        colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
-        majorantBuffer);
+        colorMapTexture, colorMapSize, volumeDomain,
+        tfnDomain, opacityScale, majorantBuffer);
       
       CUDA_SYNC_CHECK();
       

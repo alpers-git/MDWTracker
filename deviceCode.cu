@@ -86,6 +86,28 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
     return color;
 }
 
+inline __device__
+float sampleVolume(const vec3f& pos)
+{
+    auto &lp = optixLaunchParams;
+    //create a ray with zero lenght and origin at pos
+    Ray ray;
+    ray.origin = pos;
+    ray.direction = vec3f(1.0f, 1.0f, 1.0f);
+    ray.tmin = 0.0f;
+    ray.tmax = 0.0f;
+    ray.time = 0.0f;
+    RayPayload prd;
+    prd.debug = dbg();
+
+    owl::traceRay(lp.volume.elementTLAS, ray, prd);
+    if (prd.missed)
+        return NAN;
+    else
+        return prd.dataValue;
+}
+
+
 // Delta tracking
 OPTIX_RAYGEN_PROGRAM(mainRG)
 ()
@@ -119,6 +141,8 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     traceRay(lp.volume.rootMacrocellTLAS, ray, rootPrd); //root macrocell to initiate dda traversal
     if(!rootPrd.missed)
     {
+        if (dbg())
+            printf("rootPrd.tHit = %f\n", rootPrd.tHit);
         color = rootPrd.rgba;
     }
 
@@ -154,10 +178,20 @@ OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
     prd.rgba = vec4f((.2f + .8f * fabs(dot(rayDir, Ng))) * self.color, 1);
 }
 
+
+//define an enum for different volume rendering events
+enum VolumeEvent
+{
+    ABSORPTION,
+    SCATTERING,
+    NULL_COLLISION // also used as no collision
+};
 OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
+    // if (prd.debug)
+    //     printf("adaptiveDTCH\n");
     auto &lp = optixLaunchParams;
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
     prd.missed = true;
@@ -179,16 +213,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     vec3ui griddim = lp.volume.macrocellDims;
 
     org = org - worlddim.lower;
-
-    // if(prd.debug)
-    // {
-    //     printf("org = (%f, %f, %f)\n", org.x, org.y, org.z);
-    //     printf("dir = (%f, %f, %f)\n", dir.x, dir.y, dir.z);
-    //     printf("worlddim.lower = (%f, %f, %f)\n", worlddim.lower.x, worlddim.lower.y, worlddim.lower.z);
-    //     printf("worlddim.upper = (%f, %f, %f)\n", worlddim.upper.x, worlddim.upper.y, worlddim.upper.z);
-    //     printf("griddim = (%d, %d, %d)\n", griddim.x, griddim.y, griddim.z);
-    // }
-
 
     auto unitToWorld = affine3f(
         linear3f(
@@ -219,62 +243,91 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     org = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org));
     dir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
     dir = normalize(dir);
+
+    float4 sampledTF = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * griddim.x + cellIdx.z * griddim.x * griddim.y;
         float majorant = lp.volume.majorants[cellID];
 
-        if (prd.debug)
-        {
-            printf("cellID = %d, majorant = %f\n", cellID, majorant);
-        }
-
-        if (majorant <= 0.00001f)
+        if (majorant <= 0.00001f || majorant > 0.99999f)
             return true;
 
 
         float t = t0;
+        VolumeEvent event = NULL_COLLISION;
 
         // Sample free-flight distance
         while (true)
         {
+            //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             t = t - (log(1.0f - prd.rng()) / majorant) * unit;
-
-            // if(prd.debug)
-            // {
-            //     printf("t = %f, unit=%f t0 = %f, t1 = %f, majorant = %f\n", t, unit, t0, t1, majorant);
-            // }
 
             // A brick boundary has been hit
             if (t >= t1)
-            {
-                break;
-            }
+                break; // go to next cell
 
             // Update current position
-            vec3f x = org + t * dir;
-            vec3f worldX = xfmPoint(gridToUnit, xfmPoint(unitToWorld, x)) + worlddim.lower;
+            const vec3f x = org + t * dir;
+            const vec3f worldX = xfmPoint(gridToUnit, xfmPoint(unitToWorld, x)) + worlddim.lower;
 
-            float tWorld = length(worldX - worldOrg);
-            if(prd.debug)
-            {
-                printf("tWorld = %f, t1 = %f, majorant = %f\n", tWorld, prd.t1, majorant);
-            }
+            const float tWorld = length(worldX - worldOrg);
+
             // A world boundary has been hit
             if (tWorld >= prd.t1)
                 return false; // terminate traversal
             
-            prd.rgba = transferFunction(majorant);
-            if(prd.rng() < prd.rgba.w)
+            //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
+            const float value = sampleVolume(worldX);
+            if(isnan(value)) // miss
+                continue;
+            sampledTF = transferFunction(value);
+            
+            const float volumeEvent = prd.rng();
+
+            const float extinction = sampledTF.w + 0.f; // absorption + scattering
+            const float nullCollision = majorant - extinction;
+
+            const float denom = extinction + abs(nullCollision); // to avoif re-computing this
+
+            const float p_absorb = sampledTF.w / denom;
+            //const float p_scatter = 0.0f / denom; //scattering probability is 0 for now
+            const float p_null = abs(nullCollision) / denom;
+
+            // Sample event
+            if (volumeEvent < p_absorb)
             {
-                prd.tHit = tWorld;
-                prd.missed = false;
-                if (prd.debug)
-                {
-                    printf("tWorld = %f, t1 = %f, majorant = %f\n", tWorld, prd.t1, majorant);
-                }
-                return false;
+                prd.tHit = min(prd.tHit, t);
+                event = ABSORPTION;
+                break;
             }
+            else if (volumeEvent < p_absorb /*+ p_scatter*/)
+            {
+                event = SCATTERING;
+                break;
+            }
+            // Null collision
+            else
+                event = NULL_COLLISION;
+        }
+
+        switch (event)
+        {
+        case NULL_COLLISION:
+            return true; // move to next cell with dda
+        case ABSORPTION:
+            prd.rgba = sampledTF;
+            prd.rgba.w = 1.0f;
+            prd.missed = false;
+            return false; // terminate traversal
+        case SCATTERING: //shouldnt happen
+            prd.rgba = sampledTF;
+            prd.rgba.w = 1.0f;
+            prd.missed = false;
+            return true; // move to next cell with dda
+        
+        default:
+            break;
         }
 
         return true;
@@ -689,8 +742,7 @@ OPTIX_INTERSECT_PROGRAM(hexahedraPointQuery)
     
     // avoid intersecting the same brick twice
     // if (primID == prd.prevNode) return;
-
-    if (prd.rgba.w > .99f) return;
+    if (prd.rgba.w > 1.000001f) return;
 
     box4f bbox = self.bboxes[primID];
     float3 lb = make_float3(bbox.lower.x, bbox.lower.y, bbox.lower.z);
@@ -724,7 +776,6 @@ OPTIX_INTERSECT_PROGRAM(hexahedraPointQuery)
 
     // if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
     if (thit1 < 0) { return; }
-
 
     // if tmin > tmax, ray doesn't intersect AABB
     if (thit0 >= thit1) { return; }

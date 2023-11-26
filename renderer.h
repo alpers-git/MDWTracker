@@ -91,8 +91,8 @@ public:
     float opacityScale = 1.0f;
 
     /* density majorants */
-    uint32_t numClusters = 2;
-    unsigned macrocellsPerSide = 8; // 4096 exceeds the size of a uint32_t when squared...
+    uint32_t numClusters = 1;
+    unsigned macrocellsPerSide = 32; // 4096 exceeds the size of a uint32_t when squared...
 
     /*! initializes renderer */
     void Init();
