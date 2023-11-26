@@ -132,7 +132,6 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
          color = surfPrd.rgba;
 
     const float tMax = surfPrd.missed ? 1e20 : surfPrd.tHit;
-    int numSteps = 0;
 
     //test for root macrocell intersection
     RayPayload rootPrd;
@@ -141,9 +140,27 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     traceRay(lp.volume.rootMacrocellTLAS, ray, rootPrd); //root macrocell to initiate dda traversal
     if(!rootPrd.missed)
     {
-        if (dbg())
-            printf("rootPrd.tHit = %f\n", rootPrd.tHit);
         color = rootPrd.rgba;
+        //if(lp.shadows)
+        {
+            // trace shadow rays
+            RayPayload shadowbyVolPrd;
+            shadowbyVolPrd.debug = dbg();
+            shadowbyVolPrd.t1 = 1e20f; //todo fix this
+            Ray shadowRay;
+            shadowRay.origin = ray.origin + rootPrd.tHit * ray.direction;
+            shadowRay.direction = {0.0f, -1.0f, 0.0f};
+            shadowRay.tmin = 0.0001f;
+            shadowRay.tmax = 1e20f;
+
+            traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd);
+            if(dbg())
+                printf("shadow ray dir: %f %f %f\n", shadowRay.direction.x, shadowRay.direction.y, shadowRay.direction.z);
+            if(!shadowbyVolPrd.missed)
+            {
+                color = vec4f(1.0f, 0.0f, 1.0f, 1.0f);
+            }
+        }
     }
 
     finalColor = over(color, finalColor);
@@ -252,7 +269,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
         if (majorant <= 0.00001f)
             return true;
-            
+
         float t = t0;
         VolumeEvent event = NULL_COLLISION;
 

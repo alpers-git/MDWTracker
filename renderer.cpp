@@ -412,6 +412,8 @@ namespace dtracker
     if (glfw->getWindowSize() != fbSize)
       Resize(glfw->getWindowSize());
     owlParamsSet1f(lp, "volume.dt", dt);
+    owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
+    //owlParamsSet1i(lp, "shadows", shadowsOn);
   }
 
   void Renderer::Terminate()

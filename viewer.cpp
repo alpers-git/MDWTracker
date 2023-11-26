@@ -190,8 +190,11 @@ void Viewer::Run()
         if(ImGui::DragFloat("dt", &dt, 0.01f, 0.0f, 1e20f))
             renderer->SetDt(dt);
         vec3f lightDir = renderer->lightDir;
-        if(ImGui::DragFloat3("lightDir", &lightDir.x, 0.01f, -1.0f, 1.0f));
-            //renderer->SetLightDir(lightDir);
+        if(ImGui::DragFloat3("Light Direction", &lightDir.x, 0.01f, -1.0f, 1.0f))
+            renderer->lightDir = lightDir;
+        ImGui::SameLine();
+        if(ImGui::Button("Shadows"))
+            renderer->shadowsOn = !renderer->shadowsOn;
         ImGui::End();
         RenderImGuiFrame();
 
