@@ -250,10 +250,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
         const int cellID = cellIdx.x + cellIdx.y * griddim.x + cellIdx.z * griddim.x * griddim.y;
         float majorant = lp.volume.majorants[cellID];
 
-        if (majorant <= 0.00001f || majorant > 0.99999f)
+        if (majorant <= 0.00001f)
             return true;
-
-
+            
         float t = t0;
         VolumeEvent event = NULL_COLLISION;
 
@@ -318,11 +317,13 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
         case ABSORPTION:
             prd.rgba = sampledTF;
             prd.rgba.w = 1.0f;
+            prd.tHit = t;
             prd.missed = false;
             return false; // terminate traversal
         case SCATTERING: //shouldnt happen
             prd.rgba = sampledTF;
             prd.rgba.w = 1.0f;
+            prd.tHit = t;
             prd.missed = false;
             return true; // move to next cell with dda
         
