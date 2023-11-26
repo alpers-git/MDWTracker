@@ -182,10 +182,16 @@ void Viewer::Run()
                        owlBufferGetPointer(renderer->frameBuffer, 0));
 
         RequestImGuiFrame();
-        ImGui::Begin("RQS-Viewer");
+        ImGui::Begin("Renderer Controls");
         tfnWidget->DrawColorMap();
         tfnWidget->DrawOpacityScale();
         tfnWidget->DrawRanges();
+        float dt = renderer->dt;
+        if(ImGui::DragFloat("dt", &dt, 0.01f, 0.0f, 1e20f))
+            renderer->SetDt(dt);
+        vec3f lightDir = renderer->lightDir;
+        if(ImGui::DragFloat3("lightDir", &lightDir.x, 0.01f, -1.0f, 1.0f));
+            //renderer->SetLightDir(lightDir);
         ImGui::End();
         RenderImGuiFrame();
 
