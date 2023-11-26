@@ -86,7 +86,7 @@ public:
     cudaTextureObject_t colorMapTexture { 0 };
 
     interval<float> volDomain;
-    interval<float> xfDomain;//todo wire-in
+    interval<float> xfDomain;
     std::vector<vec4f> colorMap;
     float opacityScale = 1.0f;
 
@@ -114,7 +114,10 @@ public:
     void SetXFRange(vec2f xfDomain);
     /*! recalculates the majorants*/
     void RecalculateDensityRanges();
-
+    /*! sets the dt to avg span /2 of bounding boxes of elements*/
+    void ResetDt();
+    /*! sets the dt to a fixed value*/
+    void SetDt(float dt);
 
     // For umeshes, use this to generate some object oriented macrocells.
     // idea, rasterize elements into a grid, expand or shrink bounding boxes to contain elements,

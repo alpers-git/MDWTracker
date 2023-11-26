@@ -217,6 +217,20 @@ void Viewer::Run()
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
             TakeSnapshot();
 
+        if (glfw->key.isPressed(GLFW_KEY_EQUAL) &&
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"+"
+            renderer->SetDt(renderer->dt + 0.01f );
+        else if (glfw->key.isPressed(GLFW_KEY_MINUS) &&
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"-"
+            renderer->SetDt(renderer->dt - 0.01f);
+
+        else if (glfw->key.isRepeated(GLFW_KEY_EQUAL) &&
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"+"
+            renderer->SetDt(renderer->dt + 0.04f);
+        else if (glfw->key.isRepeated(GLFW_KEY_MINUS) &&
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"-"
+            renderer->SetDt(renderer->dt - 0.04f);
+
         if(glfw->key.isPressed(GLFW_KEY_T) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
             tfnWidget->SaveState("tfn_state.tf");
