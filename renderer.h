@@ -76,7 +76,7 @@ public:
 
     /* scene */
     float dt = 0.05f;
-    bool shadowsOn = false;
+    bool enableShadows = false;
     vec3f lightDir = vec3f(0.f, -1.f, 0.f);
     vec2i fbSize = vec2i(1024, 1024);
 
@@ -118,6 +118,8 @@ public:
     void ResetDt();
     /*! sets the dt to a fixed value*/
     void SetDt(float dt);
+    /*! sets the light direction*/
+    void SetLightDir(vec3f lightDir);
 
     // For umeshes, use this to generate some object oriented macrocells.
     // idea, rasterize elements into a grid, expand or shrink bounding boxes to contain elements,

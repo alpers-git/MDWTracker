@@ -43,7 +43,7 @@ OWLVarDecl launchParamVars[] = {
     // framebuffer
     {"fbPtr", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, fbPtr)},
     {"fbSize", OWL_INT2, OWL_OFFSETOF(LaunchParams, fbSize)},
-    {"shadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, shadows)},
+    {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
     {"lightDir", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, lightDir)},
     // accum buffer
     {"accumID", OWL_INT, OWL_OFFSETOF(LaunchParams, accumID)},
@@ -413,7 +413,7 @@ namespace dtracker
       Resize(glfw->getWindowSize());
     owlParamsSet1f(lp, "volume.dt", dt);
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
-    //owlParamsSet1i(lp, "shadows", shadowsOn);
+    owlParamsSet1b(lp, "enableShadows", enableShadows);
   }
 
   void Renderer::Terminate()
@@ -643,6 +643,14 @@ namespace dtracker
     dt = max(newDt, 1e-4f);
     printf("Set dt to : %f\n", dt);
     owlParamsSet1f(lp, "volume.dt", dt);
+    accumID = 0;
+    owlParamsSet1i(lp, "accumID", accumID);
+  }
+
+  void Renderer::SetLightDir(const vec3f newLightDir)
+  {
+    lightDir = newLightDir;
+    owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
   }

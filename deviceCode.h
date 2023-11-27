@@ -57,7 +57,7 @@ struct LaunchParams
   uint32_t accumID;
 
   OptixTraversableHandle triangleTLAS;
-  bool shadows;
+  bool enableShadows;
   vec3f lightDir;
 
   struct

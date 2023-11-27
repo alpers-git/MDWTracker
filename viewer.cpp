@@ -191,10 +191,10 @@ void Viewer::Run()
             renderer->SetDt(dt);
         vec3f lightDir = renderer->lightDir;
         if(ImGui::DragFloat3("Light Direction", &lightDir.x, 0.01f, -1.0f, 1.0f))
-            renderer->lightDir = lightDir;
+            renderer->SetLightDir(lightDir);
         ImGui::SameLine();
-        if(ImGui::Button("Shadows"))
-            renderer->shadowsOn = !renderer->shadowsOn;
+        if(ImGui::Checkbox("Shadows", &(renderer->enableShadows)))
+            renderer->SetLightDir(renderer->lightDir); // to reset accumulation
         ImGui::End();
         RenderImGuiFrame();
 

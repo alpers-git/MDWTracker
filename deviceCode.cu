@@ -9,7 +9,7 @@ using namespace dtracker;
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
-#define DEBUG 0
+#define DEBUG 1
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
@@ -127,38 +127,42 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     RayPayload surfPrd;
     vec4f finalColor = vec4f(missCheckerBoard(), 1.0f);
     vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
-    traceRay(lp.triangleTLAS, ray, surfPrd); //surface
+    traceRay(lp.triangleTLAS, ray, surfPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //surface
     if (!surfPrd.missed)
          color = surfPrd.rgba;
 
     const float tMax = surfPrd.missed ? 1e20 : surfPrd.tHit;
 
     //test for root macrocell intersection
-    RayPayload rootPrd;
-    rootPrd.debug = dbg();
-    rootPrd.t1 = tMax;
-    traceRay(lp.volume.rootMacrocellTLAS, ray, rootPrd); //root macrocell to initiate dda traversal
-    if(!rootPrd.missed)
+    RayPayload volumePrd;
+    volumePrd.debug = dbg();
+    volumePrd.t0 = 0.f;
+    volumePrd.t1 = tMax;
+    traceRay(lp.volume.rootMacrocellTLAS, ray, volumePrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //root macrocell to initiate dda traversal
+    if(!volumePrd.missed)
     {
-        color = rootPrd.rgba;
-        //if(lp.shadows)
+        color = volumePrd.rgba;
+        if(lp.enableShadows)
         {
             // trace shadow rays
             RayPayload shadowbyVolPrd;
             shadowbyVolPrd.debug = dbg();
+            shadowbyVolPrd.t0 = 0.f;
             shadowbyVolPrd.t1 = 1e20f; //todo fix this
+            shadowbyVolPrd.missed = true;
+            shadowbyVolPrd.shadowRay = true;
+
             Ray shadowRay;
-            shadowRay.origin = ray.origin + rootPrd.tHit * ray.direction;
-            shadowRay.direction = {0.0f, -1.0f, 0.0f};
-            shadowRay.tmin = 0.0001f;
+            shadowRay.origin = ray.origin + volumePrd.tHit * ray.direction;
+            shadowRay.direction = -normalize(lp.lightDir);
+            shadowRay.tmin = 0.00f;
             shadowRay.tmax = 1e20f;
 
-            traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd);
-            if(dbg())
-                printf("shadow ray dir: %f %f %f\n", shadowRay.direction.x, shadowRay.direction.y, shadowRay.direction.z);
+            traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
             if(!shadowbyVolPrd.missed)
             {
-                color = vec4f(1.0f, 0.0f, 1.0f, 1.0f);
+                vec3f shadow((1.f - 0.2f) * (1.f - shadowbyVolPrd.rgba.w)  + 0.2f);
+                color = vec4f(vec3f(color) * shadow, 1.0f);
             }
         }
     }
@@ -169,6 +173,12 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     vec4f newColor = (vec4f(finalColor) + float(lp.accumID) * oldColor) / float(lp.accumID + 1);
     lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor));
     lp.accumBuffer[fbOfs] = vec4f(newColor);
+#ifdef ACTIVATE_CROSSHAIRS
+    if (pixelID.x == lp.fbSize.x / 2 || pixelID.y == lp.fbSize.y / 2 || 
+        pixelID.x == lp.fbSize.x / 2 + 1 || pixelID.y == lp.fbSize.y / 2 + 1 || 
+        pixelID.x == lp.fbSize.x / 2 - 1 || pixelID.y == lp.fbSize.y / 2 - 1)
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor.z, newColor.y, newColor.x, 1.f));
+#endif
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
@@ -207,8 +217,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
-    // if (prd.debug)
-    //     printf("adaptiveDTCH\n");
     auto &lp = optixLaunchParams;
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
     prd.missed = true;
@@ -261,17 +269,17 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     dir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
     dir = normalize(dir);
 
+    VolumeEvent event = NULL_COLLISION;
     float4 sampledTF = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * griddim.x + cellIdx.z * griddim.x * griddim.y;
         float majorant = lp.volume.majorants[cellID];
 
-        if (majorant <= 0.00001f)
+        if (majorant == 0.00f)
             return true;
 
         float t = t0;
-        VolumeEvent event = NULL_COLLISION;
 
         // Sample free-flight distance
         while (true)
@@ -280,8 +288,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             t = t - (log(1.0f - prd.rng()) / majorant) * unit;
 
             // A brick boundary has been hit
-            if (t >= t1)
+            if (t >= t1){
+                event = NULL_COLLISION;
                 break; // go to next cell
+            }
 
             // Update current position
             const vec3f x = org + t * dir;
@@ -291,12 +301,18 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
             // A world boundary has been hit
             if (tWorld >= prd.t1)
+            {
+                event = NULL_COLLISION;
                 return false; // terminate traversal
+            }
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             const float value = sampleVolume(worldX);
             if(isnan(value)) // miss
+            {
+                event = NULL_COLLISION;
                 continue;
+            }
             sampledTF = transferFunction(value);
             
             const float volumeEvent = prd.rng();
@@ -304,7 +320,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             const float extinction = sampledTF.w + 0.f; // absorption + scattering
             const float nullCollision = majorant - extinction;
 
-            const float denom = extinction + abs(nullCollision); // to avoif re-computing this
+            const float denom = extinction + abs(nullCollision); // to avoid re-computing this
 
             const float p_absorb = sampledTF.w / denom;
             //const float p_scatter = 0.0f / denom; //scattering probability is 0 for now
@@ -313,15 +329,15 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             // Sample event
             if (volumeEvent < p_absorb)
             {
-                prd.tHit = min(prd.tHit, t);
+                prd.tHit = tWorld;
                 event = ABSORPTION;
                 break;
             }
-            else if (volumeEvent < p_absorb /*+ p_scatter*/)
-            {
-                event = SCATTERING;
-                break;
-            }
+            // else if (volumeEvent < p_absorb /*+ p_scatter*/)
+            // {
+            //     event = SCATTERING;
+            //     break;
+            // }
             // Null collision
             else
                 event = NULL_COLLISION;
@@ -334,18 +350,15 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
         case ABSORPTION:
             prd.rgba = sampledTF;
             prd.rgba.w = 1.0f;
-            prd.tHit = t;
+            //prd.tHit = t;
             prd.missed = false;
             return false; // terminate traversal
         case SCATTERING: //shouldnt happen
             prd.rgba = sampledTF;
             prd.rgba.w = 1.0f;
-            prd.tHit = t;
+            //prd.tHit = t;
             prd.missed = false;
-            return true; // move to next cell with dda
-        
-        default:
-            break;
+            return false; // terminate traversal
         }
 
         return true;
@@ -753,14 +766,14 @@ OPTIX_INTERSECT_PROGRAM(hexahedraPointQuery)
 
   OPTIX_INTERSECT_PROGRAM(volumeIntersection)()
   {
-    auto &lp = optixLaunchParams;
     RayPayload &prd = owl::getPRD<RayPayload>();
     const auto &self = owl::getProgramData<MacrocellData>();
     const int primID = optixGetPrimitiveIndex() + self.offset; 
     
     // avoid intersecting the same brick twice
     // if (primID == prd.prevNode) return;
-    if (prd.rgba.w > 1.000001f) return;
+    //if (prd.rgba.w > 1.000001f) return;
+
 
     box4f bbox = self.bboxes[primID];
     float3 lb = make_float3(bbox.lower.x, bbox.lower.y, bbox.lower.z);
