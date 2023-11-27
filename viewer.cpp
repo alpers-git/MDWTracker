@@ -183,18 +183,32 @@ void Viewer::Run()
 
         RequestImGuiFrame();
         ImGui::Begin("Renderer Controls");
-        tfnWidget->DrawColorMap();
-        tfnWidget->DrawOpacityScale();
-        tfnWidget->DrawRanges();
-        float dt = renderer->dt;
+        if(ImGui::CollapsingHeader("Transfer function", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            tfnWidget->DrawColorMap(true);
+            tfnWidget->DrawOpacityScale();
+            tfnWidget->DrawRanges();
+        }
+        if(ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if(ImGui::Checkbox("Shadows", &(renderer->enableShadows)))
+                renderer->SetLightDirection(renderer->lightDir); // to reset accumulation
+            static float lightIntensity = renderer->lightIntensity;
+            if(ImGui::DragFloat("Light Intensity", &lightIntensity, 0.01f, 0.0f, 1e20f))
+                renderer->SetLightIntensity(lightIntensity);
+            if(renderer->enableShadows)
+            {
+                static float ambient = renderer->ambient;
+                if (ImGui::DragFloat("Ambient", &ambient, 0.01f, 0.0f, 10.0f))
+                    renderer->SetAmbient(ambient);
+                static vec3f lightDir = renderer->lightDir;
+                if(ImGui::DragFloat3("Light Direction", &lightDir.x, 0.01f, -1.0f, 1.0f))
+                    renderer->SetLightDirection(lightDir);
+            }
+        }
+        static float dt = renderer->dt;
         if(ImGui::DragFloat("dt", &dt, 0.01f, 0.0f, 1e20f))
             renderer->SetDt(dt);
-        vec3f lightDir = renderer->lightDir;
-        if(ImGui::DragFloat3("Light Direction", &lightDir.x, 0.01f, -1.0f, 1.0f))
-            renderer->SetLightDir(lightDir);
-        ImGui::SameLine();
-        if(ImGui::Checkbox("Shadows", &(renderer->enableShadows)))
-            renderer->SetLightDir(renderer->lightDir); // to reset accumulation
         ImGui::End();
         RenderImGuiFrame();
 

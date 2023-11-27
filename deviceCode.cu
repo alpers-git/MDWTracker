@@ -141,7 +141,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     traceRay(lp.volume.rootMacrocellTLAS, ray, volumePrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //root macrocell to initiate dda traversal
     if(!volumePrd.missed)
     {
-        color = volumePrd.rgba;
+        vec3f albedo = vec3f(volumePrd.rgba);
         if(lp.enableShadows)
         {
             // trace shadow rays
@@ -149,22 +149,19 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
             shadowbyVolPrd.debug = dbg();
             shadowbyVolPrd.t0 = 0.f;
             shadowbyVolPrd.t1 = 1e20f; //todo fix this
-            shadowbyVolPrd.missed = true;
-            shadowbyVolPrd.shadowRay = true;
 
             Ray shadowRay;
             shadowRay.origin = ray.origin + volumePrd.tHit * ray.direction;
-            shadowRay.direction = -normalize(lp.lightDir);
+            shadowRay.direction = -lp.lightDir;
             shadowRay.tmin = 0.00f;
             shadowRay.tmax = 1e20f;
 
             traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-            if(!shadowbyVolPrd.missed)
-            {
-                vec3f shadow((1.f - 0.2f) * (1.f - shadowbyVolPrd.rgba.w)  + 0.2f);
-                color = vec4f(vec3f(color) * shadow, 1.0f);
-            }
+            vec3f shadow((1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w)  + lp.ambient);
+            color = vec4f(albedo * shadow * lp.lightIntensity, 1.0f);
         }
+        else
+            color = vec4f(albedo * lp.lightIntensity, 1.0f);
     }
 
     finalColor = over(color, finalColor);
@@ -220,6 +217,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     auto &lp = optixLaunchParams;
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
     prd.missed = true;
+    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
     const interval<float> xfDomain(lp.transferFunction.xfDomain.x, 
         lp.transferFunction.xfDomain.y);

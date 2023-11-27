@@ -59,6 +59,8 @@ struct LaunchParams
   OptixTraversableHandle triangleTLAS;
   bool enableShadows;
   vec3f lightDir;
+  float lightIntensity;
+  float ambient;
 
   struct
   {

@@ -45,6 +45,8 @@ OWLVarDecl launchParamVars[] = {
     {"fbSize", OWL_INT2, OWL_OFFSETOF(LaunchParams, fbSize)},
     {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
     {"lightDir", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, lightDir)},
+    {"lightIntensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, lightIntensity)},
+    {"ambientIntensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, ambient)},
     // accum buffer
     {"accumID", OWL_INT, OWL_OFFSETOF(LaunchParams, accumID)},
     {"accumBuffer", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, accumBuffer)},
@@ -208,6 +210,11 @@ namespace dtracker
                          umeshPtr->getBounds4f().upper.z, umeshPtr->getBounds4f().upper.w});
     owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
     printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
+
+    // light
+    owlParamsSet3f(lp, "lightDir", owl3f{lightDir.x, lightDir.y, lightDir.z});
+    owlParamsSet1f(lp, "lightIntensity", lightIntensity);
+    owlParamsSet1f(lp, "ambientIntensity", ambient);
 
     ResetDt();
 
@@ -647,10 +654,37 @@ namespace dtracker
     owlParamsSet1i(lp, "accumID", accumID);
   }
 
-  void Renderer::SetLightDir(const vec3f newLightDir)
+  void Renderer::SetLightDirection(const vec3f newLightDir)
   {
+    //if any of the components is 0, set it to a small value
+    if (newLightDir.x <= 1e-4f)
+      lightDir.x = 1e-3f;
+    else
+      lightDir.x = newLightDir.x;
+    if (newLightDir.y <= 1e-4f)
+      lightDir.y = 1e-3f;
+    else
+      lightDir.y = newLightDir.y;
+    if (newLightDir.z <= 1e-4f)
+      lightDir.z = 1e-3f;
+    else
+      lightDir.z = newLightDir.z;
     lightDir = newLightDir;
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
+    accumID = 0;
+    owlParamsSet1i(lp, "accumID", accumID);
+  }
+
+  void Renderer::SetLightIntensity(float lightIntensity)
+  {
+    owlParamsSet1f(lp, "lightIntensity", lightIntensity);
+    accumID = 0;
+    owlParamsSet1i(lp, "accumID", accumID);
+  }
+
+  void Renderer::SetAmbient(float ambientIntensity)
+  {
+    owlParamsSet1f(lp, "ambientIntensity", ambient);
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
   }
