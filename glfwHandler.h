@@ -97,7 +97,7 @@ class GLFWHandler
 
             // Returns true if the key was pressed this frame
             bool isPressed(int key) {
-                auto& foundKey = keys.find(key);
+                auto foundKey = keys.find(key);
                 if (foundKey == keys.end()) 
                 {
                     return false;
@@ -109,7 +109,7 @@ class GLFWHandler
 
             // Returns true if the key was held down multiple frames
             bool isRepeated(int key) {
-                auto& foundKey = keys.find(key);
+                auto foundKey = keys.find(key);
                 if (foundKey == keys.end()) 
                 {
                     return false;
