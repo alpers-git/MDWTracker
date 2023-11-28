@@ -40,6 +40,7 @@ private:
     const float degrees_per_drag_fraction = 250;
     const float pixels_per_move = 90.f;
     bool camGivenAsParam = false;
+    bool heatmap = false;
 
     friend class dtracker::Renderer;
 };
@@ -197,7 +198,7 @@ void Viewer::Run()
 
         glfw->mouseState.imGuiPolling = ImGui::GetIO().WantCaptureMouse;
 
-        renderer->Render();
+        renderer->Render(heatmap);
 
         renderer->Update();
 
@@ -232,6 +233,12 @@ void Viewer::Run()
         static float dt = renderer->dt;
         if(ImGui::DragFloat("dt", &dt, 0.01f, 0.0f, 1e20f))
             renderer->SetDt(dt);
+        ImGui::SameLine();
+        if(ImGui::Checkbox("Heatmap", &heatmap))
+            renderer->ResetAccumulation();
+        ImGui::SameLine();
+        if(ImGui::Checkbox("Accumulation", &(renderer->enableAccumulation)))
+            renderer->ResetAccumulation();
         ImGui::End();
         RenderImGuiFrame();
 
@@ -283,7 +290,11 @@ void Viewer::Run()
         if(glfw->key.isPressed(GLFW_KEY_C) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"C"
             printCameraParameters();
-
+        if(glfw->key.isPressed(GLFW_KEY_H)) //"h"
+        {
+            heatmap = !heatmap;
+            renderer->ResetAccumulation();
+        }
         // Camera movement
         if (glfw->mouseState.leftButtonDown)
             LeftMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));

@@ -108,7 +108,6 @@ float sampleVolume(const vec3f& pos)
 }
 
 
-// Delta tracking
 OPTIX_RAYGEN_PROGRAM(mainRG)
 ()
 {
@@ -125,7 +124,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
     //test surface intersections first
     RayPayload surfPrd;
-    vec4f finalColor = vec4f(missCheckerBoard(), 1.0f);
+    vec4f finalColor = vec4f(0.f, 0.f, 0.f,1.f);//vec4f(missCheckerBoard(), 1.0f);
     vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
     traceRay(lp.triangleTLAS, ray, surfPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //surface
     if (!surfPrd.missed)
@@ -159,23 +158,38 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
             traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
             vec3f shadow((1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w)  + lp.ambient);
             color = vec4f(albedo * shadow * lp.lightIntensity, 1.0f);
+
+            volumePrd.samples += shadowbyVolPrd.samples;// for heatmap
         }
         else
             color = vec4f(albedo * lp.lightIntensity, 1.0f);
     }
 
-    finalColor = over(color, finalColor);
-    
-    vec4f oldColor = lp.accumBuffer[fbOfs];
-    vec4f newColor = (vec4f(finalColor) + float(lp.accumID) * oldColor) / float(lp.accumID + 1);
-    lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor));
-    lp.accumBuffer[fbOfs] = vec4f(newColor);
+    if(lp.enableHeatmap)
+    {
+        //heatmap
+        int samples = volumePrd.samples;
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 500.f, samples / 500.f, samples / 500.f, 1.f));
+    }
+    else
+    {
+        finalColor = over(color, finalColor);
+        if(lp.enableAccumulation)
+        {
+            vec4f oldColor = lp.accumBuffer[fbOfs];
+            vec4f newColor = (vec4f(finalColor) + float(lp.accumID) * oldColor) / float(lp.accumID + 1);
+            lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor));
+            lp.accumBuffer[fbOfs] = vec4f(newColor);
+        }
+        else
+            lp.fbPtr[fbOfs] = make_rgba(vec4f(finalColor));
 #ifdef ACTIVATE_CROSSHAIRS
     if (pixelID.x == lp.fbSize.x / 2 || pixelID.y == lp.fbSize.y / 2 || 
         pixelID.x == lp.fbSize.x / 2 + 1 || pixelID.y == lp.fbSize.y / 2 + 1 || 
         pixelID.x == lp.fbSize.x / 2 - 1 || pixelID.y == lp.fbSize.y / 2 - 1)
         lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor.z, newColor.y, newColor.x, 1.f));
 #endif
+    }
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
@@ -306,6 +320,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             const float value = sampleVolume(worldX);
+            prd.samples++;
             if(isnan(value)) // miss
             {
                 event = NULL_COLLISION;

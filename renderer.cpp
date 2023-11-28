@@ -43,7 +43,11 @@ OWLVarDecl launchParamVars[] = {
     // framebuffer
     {"fbPtr", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, fbPtr)},
     {"fbSize", OWL_INT2, OWL_OFFSETOF(LaunchParams, fbSize)},
+    // renderer variables
     {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
+    {"enableHeatmap", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableHeatmap)},
+    {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
+    // light variables
     {"lightDir", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, lightDir)},
     {"lightIntensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, lightIntensity)},
     {"ambientIntensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, ambient)},
@@ -192,8 +196,7 @@ namespace dtracker
     owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
     owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
 
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
     frameID = 0;
     owlParamsSet1i(lp, "frameID", frameID);
 
@@ -414,6 +417,7 @@ namespace dtracker
 
     owlParamsSet1i(lp, "accumID", accumID++);
     owlParamsSet1i(lp, "frameID", frameID++);
+    owlParamsSet1b(lp, "enableHeatmap", heatMap);
   }
 
   void Renderer::Update()
@@ -424,6 +428,7 @@ namespace dtracker
     owlParamsSet1f(lp, "volume.dt", dt);
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     owlParamsSet1b(lp, "enableShadows", enableShadows);
+    owlParamsSet1b(lp, "enableAccumulation", enableAccumulation);
   }
 
   void Renderer::Terminate()
@@ -540,8 +545,7 @@ namespace dtracker
     //                        colorMap.size(),1,
     //                        colorMap.data());
     owlParamsSetRaw(lp, "transferFunction.xf", &colorMapTexture);
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
     RecalculateDensityRanges();
   }
 
@@ -549,8 +553,7 @@ namespace dtracker
   {
     opacityScale = newOpacityScale;
     owlParamsSet1f(lp, "transferFunction.opacityScale", opacityScale);
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
 
     RecalculateDensityRanges();
   }
@@ -560,8 +563,7 @@ namespace dtracker
   {
     xfDomain = interval<float>(newRange.x, newRange.y);
     owlParamsSet2f(lp, "transferFunction.xfDomain", (const owl2f &)xfDomain);
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
     RecalculateDensityRanges();
   }
 
@@ -653,8 +655,7 @@ namespace dtracker
     dt = max(newDt, 1e-4f);
     printf("Set dt to : %f\n", dt);
     owlParamsSet1f(lp, "volume.dt", dt);
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
   }
 
   void Renderer::SetLightDirection(const vec3f newLightDir)
@@ -674,20 +675,22 @@ namespace dtracker
       lightDir.z = newLightDir.z;
     lightDir = newLightDir;
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
   }
 
   void Renderer::SetLightIntensity(float lightIntensity)
   {
     owlParamsSet1f(lp, "lightIntensity", lightIntensity);
-    accumID = 0;
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
   }
 
   void Renderer::SetAmbient(float ambientIntensity)
   {
     owlParamsSet1f(lp, "ambientIntensity", ambient);
+    ResetAccumulation();
+  }
+  void Renderer::ResetAccumulation()
+  {
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
   }
