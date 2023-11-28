@@ -48,6 +48,7 @@ OWLVarDecl launchParamVars[] = {
     {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
     {"enableHeatmap", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableHeatmap)},
     {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
+    {"bgColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, bgColor)},
     // light variables
     {"lightDir", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, lightDir)},
     {"lightIntensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, lightIntensity)},
@@ -203,6 +204,7 @@ namespace dtracker
 
     owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
     owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
+    owlParamsSet3f(lp, "bgColor", (const owl3f &)bgColor);
 
     // transfer function
     volDomain = interval<float>({umeshPtr->getBounds4f().lower.w, umeshPtr->getBounds4f().upper.w});

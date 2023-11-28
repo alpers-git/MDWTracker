@@ -64,6 +64,8 @@ struct LaunchParams
   float lightIntensity;
   float ambient;
 
+  vec3f bgColor = vec3f(0.0f);
+
   struct
   {
     //interval<float> domain;

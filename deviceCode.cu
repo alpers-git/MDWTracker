@@ -124,7 +124,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
     //test surface intersections first
     RayPayload surfPrd;
-    vec4f finalColor = vec4f(0.f, 0.f, 0.f,1.f);//vec4f(missCheckerBoard(), 1.0f);
+    vec4f finalColor = vec4f(lp.bgColor,1.f);//vec4f(missCheckerBoard(), 1.0f);
     vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
     traceRay(lp.triangleTLAS, ray, surfPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //surface
     if (!surfPrd.missed)

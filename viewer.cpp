@@ -62,6 +62,13 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'g', float>();
     program.add_argument("-t", "--transfer-function")
         .help("path to the .tf file");
+    program.add_argument("-mc", "--macrocells")
+        .help("number of macrocells per side")
+        .scan<'u', unsigned int>();
+    program.add_argument("-bg", "--background")
+        .help("background color")
+        .nargs(3)
+        .scan<'g', float>();
 
     try
     {
@@ -111,6 +118,23 @@ Viewer::Viewer(int argc, char *argv[])
                                         vec3f(camera[6], camera[7], camera[8]),
                                         camera[9]);
         camGivenAsParam = true;
+    }
+    if (program.is_used("-mc"))
+    {
+        //check if mc is positive
+        auto mc = program.get<unsigned int>("-mc");
+        printf("mc: %d\n", mc);
+        if (mc < 1)
+        {
+            std::cerr << "Number of macrocells per side must be positive" << std::endl;
+            std::exit(1);
+        }
+        renderer->macrocellsPerSide = mc;
+    }
+    if (program.is_used("-bg"))
+    {
+        auto bg = program.get<std::vector<float>>("-bg");
+        renderer->bgColor = vec3f(bg[0], bg[1], bg[2]);
     }
     renderer->umeshPtr = umeshHdlPtr;
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
@@ -220,7 +244,7 @@ void Viewer::Run()
         ImGui::SameLine();
         color = renderer->minTime > 0.6f ? red : renderer->minTime < 0.11f ? green : orange;
         ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->minTime, renderer->minTime);
-        
+
         if(ImGui::CollapsingHeader("Transfer function", ImGuiTreeNodeFlags_DefaultOpen))
         {
             tfnWidget->DrawColorMap(true);
