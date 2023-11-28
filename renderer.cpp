@@ -669,18 +669,6 @@ namespace dtracker
   void Renderer::SetLightDirection(const vec3f newLightDir)
   {
     //if any of the components is 0, set it to a small value
-    if (newLightDir.x <= 1e-4f)
-      lightDir.x = 1e-3f;
-    else
-      lightDir.x = newLightDir.x;
-    if (newLightDir.y <= 1e-4f)
-      lightDir.y = 1e-3f;
-    else
-      lightDir.y = newLightDir.y;
-    if (newLightDir.z <= 1e-4f)
-      lightDir.z = 1e-3f;
-    else
-      lightDir.z = newLightDir.z;
     lightDir = newLightDir;
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     ResetAccumulation();
