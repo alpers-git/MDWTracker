@@ -24,6 +24,7 @@ public:
     void LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
+    void printCameraParameters();
 
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
@@ -38,6 +39,7 @@ private:
     const float kbd_rotate_degrees = 100.f;
     const float degrees_per_drag_fraction = 250;
     const float pixels_per_move = 90.f;
+    bool camGivenAsParam = false;
 
     friend class dtracker::Renderer;
 };
@@ -100,7 +102,15 @@ Viewer::Viewer(int argc, char *argv[])
     {
         tfnWidget->LoadState(program.get<std::string>("-t"));
     }
-
+    if (program.is_used("-c"))
+    {
+        auto camera = program.get<std::vector<float>>("-c");
+        renderer->camera.setOrientation(vec3f(camera[0], camera[1], camera[2]),
+                                        vec3f(camera[3], camera[4], camera[5]),
+                                        vec3f(camera[6], camera[7], camera[8]),
+                                        camera[9]);
+        camGivenAsParam = true;
+    }
     renderer->umeshPtr = umeshHdlPtr;
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
 }
@@ -113,6 +123,19 @@ void Viewer::TakeSnapshot(std::string filename)
                    renderer->fbSize.x, renderer->fbSize.y, 4,
                    fb, renderer->fbSize.x * sizeof(uint32_t));
     printf("Saved current frame to '%s'\n", filename.c_str());
+}
+
+void Viewer::printCameraParameters()
+{
+    vec3f pos = renderer->camera.getFrom();
+    vec3f gaze = renderer->camera.getAt();
+    vec3f up = renderer->camera.getUp();
+    float cosfovy = renderer->camera.getFovyInDegrees();
+    printf("-c %f %f %f %f %f %f %f %f %f %f\n", 
+        pos.x, pos.y, pos.z,
+        gaze.x, gaze.y, gaze.z,
+        up.x, up.y, up.z,
+        cosfovy);
 }
 
 void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
@@ -166,7 +189,7 @@ void Viewer::RenderImGuiFrame()
 void Viewer::Run()
 {
     GLFWHandler *glfw = GLFWHandler::getInstance();
-    renderer->Init();
+    renderer->Init(!camGivenAsParam);
     renderer->UpdateCamera();
     while (!glfw->windowShouldClose())
     {
@@ -257,6 +280,9 @@ void Viewer::Run()
         if(glfw->key.isPressed(GLFW_KEY_T) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
             tfnWidget->SaveState("tfn_state.tf");
+        if(glfw->key.isPressed(GLFW_KEY_C) && 
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"C"
+            printCameraParameters();
 
         // Camera movement
         if (glfw->mouseState.leftButtonDown)

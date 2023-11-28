@@ -97,7 +97,7 @@ public:
     unsigned macrocellsPerSide = 32; // 4096 exceeds the size of a uint32_t when squared...
 
     /*! initializes renderer */
-    void Init();
+    void Init(bool autoSetCamera = true);
     /*! renders the scene, visualizes heatmaps if param is true*/
     void Render(bool heatMap = false);
     /*! updates the launch params on device */

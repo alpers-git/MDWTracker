@@ -85,7 +85,7 @@ namespace dtracker
   {
   }
 
-  void Renderer::Init()
+  void Renderer::Init(bool autoSetCamera)
   {
     // Init owl
     LOG("Initializing owl...");
@@ -219,11 +219,14 @@ namespace dtracker
     ResetDt();
 
     // camera
-    auto center = umeshPtr->getBounds().center();
-    vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
-    camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
-    camera.setFocalDistance(umesh::length(umeshPtr->getBounds().size()) / 2.f);
-    UpdateCamera();
+    if(autoSetCamera)
+    {
+      auto center = umeshPtr->getBounds().center();
+      vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
+      camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
+      camera.setFocalDistance(umesh::length(umeshPtr->getBounds().size()) / 2.f);
+      UpdateCamera();
+    }
 
     // Allocate buffers for volume data
     tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
