@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include <chrono>
 
 #include "glfwHandler.h"
 
@@ -413,7 +414,15 @@ namespace dtracker
   void Renderer::Render(bool heatMap)
   {
     owlBuildSBT(context);
+
+    auto start = std::chrono::system_clock::now();
     owlLaunch2D(rayGen, fbSize.x, fbSize.y, lp);
+    auto end = std::chrono::system_clock::now();
+
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    totalTime += elapsed_seconds.count();
+    avgTime = totalTime / (accumID + 1);
+    minTime = std::min(minTime, (float)elapsed_seconds.count());
 
     owlParamsSet1i(lp, "accumID", accumID++);
     owlParamsSet1i(lp, "frameID", frameID++);
@@ -472,7 +481,6 @@ namespace dtracker
     const vec3f vertical = 2.0f * half_height * focusDist * v;
     camera.motionSpeed = umesh::length(umeshPtr->getBounds().size()) / 50.f;
 
-    accumID = 0;
 
     // ----------- set variables  ----------------------------
     owlParamsSetGroup(lp, "triangleTLAS", triangleTLAS);
@@ -480,7 +488,7 @@ namespace dtracker
     owlParamsSet3f(lp, "camera.llc", (const owl3f &)lower_left_corner);
     owlParamsSet3f(lp, "camera.horiz", (const owl3f &)horizontal);
     owlParamsSet3f(lp, "camera.vert", (const owl3f &)vertical);
-    owlParamsSet1i(lp, "accumID", accumID);
+    ResetAccumulation();
   }
 
   void Renderer::SetXFColormap(std::vector<vec4f> newCM)
@@ -693,6 +701,9 @@ namespace dtracker
   {
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
+    totalTime = 0;
+    minTime = std::numeric_limits<float>::max();
+    avgTime = 0;
   }
 
 } // namespace dtracker

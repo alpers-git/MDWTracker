@@ -74,6 +74,11 @@ public:
     int accumID{0};
     int frameID{0};
 
+    /* timing */
+    float avgTime = 0.0f;
+    float minTime = std::numeric_limits<float>::max();;
+    float totalTime = 0.0f;
+
     /* scene */
     float dt = 0.05f;
     bool enableShadows = false;

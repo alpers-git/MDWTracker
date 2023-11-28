@@ -51,7 +51,7 @@ Viewer::Viewer(int argc, char *argv[])
     stbi_flip_vertically_on_write(true);
     
     // parse arguments
-    argparse::ArgumentParser program("rqs-viewer");
+    argparse::ArgumentParser program("DTracker Viewer");
 
     program.add_argument("-d", "--data")
         .help("path to the umesh file")
@@ -87,7 +87,7 @@ Viewer::Viewer(int argc, char *argv[])
     std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
     renderer = std::make_shared<dtracker::Renderer>();
 
-    GLFWHandler::getInstance()->initWindow(512, 512, "RQS-Viewer");
+    GLFWHandler::getInstance()->initWindow(720, 720, "DTracker Viewer");
 
     // init imgui
     ImGui::CreateContext();
@@ -187,6 +187,10 @@ void Viewer::RenderImGuiFrame()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+const ImVec4 red = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+const ImVec4 orange = ImVec4(1.0f, 0.65f, 0.0f, 1.0f);
+const ImVec4 green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
 void Viewer::Run()
 {
     GLFWHandler *glfw = GLFWHandler::getInstance();
@@ -207,6 +211,16 @@ void Viewer::Run()
 
         RequestImGuiFrame();
         ImGui::Begin("Renderer Controls");
+        // write the fps metrics as a colored text in imgui
+        ImGui::Text("avg. fps:");
+        ImGui::SameLine();
+        ImVec4 color = renderer->avgTime > 0.6f ? red : renderer->avgTime < 0.11f ? green : orange;
+        ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->avgTime, renderer->avgTime);
+        ImGui::Text("min. fps:");
+        ImGui::SameLine();
+        color = renderer->minTime > 0.6f ? red : renderer->minTime < 0.11f ? green : orange;
+        ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->minTime, renderer->minTime);
+        
         if(ImGui::CollapsingHeader("Transfer function", ImGuiTreeNodeFlags_DefaultOpen))
         {
             tfnWidget->DrawColorMap(true);
