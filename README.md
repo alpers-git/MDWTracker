@@ -1,2 +1,2 @@
-# rqs-mpi
-Ray Queue Stealing (cycling) with MPI.
+# delta tracker volume renderer
+
