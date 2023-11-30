@@ -89,7 +89,7 @@ embed_ptx(
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --generate-line-info")
 
 #-------------------- viewer ------------------------
-add_executable(rqsViewer
+add_executable(dTViewer
   dda.h
   glfwHandler.cpp
   hilbert.h
@@ -98,8 +98,8 @@ add_executable(rqsViewer
   stb_image_write.h
   viewer.cpp)
 
-target_link_libraries(rqsViewer PRIVATE -lGL -lGLX)
-target_link_libraries(rqsViewer
+target_link_libraries(dTViewer PRIVATE -lGL -lGLX)
+target_link_libraries(dTViewer
   PRIVATE
   deviceCode_ptx
   argparse
