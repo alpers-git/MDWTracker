@@ -13,10 +13,10 @@ extern "C" __constant__ LaunchParams optixLaunchParams;
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
-    auto lp = optixLaunchParams;
 #if DEBUG
     return false;
 #else
+    auto lp = optixLaunchParams;
     auto pixelID = vec2i(owl::getLaunchIndex()[0], owl::getLaunchIndex()[1]);
     return (lp.fbSize.x / 2 == pixelID.x) &&
            (lp.fbSize.y / 2 == pixelID.y);

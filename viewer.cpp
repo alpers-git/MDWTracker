@@ -4,6 +4,7 @@
 #include "transfer_function_widget.h"
 
 #include "glfwHandler.h"
+#include "rawFile.h"
 #include <argparse/argparse.hpp>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
@@ -53,9 +54,10 @@ Viewer::Viewer(int argc, char *argv[])
     // parse arguments
     argparse::ArgumentParser program("DTracker Viewer");
 
-    program.add_argument("-d", "--data")
-        .help("path to the umesh file")
-        .required();
+    program.add_argument("-du", "--umesh-data")
+        .help("path to the .umesh file");
+    program.add_argument("-dr", "--raw-data")
+        .help("path to the .raw data file");
     program.add_argument("-c", "--camera")
         .help("camera pos<x,y,z>, gaze<x,y,z>, up<x,y,z>, cosfovy(degrees)")
         .nargs(10)
@@ -81,19 +83,7 @@ Viewer::Viewer(int argc, char *argv[])
         std::exit(1);
     }
 
-    // init renderer and open window
-    auto start = std::chrono::high_resolution_clock::now();
-    auto umeshHdlPtr = umesh::io::loadBinaryUMesh(program.get<std::string>("-d"));
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::cout << "Time taken by function: " << duration.count() << " milliseconds" << std::endl;
-    std::cout << "found " << umeshHdlPtr->tets.size() << " tetrahedra" << std::endl;
-    std::cout << "found " << umeshHdlPtr->pyrs.size() << " pyramids" << std::endl;
-    std::cout << "found " << umeshHdlPtr->wedges.size() << " wedges" << std::endl;
-    std::cout << "found " << umeshHdlPtr->hexes.size() << " hexahedra" << std::endl;
-    std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
     renderer = std::make_shared<dtracker::Renderer>();
-
     GLFWHandler::getInstance()->initWindow(720, 720, "DTracker Viewer");
 
     // init imgui
@@ -136,7 +126,39 @@ Viewer::Viewer(int argc, char *argv[])
         auto bg = program.get<std::vector<float>>("-bg");
         renderer->bgColor = vec3f(bg[0], bg[1], bg[2]);
     }
-    renderer->umeshPtr = umeshHdlPtr;
+    if(program.is_used("-du"))
+    {
+        // init renderer and open window
+        auto start = std::chrono::high_resolution_clock::now();
+        auto umeshHdlPtr = umesh::io::loadBinaryUMesh(program.get<std::string>("-du"));
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "Time taken to load umesh: " << duration.count() << " milliseconds" << std::endl;
+        std::cout << "found " << umeshHdlPtr->tets.size() << " tetrahedra" << std::endl;
+        std::cout << "found " << umeshHdlPtr->pyrs.size() << " pyramids" << std::endl;
+        std::cout << "found " << umeshHdlPtr->wedges.size() << " wedges" << std::endl;
+        std::cout << "found " << umeshHdlPtr->hexes.size() << " hexahedra" << std::endl;
+        std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
+        renderer->umeshPtr = umeshHdlPtr;   
+    }
+    else if(program.is_used("-dr"))
+    {
+        // init renderer and open window
+        auto start = std::chrono::high_resolution_clock::now();
+        auto rawFile = std::make_shared<vkt::RawFile>(program.get<std::string>("-dr").c_str(), "rb");
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
+        std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << rawFile-> << " voxels" << std::endl;
+
+        return; //TODO REMOVE
+    }
+    else
+    {
+        std::cerr << "No data file given" << std::endl;
+        std::exit(1);
+    }
+
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
 }
 

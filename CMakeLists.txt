@@ -96,6 +96,7 @@ add_executable(dTViewer
   renderer.cpp
   renderer.cu
   stb_image_write.h
+  rawFile.cpp
   viewer.cpp)
 
 target_link_libraries(dTViewer PRIVATE -lGL -lGLX)
