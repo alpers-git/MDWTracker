@@ -149,9 +149,9 @@ Viewer::Viewer(int argc, char *argv[])
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
-        std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << rawFile-> << " voxels" << std::endl;
-
-        return; //TODO REMOVE
+        std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
+        std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
+        renderer->rawFilePtr = rawFile;
     }
     else
     {

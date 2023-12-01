@@ -10,6 +10,8 @@
 
 #include "deviceCode.h"
 
+#include "rawFile.h"
+
 namespace dtracker
 {
 class Renderer
@@ -21,6 +23,7 @@ public:
 
     camera::Camera camera;
     std::shared_ptr<umesh::UMesh> umeshPtr;
+    std::shared_ptr<vkt::RawFile> rawFilePtr;
 
     /* raygen */
     OWLRayGen rayGen{0};

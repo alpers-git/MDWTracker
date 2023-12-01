@@ -98,6 +98,47 @@ namespace vkt
                 }
             }
         }
+
+        //allocate enough memory for data
+        auto buf = new char[dims_.x * dims_.y * dims_.z * getBytesPerVoxel()];
+        //read the data into the allocated memory
+        this->read(buf, getBytesPerVoxel() * dims_.x * dims_.y * dims_.z);
+        //go over the data and convert it to float and store it in data_
+        data_ = std::vector<float>(dims_.x * dims_.y * dims_.z);
+        for (int i = 0; i < dims_.x * dims_.y * dims_.z; i++)
+        {
+            switch (dataFormat_)
+            {
+            case DataFormat::Int8:
+                data_[i] = (float)((int8_t*)buf)[i];
+                break;
+            case DataFormat::Int16:
+                data_[i] = (float)((int16_t*)buf)[i];
+                break;
+            case DataFormat::Int32:
+                data_[i] = (float)((int32_t*)buf)[i];
+                break;
+            case DataFormat::UInt8:
+                data_[i] = (float)((uint8_t*)buf)[i];
+                break;
+            case DataFormat::UInt16:
+                data_[i] = (float)((uint16_t*)buf)[i];
+                break;
+            case DataFormat::UInt32:
+                data_[i] = (float)((uint32_t*)buf)[i];
+                break;
+            case DataFormat::Float32:
+                data_[i] = ((float*)buf)[i];
+                break;
+            default:
+                break;
+            }
+            //update bounds w
+            if (data_[i] > bounds_.upper.w)
+                bounds_.upper.w = data_[i];
+            if (data_[i] < bounds_.lower.w)
+                bounds_.lower.w = data_[i];
+        }
     }
 
     RawFile::RawFile(FILE* file)
@@ -164,6 +205,21 @@ namespace vkt
     DataFormat RawFile::getDataFormat() const
     {
         return dataFormat_;
+    }
+
+    size_t RawFile::getBytesPerVoxel() const
+    {
+        return vkt::getSizeInBytes(dataFormat_);
+    }
+
+    const float* RawFile::getData() const
+    {
+        return data_.data();
+    }
+
+    owl::box4f RawFile::getBounds4f() const
+    {
+        return bounds_;
     }
 
 } // vkt

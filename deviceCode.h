@@ -104,6 +104,13 @@ struct LaunchParams
     vec3f horizontal;
     vec3f vertical;
   } camera;
+
+
+  struct
+  {
+    vec3ui dims;
+    float *scalars;
+  }voxelData; //for structured volumes
 };
 
 struct RayGenData

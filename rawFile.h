@@ -6,10 +6,12 @@
 #include <cstdio>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 // #include "common.hpp"
 // #include "linalg.hpp"
 #include <owl/common/math/vec.h>
+#include <owl/common/math/box.h>
 
 
 namespace vkt
@@ -30,6 +32,42 @@ namespace vkt
         // Keep last!
         Count,
     };
+
+    struct DataFormatInfo
+    {
+        DataFormat dataFormat;
+        uint8_t sizeInBytes;
+    };
+
+    static DataFormatInfo DataFormatInfoTable[(int)DataFormat::Count] = {
+            { DataFormat::Unspecified,  0 },
+            { DataFormat::Int8,         1 },
+            { DataFormat::Int16,        2 },
+            { DataFormat::Int32,        4 },
+            { DataFormat::UInt8,        1 },
+            { DataFormat::UInt16,       2 },
+            { DataFormat::UInt32,       4 },
+            { DataFormat::Float32,      4 },
+
+    };
+
+    // Equivalent to table, but can be used in CUDA device code
+    constexpr inline uint8_t getSizeInBytes(DataFormat dataFormat)
+    {
+       if (dataFormat == DataFormat::Int8 || dataFormat == DataFormat::UInt8)
+           return 1;
+
+       if (dataFormat == DataFormat::Int16 || dataFormat == DataFormat::UInt16)
+           return 2;
+
+       if (dataFormat == DataFormat::Int32 || dataFormat == DataFormat::UInt32)
+           return 4;
+
+       if (dataFormat == DataFormat::Float32)
+           return 4;
+
+       return 255;
+    }
 
      /*!
      * @brief  Data source base class for file I/O
@@ -82,12 +120,51 @@ namespace vkt
          */
         DataFormat getDataFormat() const;
 
+
+        /*!
+        * @brief Get bytes per voxel
+        */
+        size_t getBytesPerVoxel() const;
+
+        /*!
+        * @brief Get data
+        */
+        const float* getData() const;
+
+        /*!
+        * @brief Get domain of the values in the volume
+        */
+        owl::box4f getBounds4f() const;
+
+        /*!
+        * @brief Get data as a vector of Type T
+        */
+        // template <typename T>
+        // std::vector<T> getDataAsVector(bool normalize = true) const//bad solution but meh...
+        // {
+        //     std::vector<T> dataVec;
+        //     dataVec.resize(dims_.x * dims_.y * dims_.z);
+
+        //     std::size_t const bytesPerVoxel = getBytesPerVoxel();
+        //     const T  maxValue = (1ULL << bytesPerVoxel) - 1;
+        //     int i = 0;
+        //     for(size_t pos = 0; pos < getDims().x * getDims().y * getDims().z; pos+= bytesPerVoxel)
+        //     {
+        //         T d = (*((char*)data_ + pos));
+        //         dataVec[i++] = normalize ? d / maxValue : d;
+        //     }
+
+        //     return dataVec;
+        // }
+
     private:
         char const* fileName_ = 0;
         char const* mode_ = 0;
         FILE* file_ = 0;
+        std::vector<float> data_;// I will assume they are all floats for now
 
         Vec3i dims_ = { 0, 0, 0 };
+        owl::box4f bounds_ = {{0,0,0,0},{1,1,1,1}};
         DataFormat dataFormat_ = DataFormat::UInt8;
 
     };
