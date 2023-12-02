@@ -249,7 +249,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     auto &lp = optixLaunchParams;
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
     prd.missed = true;
-    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 1.0f);
+    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
     const interval<float> xfDomain(lp.transferFunction.xfDomain.x, 
         lp.transferFunction.xfDomain.y);

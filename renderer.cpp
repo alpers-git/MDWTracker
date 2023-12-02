@@ -288,9 +288,9 @@ namespace dtracker
       owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
 
       trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
-      owlGroupBuildAccel(trianglesGroup);
-      triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
-      owlGroupBuildAccel(triangleTLAS);
+      // owlGroupBuildAccel(trianglesGroup);
+      // triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
+      // owlGroupBuildAccel(triangleTLAS);
 
       // Macrocell geometry
       OWLGeom macrocellGeom = owlGeomCreate(context, macrocellType);
