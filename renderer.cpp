@@ -54,6 +54,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.dt", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, volume.dt)},
     {"volume.globalBoundsLo", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsLo)},
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
+    {"volume.mode", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.mode)},
     // transfer function
     {"transferFunction.xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction.xf)},
     {"transferFunction.volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.volumeDomain)},
@@ -267,6 +268,8 @@ namespace dtracker
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
+      mode = 0;
+      owlParamsSet1i(lp, "volume.mode", mode); //unstructured mesh mode
 
       LOG("Building geometries ...");
 
@@ -398,7 +401,7 @@ namespace dtracker
     {
       scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawFilePtr->getDims().x * rawFilePtr->getDims().y * rawFilePtr->getDims().z, nullptr);
       //get data as void pointer and create vector of floats
-      auto data = rawFilePtr->getData();
+      const float* data = rawFilePtr->getData();
       //upload data to buffer
       owlBufferUpload(scalarData, data);
 
@@ -518,12 +521,15 @@ namespace dtracker
           {rawFilePtr->getBounds4f().lower.x, rawFilePtr->getBounds4f().lower.y, rawFilePtr->getBounds4f().lower.z},
           {rawFilePtr->getBounds4f().upper.x, rawFilePtr->getBounds4f().upper.y, rawFilePtr->getBounds4f().upper.z}
         };
-      //macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
-      macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
+
+      printf("bounds: %f %f %f %f %f %f\n", bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
+      macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
+      //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
+      owlParamsSet1i(lp, "volume.mode", 1); //structured mesh mode
 
       LOG("Building geometries ...");
 
@@ -738,85 +744,93 @@ namespace dtracker
 
   void Renderer::ResetDt()
   {
-    dt = 0.1f;
-    //go over all elements calculate bounding boxes and find avg of spans
     float minSpan = std::numeric_limits<float>::max();
-    for (int i = 0; i < umeshPtr->tets.size(); ++i)
+    if (umeshPtr != nullptr)
     {
-      auto tet = umeshPtr->tets[i];
-      auto v0 = umeshPtr->vertices[tet[0]];
-      auto v1 = umeshPtr->vertices[tet[1]];
-      auto v2 = umeshPtr->vertices[tet[2]];
-      auto v3 = umeshPtr->vertices[tet[3]];
-      auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[tet[0]]),
-                      vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[tet[1]]));
-      bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[tet[2]]));
-      bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[tet[3]]));
-      //calculate length of span
-      minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
+      //go over all elements calculate bounding boxes and find avg of spans
+      for (int i = 0; i < umeshPtr->tets.size(); ++i)
+      {
+        auto tet = umeshPtr->tets[i];
+        auto v0 = umeshPtr->vertices[tet[0]];
+        auto v1 = umeshPtr->vertices[tet[1]];
+        auto v2 = umeshPtr->vertices[tet[2]];
+        auto v3 = umeshPtr->vertices[tet[3]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[tet[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[tet[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[tet[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[tet[3]]));
+        //calculate length of span
+        minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
+      }
+      //same for pyramids
+      for (int i = 0; i < umeshPtr->pyrs.size(); ++i)
+      {
+        auto pyr = umeshPtr->pyrs[i];
+        auto v0 = umeshPtr->vertices[pyr[0]];
+        auto v1 = umeshPtr->vertices[pyr[1]];
+        auto v2 = umeshPtr->vertices[pyr[2]];
+        auto v3 = umeshPtr->vertices[pyr[3]];
+        auto v4 = umeshPtr->vertices[pyr[4]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[pyr[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[pyr[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[pyr[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[pyr[3]]));
+        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[pyr[4]]));
+        //calculate length of span
+        minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
+      }
+      //same for wedges
+      for (int i = 0; i < umeshPtr->wedges.size(); ++i)
+      {
+        auto wedge = umeshPtr->wedges[i];
+        auto v0 = umeshPtr->vertices[wedge[0]];
+        auto v1 = umeshPtr->vertices[wedge[1]];
+        auto v2 = umeshPtr->vertices[wedge[2]];
+        auto v3 = umeshPtr->vertices[wedge[3]];
+        auto v4 = umeshPtr->vertices[wedge[4]];
+        auto v5 = umeshPtr->vertices[wedge[5]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[wedge[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[wedge[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[wedge[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[wedge[3]]));
+        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[wedge[4]]));
+        bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtr->perVertex->values[wedge[5]]));
+        //calculate length of span
+        minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
+      }
+      //same for hexes
+      for (int i = 0; i < umeshPtr->hexes.size(); ++i)
+      {
+        auto hex = umeshPtr->hexes[i];
+        auto v0 = umeshPtr->vertices[hex[0]];
+        auto v1 = umeshPtr->vertices[hex[1]];
+        auto v2 = umeshPtr->vertices[hex[2]];
+        auto v3 = umeshPtr->vertices[hex[3]];
+        auto v4 = umeshPtr->vertices[hex[4]];
+        auto v5 = umeshPtr->vertices[hex[5]];
+        auto v6 = umeshPtr->vertices[hex[6]];
+        auto v7 = umeshPtr->vertices[hex[7]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[hex[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[hex[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[hex[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[hex[3]]));
+        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[hex[4]]));
+        bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtr->perVertex->values[hex[5]]));
+        bb.extend(vec4f(v6.x, v6.y, v6.z, umeshPtr->perVertex->values[hex[6]]));
+        bb.extend(vec4f(v7.x, v7.y, v7.z, umeshPtr->perVertex->values[hex[7]]));
+        //calculate length of span
+        minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
+      }
+      SetDt(minSpan * 0.5f);
     }
-    //same for pyramids
-    for (int i = 0; i < umeshPtr->pyrs.size(); ++i)
+    else if (rawFilePtr != nullptr)
     {
-      auto pyr = umeshPtr->pyrs[i];
-      auto v0 = umeshPtr->vertices[pyr[0]];
-      auto v1 = umeshPtr->vertices[pyr[1]];
-      auto v2 = umeshPtr->vertices[pyr[2]];
-      auto v3 = umeshPtr->vertices[pyr[3]];
-      auto v4 = umeshPtr->vertices[pyr[4]];
-      auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[pyr[0]]),
-                      vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[pyr[1]]));
-      bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[pyr[2]]));
-      bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[pyr[3]]));
-      bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[pyr[4]]));
-      //calculate length of span
-      minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
-    }
-    //same for wedges
-    for (int i = 0; i < umeshPtr->wedges.size(); ++i)
-    {
-      auto wedge = umeshPtr->wedges[i];
-      auto v0 = umeshPtr->vertices[wedge[0]];
-      auto v1 = umeshPtr->vertices[wedge[1]];
-      auto v2 = umeshPtr->vertices[wedge[2]];
-      auto v3 = umeshPtr->vertices[wedge[3]];
-      auto v4 = umeshPtr->vertices[wedge[4]];
-      auto v5 = umeshPtr->vertices[wedge[5]];
-      auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[wedge[0]]),
-                      vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[wedge[1]]));
-      bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[wedge[2]]));
-      bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[wedge[3]]));
-      bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[wedge[4]]));
-      bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtr->perVertex->values[wedge[5]]));
-      //calculate length of span
-      minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
-    }
-    //same for hexes
-    for (int i = 0; i < umeshPtr->hexes.size(); ++i)
-    {
-      auto hex = umeshPtr->hexes[i];
-      auto v0 = umeshPtr->vertices[hex[0]];
-      auto v1 = umeshPtr->vertices[hex[1]];
-      auto v2 = umeshPtr->vertices[hex[2]];
-      auto v3 = umeshPtr->vertices[hex[3]];
-      auto v4 = umeshPtr->vertices[hex[4]];
-      auto v5 = umeshPtr->vertices[hex[5]];
-      auto v6 = umeshPtr->vertices[hex[6]];
-      auto v7 = umeshPtr->vertices[hex[7]];
-      auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[hex[0]]),
-                      vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[hex[1]]));
-      bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[hex[2]]));
-      bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[hex[3]]));
-      bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[hex[4]]));
-      bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtr->perVertex->values[hex[5]]));
-      bb.extend(vec4f(v6.x, v6.y, v6.z, umeshPtr->perVertex->values[hex[6]]));
-      bb.extend(vec4f(v7.x, v7.y, v7.z, umeshPtr->perVertex->values[hex[7]]));
-      //calculate length of span
-      minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
+      const auto& span = rawFilePtr->getBounds().span();
+      const auto& dims = rawFilePtr->getDims();
+      float minVoxelSideLength = min(span.x/dims.x, min(span.y/dims.y, span.z/dims.z));
+      SetDt(minVoxelSideLength * 0.5f);
     }
     
-    dt = minSpan * 0.5f;
-    SetDt(dt);
   }
 
   void Renderer::SetDt(float newDt)

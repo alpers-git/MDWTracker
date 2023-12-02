@@ -222,6 +222,12 @@ namespace vkt
         return bounds_;
     }
 
+    owl::box3f RawFile::getBounds() const
+    {
+        return owl::box3f({bounds_.lower.x, bounds_.lower.y, bounds_.lower.z},
+            {bounds_.upper.x, bounds_.upper.y, bounds_.upper.z});
+    }
+
 } // vkt
 
 //-------------------------------------------------------------------------------------------------

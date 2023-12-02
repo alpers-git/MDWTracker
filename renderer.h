@@ -91,6 +91,7 @@ public:
     float ambient = 0.1f;
     vec2i fbSize = vec2i(1024, 1024);
     vec3f bgColor = vec3f(0.0f, 0.0f, 0.0f);
+    int mode = 0;
 
     /* transfer function */
     OWLBuffer colorMapBuffer { 0 };

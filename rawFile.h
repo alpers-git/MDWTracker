@@ -137,6 +137,11 @@ namespace vkt
         owl::box4f getBounds4f() const;
 
         /*!
+        * @brief Get domain of the values in the volume
+        */
+        owl::box3f getBounds() const;
+
+        /*!
         * @brief Get data as a vector of Type T
         */
         // template <typename T>

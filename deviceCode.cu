@@ -90,21 +90,39 @@ inline __device__
 float sampleVolume(const vec3f& pos)
 {
     auto &lp = optixLaunchParams;
-    //create a ray with zero lenght and origin at pos
-    Ray ray;
-    ray.origin = pos;
-    ray.direction = vec3f(1.0f, 1.0f, 1.0f);
-    ray.tmin = 0.0f;
-    ray.tmax = 0.0f;
-    ray.time = 0.0f;
-    RayPayload prd;
-    prd.debug = dbg();
+    if(lp.volume.mode == 0)//Query unstructred mesh
+    {
+        //create a ray with zero lenght and origin at pos
+        Ray ray;
+        ray.origin = pos;
+        ray.direction = vec3f(1.0f, 1.0f, 1.0f);
+        ray.tmin = 0.0f;
+        ray.tmax = 0.0f;
+        ray.time = 0.0f;
+        RayPayload prd;
+        prd.debug = dbg();
 
-    owl::traceRay(lp.volume.elementTLAS, ray, prd);
-    if (prd.missed)
-        return NAN;
-    else
-        return prd.dataValue;
+        owl::traceRay(lp.volume.elementTLAS, ray, prd);
+        if (prd.missed)
+            return NAN;
+        else
+            return prd.dataValue;
+    }
+    else if(lp.volume.mode == 1)//Query structured mesh
+    {
+        //normalize pos to [0,1] using bounds of voxel grid
+        vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
+            (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
+        // Convert normalized coordinates to grid indices
+        vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.voxelData.dims));
+        // Ensure grid indices are within bounds
+        gridIndices = min(gridIndices, lp.voxelData.dims - vec3ui(1));
+        // Compute linear index
+        int flatIndex = gridIndices.x + gridIndices.y * lp.voxelData.dims.x + 
+                        gridIndices.z * lp.voxelData.dims.x * lp.voxelData.dims.y;
+        // Sample scalar field
+        return lp.voxelData.scalars[flatIndex];
+    }
 }
 
 
@@ -168,7 +186,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if(lp.enableHeatmap)
     {
         //heatmap
-        int samples = volumePrd.samples;
+        int samples = volumePrd.samples * (lp.volume.mode == 0 ? 1 : 100);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 500.f, samples / 500.f, samples / 500.f, 1.f));
     }
     else
@@ -176,10 +194,10 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
         finalColor = over(color, finalColor);
         if(lp.enableAccumulation)
         {
-            vec4f oldColor = lp.accumBuffer[fbOfs];
-            vec4f newColor = (vec4f(finalColor) + float(lp.accumID) * oldColor) / float(lp.accumID + 1);
-            lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor));
-            lp.accumBuffer[fbOfs] = vec4f(newColor);
+            const vec4f accumColor = lp.accumBuffer[fbOfs];
+            finalColor = (vec4f(finalColor) + float(lp.accumID) * accumColor) / float(lp.accumID + 1);
+            lp.fbPtr[fbOfs] = make_rgba(vec4f(finalColor));
+            lp.accumBuffer[fbOfs] = vec4f(finalColor);
         }
         else
             lp.fbPtr[fbOfs] = make_rgba(vec4f(finalColor));
@@ -187,7 +205,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if (pixelID.x == lp.fbSize.x / 2 || pixelID.y == lp.fbSize.y / 2 || 
         pixelID.x == lp.fbSize.x / 2 + 1 || pixelID.y == lp.fbSize.y / 2 + 1 || 
         pixelID.x == lp.fbSize.x / 2 - 1 || pixelID.y == lp.fbSize.y / 2 - 1)
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(newColor.z, newColor.y, newColor.x, 1.f));
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(finalColor.z, finalColor.y, finalColor.x, 1.f));
 #endif
     }
 }
@@ -232,12 +250,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
     prd.missed = true;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 1.0f);
-
-    //todo remove after this until return
-    prd.missed = false;
-    prd.rgba = transferFunction(lp.voxelData.scalars[(int)(prd.rng() * 
-        lp.voxelData.dims.x * lp.voxelData.dims.y * lp.voxelData.dims.z)]);
-    return;
 
     const interval<float> xfDomain(lp.transferFunction.xfDomain.x, 
         lp.transferFunction.xfDomain.y);
