@@ -30,7 +30,9 @@ public:
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
     std::shared_ptr<camera::Manipulator> manipulator;
-    std::shared_ptr<ImTF::TransferFunctionWidget> tfnWidget;
+    std::vector<ImTF::TransferFunctionWidget> tfnWidgets;
+    size_t numFiles = 0;
+    size_t selectedTF = 0;
 
     // imgui
     void InitImGui();
@@ -57,13 +59,15 @@ Viewer::Viewer(int argc, char *argv[])
     program.add_argument("-du", "--umesh-data")
         .help("path to the .umesh file");
     program.add_argument("-dr", "--raw-data")
-        .help("path to the .raw data file");
+        .help("path to the .raw data file(s)")
+        .nargs(argparse::nargs_pattern::any);
     program.add_argument("-c", "--camera")
         .help("camera pos<x,y,z>, gaze<x,y,z>, up<x,y,z>, cosfovy(degrees)")
         .nargs(10)
         .scan<'g', float>();
     program.add_argument("-t", "--transfer-function")
-        .help("path to the .tf file");
+        .help("path to the .tf file")
+        .nargs(argparse::nargs_pattern::any);
     program.add_argument("-mc", "--macrocells")
         .help("number of macrocells per side")
         .scan<'u', unsigned int>();
@@ -93,13 +97,6 @@ Viewer::Viewer(int argc, char *argv[])
     // Initialize ImGui
     InitImGui();
 
-    // Initialize transfer function editor
-    tfnWidget = std::make_shared<ImTF::TransferFunctionWidget>();
-    // if tf argument is given, load it
-    if (program.is_used("-t"))
-    {
-        tfnWidget->LoadState(program.get<std::string>("-t"));
-    }
     if (program.is_used("-c"))
     {
         auto camera = program.get<std::vector<float>>("-c");
@@ -128,7 +125,6 @@ Viewer::Viewer(int argc, char *argv[])
     }
     if(program.is_used("-du"))
     {
-        // init renderer and open window
         auto start = std::chrono::high_resolution_clock::now();
         auto umeshHdlPtr = umesh::io::loadBinaryUMesh(program.get<std::string>("-du"));
         auto stop = std::chrono::high_resolution_clock::now();
@@ -139,24 +135,41 @@ Viewer::Viewer(int argc, char *argv[])
         std::cout << "found " << umeshHdlPtr->wedges.size() << " wedges" << std::endl;
         std::cout << "found " << umeshHdlPtr->hexes.size() << " hexahedra" << std::endl;
         std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
-        renderer->umeshPtr = umeshHdlPtr;   
+        renderer->umeshPtr = umeshHdlPtr;
+        numFiles++;
     }
     else if(program.is_used("-dr"))
     {
-        // init renderer and open window
-        auto start = std::chrono::high_resolution_clock::now();
-        auto rawFile = std::make_shared<raw::RawR>(program.get<std::string>("-dr").c_str(), "rb");
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
-        std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
-        std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
-        renderer->rawPtr = rawFile;
+        auto paths = program.get<std::vector<std::string>>("-dr");
+        for (auto path : paths)
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            auto rawFile = std::make_shared<raw::RawR>(path.c_str(), "rb");
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+            std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
+            std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
+            std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
+            renderer->rawPtr = rawFile;
+            numFiles++;
+        }
     }
     else
     {
         std::cerr << "No data file given" << std::endl;
         std::exit(1);
+    }
+    
+    // init transfer function widgets
+    tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles);
+    // if tf argument is given, load it
+    if (program.is_used("-t"))
+    {
+        auto tfStates = program.get<std::vector<std::string>>("-t");
+        for (int i = 0; i < tfStates.size(); i++)
+        {
+            tfnWidgets[i].LoadState(tfStates[i]);
+        }
     }
 
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
@@ -267,11 +280,23 @@ void Viewer::Run()
         color = renderer->minTime > 0.6f ? red : renderer->minTime < 0.11f ? green : orange;
         ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->minTime, renderer->minTime);
 
-        if(ImGui::CollapsingHeader("Transfer function", ImGuiTreeNodeFlags_DefaultOpen))
+        static bool tabChanged = false;
+        if(ImGui::CollapsingHeader("Transfer function(s)", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            tfnWidget->DrawColorMap(false);
-            tfnWidget->DrawOpacityScale();
-            tfnWidget->DrawRanges();
+            ImGui::BeginTabBar("##42#left_tabs_bar");
+            for (int i = 0; i < numFiles; i++)
+            {
+                if (ImGui::BeginTabItem(std::string("TF"+std::to_string(i)).c_str()))
+                {
+                    tfnWidgets[i].DrawColorMap(false);
+                    tfnWidgets[i].DrawOpacityScale();
+                    tfnWidgets[i].DrawRanges();
+                    ImGui::EndTabItem();
+                    tabChanged = selectedTF != i;
+                    selectedTF = i;
+                }
+            }
+            ImGui::EndTabBar();
         }
         if(ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
         {
@@ -304,23 +329,24 @@ void Viewer::Run()
         ImGui::End();
         RenderImGuiFrame();
 
-        if(tfnWidget->ColorMapChanged())
+        if(tabChanged || tfnWidgets[selectedTF].ColorMapChanged())
         {
-            auto cm = tfnWidget->GetColormapf();
+            auto cm = tfnWidgets[selectedTF].GetColormapf();
             std::vector<owl::vec4f> colorMapVec;
             for (int i = 0; i < cm.size(); i += 4)
             {
                 colorMapVec.push_back(owl::vec4f(cm[i],
-                                        cm[i + 1], cm[i + 2], cm[i + 3]));
+                        cm[i + 1], cm[i + 2], cm[i + 3]));
             }
             renderer->SetXFColormap(colorMapVec);
         }
 
-        if(tfnWidget->OpacityScaleChanged())
-            renderer->SetXFOpacityScale(tfnWidget->GetOpacityScale());
+        if(tabChanged || tfnWidgets[selectedTF].OpacityScaleChanged())
+            renderer->SetXFOpacityScale(tfnWidgets[selectedTF].GetOpacityScale());
             
-        if(tfnWidget->RangeChanged())
-            renderer->SetXFRange(vec2f(tfnWidget->GetRange().x, tfnWidget->GetRange().y));
+        if(tabChanged || tfnWidgets[selectedTF].RangeChanged())
+            renderer->SetXFRange(vec2f(tfnWidgets[selectedTF].GetRange().x,
+                    tfnWidgets[selectedTF].GetRange().y));
         
 
         glfw->swapBuffers();
@@ -348,7 +374,7 @@ void Viewer::Run()
 
         if(glfw->key.isPressed(GLFW_KEY_T) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
-            tfnWidget->SaveState("tfn_state.tf");
+            tfnWidgets[selectedTF].SaveState("tfn_state_" + std::to_string(selectedTF) + ".tf");
         if(glfw->key.isPressed(GLFW_KEY_C) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"C"
             printCameraParameters();
