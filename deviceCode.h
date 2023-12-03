@@ -70,7 +70,6 @@ struct LaunchParams
   {
     //interval<float> domain;
     OptixTraversableHandle rootMacrocellTLAS;
-    OptixTraversableHandle elementTLAS;
     OptixTraversableHandle macrocellTLAS;
 
     int numModes;
@@ -85,6 +84,16 @@ struct LaunchParams
 
     float4 globalBoundsLo;
     float4 globalBoundsHi;
+
+    //=== Structured Grid ===//
+    struct
+    {
+      vec3ui dims;
+      float *scalars;
+    } sGrid;
+
+    //=== Unstructured Grid ===//
+    OptixTraversableHandle elementTLAS;
 
   } volume;
 
@@ -104,13 +113,6 @@ struct LaunchParams
     vec3f horizontal;
     vec3f vertical;
   } camera;
-
-
-  struct
-  {
-    vec3ui dims;
-    float *scalars;
-  }voxelData; //for structured volumes
 };
 
 struct RayGenData

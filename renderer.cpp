@@ -55,14 +55,14 @@ OWLVarDecl launchParamVars[] = {
     {"volume.globalBoundsLo", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsLo)},
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
     {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
+    //    structured volume data
+    {"volume.sGrid.scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid.scalars)},
+    {"volume.sGrid.dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid.dims)},
     // transfer function
     {"transferFunction.xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction.xf)},
     {"transferFunction.volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.volumeDomain)},
     {"transferFunction.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction.opacityScale)},
     {"transferFunction.xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.xfDomain)},
-    // structured volume data
-    {"voxelData.scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, voxelData.scalars)},
-    {"voxelData.dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, voxelData.dims)},
     {/* sentinel to mark end of list */}};
 
 namespace dtracker
@@ -421,8 +421,8 @@ namespace dtracker
 
       LOG("Setting buffers ...");
       //voxel data
-      owlParamsSetBuffer(lp, "voxelData.scalars", scalarData);
-      owlParamsSet3ui(lp, "voxelData.dims", (const owl3ui &)rawPtr->getDims());
+      owlParamsSetBuffer(lp, "volume.sGrid.scalars", scalarData);
+      owlParamsSet3ui(lp, "volume.sGrid.dims", (const owl3ui &)rawPtr->getDims());
 
       // camera
       if(autoSetCamera)
@@ -788,7 +788,7 @@ namespace dtracker
     {
       const auto& span = rawPtr->getBounds().span();
       const auto& dims = rawPtr->getDims();
-      float minVoxelSideLength = min(span.x/dims.x, min(span.y/dims.y, span.z/dims.z));
+      float minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
       SetDt(minVoxelSideLength * 0.5f);
     }
     
@@ -818,6 +818,7 @@ namespace dtracker
 
   void Renderer::SetAmbient(float ambientIntensity)
   {
+    ambient = ambientIntensity;
     owlParamsSet1f(lp, "ambientIntensity", ambient);
     ResetAccumulation();
   }

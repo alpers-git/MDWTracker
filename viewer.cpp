@@ -269,7 +269,7 @@ void Viewer::Run()
 
         if(ImGui::CollapsingHeader("Transfer function", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            tfnWidget->DrawColorMap(true);
+            tfnWidget->DrawColorMap(false);
             tfnWidget->DrawOpacityScale();
             tfnWidget->DrawRanges();
         }
@@ -294,6 +294,8 @@ void Viewer::Run()
         if(ImGui::DragFloat("dt", &dt, 0.005f, 0.0f, 1e20f, "%.5f"))
             renderer->SetDt(dt);
         ImGui::SameLine();
+        if(ImGui::Button("Reset Dt"))
+            renderer->ResetDt();
         if(ImGui::Checkbox("Heatmap", &heatmap))
             renderer->ResetAccumulation();
         ImGui::SameLine();
