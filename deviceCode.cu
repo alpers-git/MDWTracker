@@ -115,13 +115,39 @@ float sampleVolume(const vec3f& pos)
             (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
         // Convert normalized coordinates to grid indices
         vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.voxelData.dims));
-        // Ensure grid indices are within bounds
-        gridIndices = min(gridIndices, lp.voxelData.dims - vec3ui(1));
-        // Compute linear index
-        int flatIndex = gridIndices.x + gridIndices.y * lp.voxelData.dims.x + 
-                        gridIndices.z * lp.voxelData.dims.x * lp.voxelData.dims.y;
+
+        int indicesList[8];
+        // Compute linear index for center and all 8 neighbors sampled for trilinear interpolation
+        // clamp the indices to the grid dimensions
+        for (int i = 0; i < 8; ++i) {
+            vec3i neighborIndex = vec3i(gridIndices.x + (i & 1), gridIndices.y + ((i >> 1) & 1), gridIndices.z + ((i >> 2) & 1));
+            // Clamp indices to grid dimensions
+            neighborIndex = clamp(neighborIndex, vec3i(0), vec3i(lp.voxelData.dims) - vec3i(1));
+
+            // Compute linear index from 3D indices
+            indicesList[i] = neighborIndex.z * lp.voxelData.dims.x * lp.voxelData.dims.y +
+                            neighborIndex.y * lp.voxelData.dims.x +
+                            neighborIndex.x;
+        }
+        
+        // Compute weights for trilinear interpolation
+        float weights[8];
+        weights[0] = (1.0f - normalizedPos.x) * (1.0f - normalizedPos.y) * (1.0f - normalizedPos.z);
+        weights[1] = normalizedPos.x * (1.0f - normalizedPos.y) * (1.0f - normalizedPos.z);
+        weights[2] = (1.0f - normalizedPos.x) * normalizedPos.y * (1.0f - normalizedPos.z);
+        weights[3] = normalizedPos.x * normalizedPos.y * (1.0f - normalizedPos.z);
+        weights[4] = (1.0f - normalizedPos.x) * (1.0f - normalizedPos.y) * normalizedPos.z;
+        weights[5] = normalizedPos.x * (1.0f - normalizedPos.y) * normalizedPos.z;
+        weights[6] = (1.0f - normalizedPos.x) * normalizedPos.y * normalizedPos.z;
+        weights[7] = normalizedPos.x * normalizedPos.y * normalizedPos.z;
+
+        // Compute trilinearly interpolated value
+        float value = 0.0f;
+        for (int i = 0; i < 8; ++i)
+            value += weights[i] * lp.voxelData.scalars[indicesList[i]];
+                        
         // Sample scalar field
-        return lp.voxelData.scalars[flatIndex];
+        return value;
     }
 }
 
