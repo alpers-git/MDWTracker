@@ -90,7 +90,7 @@ inline __device__
 float sampleVolume(const vec3f& pos)
 {
     auto &lp = optixLaunchParams;
-    if(lp.volume.mode == 0)//Query unstructred mesh
+    if(lp.volume.meshType == 1)//Query unstructred mesh
     {
         //create a ray with zero lenght and origin at pos
         Ray ray;
@@ -108,7 +108,7 @@ float sampleVolume(const vec3f& pos)
         else
             return prd.dataValue;
     }
-    else if(lp.volume.mode == 1)//Query structured mesh
+    else if(lp.volume.meshType == 2)//Query structured mesh
     {
         //normalize pos to [0,1] using bounds of voxel grid
         vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
@@ -212,7 +212,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if(lp.enableHeatmap)
     {
         //heatmap
-        int samples = volumePrd.samples * (lp.volume.mode == 0 ? 1 : 50);
+        int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 50);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 250.f, samples / 250.f, samples / 250.f, 1.f));
     }
     else

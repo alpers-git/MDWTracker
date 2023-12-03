@@ -74,7 +74,7 @@ struct LaunchParams
     OptixTraversableHandle macrocellTLAS;
 
     int numModes;
-    int mode;
+    int meshType;
     int numAdaptiveSamplingRays;
     float dt;
 

@@ -14,6 +14,12 @@
 
 namespace dtracker
 {
+enum MeshType
+{
+  UNDEFINED,
+  UMESH = 1,
+  RAW = 2
+};
 class Renderer
 {
 private:
@@ -91,7 +97,7 @@ public:
     float ambient = 0.1f;
     vec2i fbSize = vec2i(1024, 1024);
     vec3f bgColor = vec3f(0.0f, 0.0f, 0.0f);
-    int mode = 0;
+    MeshType meshType = MeshType::UNDEFINED;
 
     /* transfer function */
     OWLBuffer colorMapBuffer { 0 };

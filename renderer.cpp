@@ -54,7 +54,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.dt", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, volume.dt)},
     {"volume.globalBoundsLo", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsLo)},
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
-    {"volume.mode", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.mode)},
+    {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
     // transfer function
     {"transferFunction.xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction.xf)},
     {"transferFunction.volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.volumeDomain)},
@@ -89,22 +89,7 @@ namespace dtracker
     module = owlModuleCreate(context, deviceCode_ptx);
     owlContextSetRayTypeCount(context, 1);
 
-    if(umeshPtr != nullptr)
-    {
-      tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
-      pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
-      wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->wedges.size() * 6, nullptr);
-      hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->hexes.size() * 8, nullptr);
-      verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtr->perVertex->values.size(), nullptr);
-      owlBufferUpload(tetrahedraData, umeshPtr->tets.data());
-      owlBufferUpload(pyramidsData, umeshPtr->pyrs.data());
-      owlBufferUpload(wedgesData, umeshPtr->wedges.data());
-      owlBufferUpload(hexahedraData, umeshPtr->hexes.data());
-      owlBufferUpload(verticesData, umeshPtr->vertices.data());
-      owlBufferUpload(scalarData, umeshPtr->perVertex->values.data());
-
-      LOG("Creating programs...");
+    LOG("Creating programs...");
       rayGen = owlRayGenCreate(context, module, "mainRG",
                               sizeof(RayGenData),
                               rayGenVars, -1);
@@ -120,6 +105,22 @@ namespace dtracker
       owlMissProgSet3f(missProg, "color1", owl3f{.1f, .1f, .16f});
 
       lp = owlParamsCreate(context, sizeof(LaunchParams), launchParamVars, -1);
+
+    if(umeshPtr != nullptr)
+    {
+      tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
+      pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
+      wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->wedges.size() * 6, nullptr);
+      hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->hexes.size() * 8, nullptr);
+      verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
+      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtr->perVertex->values.size(), nullptr);
+      owlBufferUpload(tetrahedraData, umeshPtr->tets.data());
+      owlBufferUpload(pyramidsData, umeshPtr->pyrs.data());
+      owlBufferUpload(wedgesData, umeshPtr->wedges.data());
+      owlBufferUpload(hexahedraData, umeshPtr->hexes.data());
+      owlBufferUpload(verticesData, umeshPtr->vertices.data());
+      owlBufferUpload(scalarData, umeshPtr->perVertex->values.data());
+
       // -------------------------------------------------------
       // declare geometry types
       // -------------------------------------------------------
@@ -182,38 +183,15 @@ namespace dtracker
       
       owlBuildPrograms(context);
 
-      LOG("Setting buffers ...");
-      frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
-      if (!accumBuffer)
-        accumBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4, 1, nullptr);
-      owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
-      owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
 
-      ResetAccumulation();
-      frameID = 0;
-      owlParamsSet1i(lp, "frameID", frameID);
-
-      owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
-      owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
-      owlParamsSet3f(lp, "bgColor", (const owl3f &)bgColor);
-
-      // transfer function
       volDomain = interval<float>({umeshPtr->getBounds4f().lower.w, umeshPtr->getBounds4f().upper.w});
+      printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
       owlParamsSet4f(lp, "volume.globalBoundsLo",
                     owl4f{umeshPtr->getBounds4f().lower.x, umeshPtr->getBounds4f().lower.y,
                           umeshPtr->getBounds4f().lower.z, umeshPtr->getBounds4f().lower.w});
       owlParamsSet4f(lp, "volume.globalBoundsHi",
                     owl4f{umeshPtr->getBounds4f().upper.x, umeshPtr->getBounds4f().upper.y,
                           umeshPtr->getBounds4f().upper.z, umeshPtr->getBounds4f().upper.w});
-      owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
-      printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
-
-      // light
-      owlParamsSet3f(lp, "lightDir", owl3f{lightDir.x, lightDir.y, lightDir.z});
-      owlParamsSet1f(lp, "lightIntensity", lightIntensity);
-      owlParamsSet1f(lp, "ambientIntensity", ambient);
-
-      ResetDt();
 
       // camera
       if(autoSetCamera)
@@ -225,6 +203,7 @@ namespace dtracker
         UpdateCamera();
       }
 
+      LOG("Setting buffers ...");
       // Allocate buffers for volume data
       tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
       pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
@@ -268,8 +247,7 @@ namespace dtracker
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
-      mode = 0;
-      owlParamsSet1i(lp, "volume.mode", mode); //unstructured mesh mode
+      meshType = MeshType::UMESH;
 
       LOG("Building geometries ...");
 
@@ -290,7 +268,6 @@ namespace dtracker
         owlGroupBuildAccel(triangleTLAS);
       }
       owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
-
 
       // Macrocell geometry
       OWLGeom macrocellGeom = owlGeomCreate(context, macrocellType);
@@ -402,27 +379,9 @@ namespace dtracker
       scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtr->getDims().x * rawPtr->getDims().y * rawPtr->getDims().z, nullptr);
       //get data as void pointer and create vector of floats
       auto data = rawPtr->getDataVector();
-      //create linearly increasing float vector called data
 
       //upload data to buffer
       owlBufferUpload(scalarData, data.data());
-
-      LOG("Creating programs...");
-      rayGen = owlRayGenCreate(context, module, "mainRG",
-                              sizeof(RayGenData),
-                              rayGenVars, -1);
-
-      OWLVarDecl missProgVars[] = {
-          {"color0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color0)},
-          {"color1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color1)},
-          {/* sentinel to mark end of list */}};
-
-      OWLMissProg missProg = owlMissProgCreate(context, module, "miss", sizeof(MissProgData),
-                                              missProgVars, -1);
-      owlMissProgSet3f(missProg, "color0", owl3f{.2f, .2f, .26f});
-      owlMissProgSet3f(missProg, "color1", owl3f{.1f, .1f, .16f});
-
-      lp = owlParamsCreate(context, sizeof(LaunchParams), launchParamVars, -1);
 
       OWLVarDecl triangleVars[] = {
           {"triVertices", OWL_BUFPTR, OWL_OFFSETOF(TriangleData, vertices)},
@@ -451,37 +410,16 @@ namespace dtracker
       
       owlBuildPrograms(context);
 
-      LOG("Setting buffers ...");
-      frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
-      if (!accumBuffer)
-        accumBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4, 1, nullptr);
-      owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
-      owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
-
-      ResetAccumulation();
-      frameID = 0;
-      owlParamsSet1i(lp, "frameID", frameID);
-
-      owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
-      owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
-      owlParamsSet3f(lp, "bgColor", (const owl3f &)bgColor);
-
-      // transfer function
       volDomain = interval<float>({rawPtr->getBounds4f().lower.w, rawPtr->getBounds4f().upper.w});
+      printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
       owlParamsSet4f(lp, "volume.globalBoundsLo",
                     owl4f{rawPtr->getBounds4f().lower.x, rawPtr->getBounds4f().lower.y,
                           rawPtr->getBounds4f().lower.z, rawPtr->getBounds4f().lower.w});
       owlParamsSet4f(lp, "volume.globalBoundsHi",
                     owl4f{rawPtr->getBounds4f().upper.x, rawPtr->getBounds4f().upper.y,
                           rawPtr->getBounds4f().upper.z, rawPtr->getBounds4f().upper.w});
-      owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
-      printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
 
-      // light
-      owlParamsSet3f(lp, "lightDir", owl3f{lightDir.x, lightDir.y, lightDir.z});
-      owlParamsSet1f(lp, "lightIntensity", lightIntensity);
-      owlParamsSet1f(lp, "ambientIntensity", ambient);
-
+      LOG("Setting buffers ...");
       //voxel data
       owlParamsSetBuffer(lp, "voxelData.scalars", scalarData);
       owlParamsSet3ui(lp, "voxelData.dims", (const owl3ui &)rawPtr->getDims());
@@ -526,7 +464,7 @@ namespace dtracker
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
-      owlParamsSet1i(lp, "volume.mode", 1); //structured mesh mode
+      meshType = MeshType::RAW;
 
       LOG("Building geometries ...");
 
@@ -564,7 +502,33 @@ namespace dtracker
       owlParamsSetGroup(lp, "volume.rootMacrocellTLAS", rootMacrocellTLAS);
     }
 
+    owlParamsSet1i(lp, "volume.meshType", meshType); //mesh mode
     xfDomain = interval<float>({0.f, 1.f});
+
+    //framebuffer
+    frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
+    if (!accumBuffer)
+      accumBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4, 1, nullptr);
+    owlBufferResize(accumBuffer, fbSize.x * fbSize.y);
+    owlParamsSetBuffer(lp, "accumBuffer", accumBuffer);
+
+    frameID = 0;
+    owlParamsSet1i(lp, "frameID", frameID);
+    ResetAccumulation();
+
+    owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
+    owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
+    owlParamsSet3f(lp, "bgColor", (const owl3f &)bgColor);
+
+    // light
+    owlParamsSet3f(lp, "lightDir", owl3f{lightDir.x, lightDir.y, lightDir.z});
+    owlParamsSet1f(lp, "lightIntensity", lightIntensity);
+    owlParamsSet1f(lp, "ambientIntensity", ambient);
+
+    // transfer function
+    owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
+
+    ResetDt();
 
     LOG("Building programs...");
     owlBuildPipeline(context);
