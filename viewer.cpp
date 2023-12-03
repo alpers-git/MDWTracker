@@ -145,13 +145,13 @@ Viewer::Viewer(int argc, char *argv[])
     {
         // init renderer and open window
         auto start = std::chrono::high_resolution_clock::now();
-        auto rawFile = std::make_shared<vkt::RawFile>(program.get<std::string>("-dr").c_str(), "rb");
+        auto rawFile = std::make_shared<raw::RawR>(program.get<std::string>("-dr").c_str(), "rb");
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
         std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
         std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
-        renderer->rawFilePtr = rawFile;
+        renderer->rawPtr = rawFile;
     }
     else
     {

@@ -26,9 +26,9 @@ static std::vector<std::string> string_split(std::string s, char delim)
 // C++ API
 //
 
-namespace vkt
+namespace raw
 {
-    RawFile::RawFile(char const* fileName, char const* mode)
+    RawR::RawR(char const* fileName, char const* mode)
         : fileName_(fileName)
         , mode_(mode)
     {
@@ -44,58 +44,38 @@ namespace vkt
             int32_t dimx = 0;
             int32_t dimy = 0;
             int32_t dimz = 0;
-            uint16_t bpv = 0;
+            size_t bpv = 0;
             int res = 0;
+
+            // Remove the dot and everything to the right of it
+            size_t dotPosition = str.find('.');
+             if (dotPosition != std::string::npos)
+                str= str.substr(0, dotPosition);
 
             // Dimensions
             res = sscanf(str.c_str(), "%dx%dx%d", &dimx, &dimy, &dimz);
             if (res == 3)
-                dims_ = { dimx, dimy, dimz };
-
-            res = sscanf(str.c_str(), "int%hu", &bpv);
-            if (res == 1)
             {
-                switch (bpv)
-                {
-                case 8:
-                    dataFormat_ = DataFormat::Int8;
-                    break;
-
-                case 16:
-                    dataFormat_ = DataFormat::Int16;
-                    break;
-
-                case 32:
-                    dataFormat_ = DataFormat::Int32;
-                    break;
-
-                default:
-                    dataFormat_ = DataFormat::Unspecified;
-                    break;
-                }
+                dims_ = { dimx, dimy, dimz };
+                continue;
             }
 
-            res = sscanf(str.c_str(), "uint%hu", &bpv);
-            if (res == 1)
-            {
-                switch (bpv)
-                {
-                case 8:
-                    dataFormat_ = DataFormat::UInt8;
-                    break;
-
-                case 16:
-                    dataFormat_ = DataFormat::UInt16;
-                    break;
-
-                case 32:
-                    dataFormat_ = DataFormat::UInt32;
-                    break;
-
-                default:
-                    dataFormat_ = DataFormat::Unspecified;
-                    break;
-                }
+            if (str == "int8") {
+                dataFormat_ = DataFormat::Int8; continue;
+            } else if (str == "int16") {
+                dataFormat_ = DataFormat::Int16; continue;
+            } else if (str == "int32") {
+                dataFormat_ = DataFormat::Int32; continue;
+            } else if (str == "uint8") {
+                dataFormat_ = DataFormat::UInt8; continue;
+            } else if (str == "uint16") {
+                dataFormat_ = DataFormat::UInt16; continue;
+            } else if (str == "uint32") {
+                dataFormat_ = DataFormat::UInt32; continue;
+            } else if (str == "float32") {
+                dataFormat_ = DataFormat::Float32; continue;
+            } else {
+                dataFormat_ = DataFormat::Unspecified; continue;
             }
         }
 
@@ -141,28 +121,28 @@ namespace vkt
         }
     }
 
-    RawFile::RawFile(FILE* file)
+    RawR::RawR(FILE* file)
         : file_(file)
     {
         file_ = fopen(fileName_, mode_);
     }
 
-    RawFile::~RawFile()
+    RawR::~RawR()
     {
         fclose(file_);
     }
 
-    std::size_t RawFile::read(char* buf, std::size_t len)
+    std::size_t RawR::read(char* buf, std::size_t len)
     {
         return fread(buf, len, 1, file_);
     }
 
-    std::size_t RawFile::write(char const* buf, std::size_t len)
+    std::size_t RawR::write(char const* buf, std::size_t len)
     {
         return fwrite(buf, len, 1, file_);
     }
 
-    bool RawFile::seek(std::size_t pos)
+    bool RawR::seek(std::size_t pos)
     {
         if (!good())
             return false;
@@ -172,7 +152,7 @@ namespace vkt
         return res == 0;
     }
 
-    bool RawFile::flush()
+    bool RawR::flush()
     {
         if (!good())
             return false;
@@ -182,107 +162,52 @@ namespace vkt
         return res == 0;
     }
 
-    bool RawFile::good() const
+    bool RawR::good() const
     {
         return file_ != nullptr;
     }
 
-    void RawFile::setDims(Vec3i dims)
+    void RawR::setDims(Vec3i dims)
     {
         dims_ = dims;
     }
 
-    Vec3i RawFile::getDims() const
+    Vec3i RawR::getDims() const
     {
         return dims_;
     }
 
-    void RawFile::setDataFormat(DataFormat dataFormat)
+    void RawR::setDataFormat(DataFormat dataFormat)
     {
         dataFormat_ = dataFormat;
     }
 
-    DataFormat RawFile::getDataFormat() const
+    DataFormat RawR::getDataFormat() const
     {
         return dataFormat_;
     }
 
-    size_t RawFile::getBytesPerVoxel() const
+    size_t RawR::getBytesPerVoxel() const
     {
-        return vkt::getSizeInBytes(dataFormat_);
+        return raw::getSizeInBytes(dataFormat_);
     }
 
-    const std::vector<float> RawFile::getDataVector() const
+    const std::vector<float> RawR::getDataVector() const
     {
         return data_;
     }
 
-    owl::box4f RawFile::getBounds4f() const
+    owl::box4f RawR::getBounds4f() const
     {
         return bounds_;
     }
 
-    owl::box3f RawFile::getBounds() const
+    owl::box3f RawR::getBounds() const
     {
         return owl::box3f({bounds_.lower.x, bounds_.lower.y, bounds_.lower.z},
             {bounds_.upper.x, bounds_.upper.y, bounds_.upper.z});
     }
 
-} // vkt
+} // raw
 
-//-------------------------------------------------------------------------------------------------
-// C API
-// //
-
-// void vktRawFileCreateS(vktRawFile* file, char const* fileName, char const* mode)
-// {
-//     assert(file != nullptr);
-
-//     *file = new vktRawFile_impl(fileName, mode);
-// }
-
-// void vktRawFileCreateFD(vktRawFile* file, FILE* fd)
-// {
-//     assert(file != nullptr);
-
-//     *file = new vktRawFile_impl(fd);
-// }
-
-// vktDataSource vktRawFileGetBase(vktRawFile file)
-// {
-//     return file->base;
-// }
-
-// void vktRawFileDestroy(vktRawFile file)
-// {
-//     delete file;
-// }
-
-// size_t vktRawFileRead(vktRawFile file, char* buf, size_t len)
-// {
-//     return file->base->source->read(buf, len);
-// }
-
-// bool vktRawFileGood(vktRawFile file)
-// {
-//     return file->base->source->good() ? true : false;
-// }
-
-// Vec3i vktRawFileGetDims3iv(vktRawFile file)
-// {
-//     vkt::RawFile* rf = dynamic_cast<vkt::RawFile*>(file->base->source);
-//     assert(rf);
-
-//     Vec3i dims = rf->getDims();
-
-//     return { dims.x, dims.y, dims.z };
-// }
-
-// vktDataFormat vktRawFileGetDataFormat(vktRawFile file)
-// {
-//     vkt::RawFile* rf = dynamic_cast<vkt::RawFile*>(file->base->source);
-//     assert(rf);
-
-//     return (vktDataFormat)rf->getDataFormat();
-
-// }
+//

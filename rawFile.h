@@ -14,7 +14,7 @@
 #include <owl/common/math/box.h>
 
 
-namespace vkt
+namespace raw
 {
     using Vec3i = owl::vec3i;
     enum class DataFormat
@@ -84,12 +84,12 @@ namespace vkt
 
     };
 
-    class RawFile : public DataSource
+    class RawR : public DataSource
     {
     public:
-        RawFile(char const* fileName, char const* mode);
-        RawFile(FILE* file);
-       ~RawFile();
+        RawR(char const* fileName, char const* mode);
+        RawR(FILE* file);
+       ~RawR();
 
         virtual std::size_t read(char* buf, std::size_t len);
         virtual std::size_t write(char const* buf, std::size_t len);
@@ -141,27 +141,6 @@ namespace vkt
         */
         owl::box3f getBounds() const;
 
-        /*!
-        * @brief Get data as a vector of Type T
-        */
-        // template <typename T>
-        // std::vector<T> getDataAsVector(bool normalize = true) const//bad solution but meh...
-        // {
-        //     std::vector<T> dataVec;
-        //     dataVec.resize(dims_.x * dims_.y * dims_.z);
-
-        //     std::size_t const bytesPerVoxel = getBytesPerVoxel();
-        //     const T  maxValue = (1ULL << bytesPerVoxel) - 1;
-        //     int i = 0;
-        //     for(size_t pos = 0; pos < getDims().x * getDims().y * getDims().z; pos+= bytesPerVoxel)
-        //     {
-        //         T d = (*((char*)data_ + pos));
-        //         dataVec[i++] = normalize ? d / maxValue : d;
-        //     }
-
-        //     return dataVec;
-        // }
-
     private:
         char const* fileName_ = 0;
         char const* mode_ = 0;
@@ -174,4 +153,4 @@ namespace vkt
 
     };
 
-} // vkt
+} // raw

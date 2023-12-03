@@ -78,7 +78,7 @@ namespace dtracker
 
   void Renderer::Init(bool autoSetCamera)
   {
-    if(umeshPtr == nullptr && rawFilePtr == nullptr)
+    if(umeshPtr == nullptr && rawPtr == nullptr)
     {
       LOG_ERROR("No data source specified!");
       return;
@@ -397,11 +397,11 @@ namespace dtracker
       owlGroupGetAccelSize(elementTLAS, &final, &peak);
     }
     //================================================================================================
-    else if(rawFilePtr != nullptr)
+    else if(rawPtr != nullptr)
     {
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawFilePtr->getDims().x * rawFilePtr->getDims().y * rawFilePtr->getDims().z, nullptr);
+      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtr->getDims().x * rawPtr->getDims().y * rawPtr->getDims().z, nullptr);
       //get data as void pointer and create vector of floats
-      auto data = rawFilePtr->getDataVector();
+      auto data = rawPtr->getDataVector();
       //create linearly increasing float vector called data
 
       //upload data to buffer
@@ -467,13 +467,13 @@ namespace dtracker
       owlParamsSet3f(lp, "bgColor", (const owl3f &)bgColor);
 
       // transfer function
-      volDomain = interval<float>({rawFilePtr->getBounds4f().lower.w, rawFilePtr->getBounds4f().upper.w});
+      volDomain = interval<float>({rawPtr->getBounds4f().lower.w, rawPtr->getBounds4f().upper.w});
       owlParamsSet4f(lp, "volume.globalBoundsLo",
-                    owl4f{rawFilePtr->getBounds4f().lower.x, rawFilePtr->getBounds4f().lower.y,
-                          rawFilePtr->getBounds4f().lower.z, rawFilePtr->getBounds4f().lower.w});
+                    owl4f{rawPtr->getBounds4f().lower.x, rawPtr->getBounds4f().lower.y,
+                          rawPtr->getBounds4f().lower.z, rawPtr->getBounds4f().lower.w});
       owlParamsSet4f(lp, "volume.globalBoundsHi",
-                    owl4f{rawFilePtr->getBounds4f().upper.x, rawFilePtr->getBounds4f().upper.y,
-                          rawFilePtr->getBounds4f().upper.z, rawFilePtr->getBounds4f().upper.w});
+                    owl4f{rawPtr->getBounds4f().upper.x, rawPtr->getBounds4f().upper.y,
+                          rawPtr->getBounds4f().upper.z, rawPtr->getBounds4f().upper.w});
       owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
       printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
 
@@ -484,7 +484,7 @@ namespace dtracker
 
       //voxel data
       owlParamsSetBuffer(lp, "voxelData.scalars", scalarData);
-      owlParamsSet3ui(lp, "voxelData.dims", (const owl3ui &)rawFilePtr->getDims());
+      owlParamsSet3ui(lp, "voxelData.dims", (const owl3ui &)rawPtr->getDims());
 
       // camera
       if(autoSetCamera)
@@ -503,7 +503,7 @@ namespace dtracker
       int numMacrocells = 1;
       std::vector<box4f> bboxes;
       bboxes.resize(numMacrocells);
-      auto bb = rawFilePtr->getBounds4f();
+      auto bb = rawPtr->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
@@ -515,8 +515,8 @@ namespace dtracker
       owlBufferUpload(rootBBoxBuffer, bboxes.data());
       
       box3f bounds = {
-          {rawFilePtr->getBounds4f().lower.x, rawFilePtr->getBounds4f().lower.y, rawFilePtr->getBounds4f().lower.z},
-          {rawFilePtr->getBounds4f().upper.x, rawFilePtr->getBounds4f().upper.y, rawFilePtr->getBounds4f().upper.z}
+          {rawPtr->getBounds4f().lower.x, rawPtr->getBounds4f().lower.y, rawPtr->getBounds4f().lower.z},
+          {rawPtr->getBounds4f().upper.x, rawPtr->getBounds4f().upper.y, rawPtr->getBounds4f().upper.z}
         };
 
       printf("bounds: %f %f %f %f %f %f\n", bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
@@ -642,8 +642,8 @@ namespace dtracker
     const vec3f vertical = 2.0f * half_height * focusDist * v;
     if(umeshPtr != nullptr)
       camera.motionSpeed = umesh::length(umeshPtr->getBounds().size()) / 50.f;
-    // else if(rawFilePtr != nullptr)
-    //   camera.motionSpeed = umesh::length(rawFilePtr->getBounds4f().size()) / 50.f;
+    // else if(rawPtr != nullptr)
+    //   camera.motionSpeed = umesh::length(rawPtr->getBounds4f().size()) / 50.f;
 
 
     // ----------- set variables  ----------------------------
@@ -820,10 +820,10 @@ namespace dtracker
       }
       SetDt(minSpan * 0.5f);
     }
-    else if (rawFilePtr != nullptr)
+    else if (rawPtr != nullptr)
     {
-      const auto& span = rawFilePtr->getBounds().span();
-      const auto& dims = rawFilePtr->getDims();
+      const auto& span = rawPtr->getBounds().span();
+      const auto& dims = rawPtr->getDims();
       float minVoxelSideLength = min(span.x/dims.x, min(span.y/dims.y, span.z/dims.z));
       SetDt(minVoxelSideLength * 0.5f);
     }

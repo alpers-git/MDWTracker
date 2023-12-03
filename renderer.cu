@@ -1047,11 +1047,11 @@ namespace dtracker {
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
           umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
     }
-    else if (rawFilePtr != nullptr)
+    else if (rawPtr != nullptr)
     {
       const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
       const int blockSize = 32;
-      const vec3i vxlGridDims = rawFilePtr->getDims(); 
+      const vec3i vxlGridDims = rawPtr->getDims(); 
       const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
       const int numBlocks = divRoundUp(elementCount, blockSize);
       vec3i grid(min(numBlocks,MAX_GRID_SIZE),
