@@ -290,8 +290,8 @@ void Viewer::Run()
                     renderer->SetLightDirection(lightDir);
             }
         }
-        static float dt = renderer->dt;
-        if(ImGui::DragFloat("dt", &dt, 0.01f, 0.0f, 1e20f))
+        float dt = renderer->dt;
+        if(ImGui::DragFloat("dt", &dt, 0.005f, 0.0f, 1e20f, "%.5f"))
             renderer->SetDt(dt);
         ImGui::SameLine();
         if(ImGui::Checkbox("Heatmap", &heatmap))
