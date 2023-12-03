@@ -284,13 +284,13 @@ namespace dtracker
         owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtr->triangles.size(), sizeof(vec3f), 0);
         owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
         owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
+        trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
+        owlGroupBuildAccel(trianglesGroup);
+        triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
+        owlGroupBuildAccel(triangleTLAS);
       }
       owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
 
-      trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
-      // owlGroupBuildAccel(trianglesGroup);
-      // triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
-      // owlGroupBuildAccel(triangleTLAS);
 
       // Macrocell geometry
       OWLGeom macrocellGeom = owlGeomCreate(context, macrocellType);
@@ -544,13 +544,13 @@ namespace dtracker
       //   owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtr->triangles.size(), sizeof(vec3f), 0);
       //   owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
       //   owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
-      // }
-      // owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
+      //   owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
 
-      // trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
-      // owlGroupBuildAccel(trianglesGroup);
-      // triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
-      // owlGroupBuildAccel(triangleTLAS);
+      //   trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
+      //   owlGroupBuildAccel(trianglesGroup);
+      //   triangleTLAS = owlInstanceGroupCreate(context, 1, &trianglesGroup);
+      //   owlGroupBuildAccel(triangleTLAS);
+      // }
 
       // Macrocell geometry
       OWLGeom macrocellGeom = owlGeomCreate(context, macrocellType);
