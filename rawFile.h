@@ -129,7 +129,7 @@ namespace vkt
         /*!
         * @brief Get data
         */
-        const float* getData() const;
+        const std::vector<float> getDataVector() const;
 
         /*!
         * @brief Get domain of the values in the volume

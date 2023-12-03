@@ -186,8 +186,8 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if(lp.enableHeatmap)
     {
         //heatmap
-        int samples = volumePrd.samples * (lp.volume.mode == 0 ? 1 : 100);
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 500.f, samples / 500.f, samples / 500.f, 1.f));
+        int samples = volumePrd.samples * (lp.volume.mode == 0 ? 1 : 50);
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 250.f, samples / 250.f, samples / 250.f, 1.f));
     }
     else
     {
@@ -305,6 +305,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     {
         const int cellID = cellIdx.x + cellIdx.y * griddim.x + cellIdx.z * griddim.x * griddim.y;
         float majorant = lp.volume.majorants[cellID];
+
+        if(prd.debug)
+            printf("cellID = %d, majorant = %f\n", cellID, majorant);
 
         if (majorant == 0.00f)
             return true;

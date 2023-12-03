@@ -780,9 +780,6 @@ namespace dtracker {
     uint64_t primIdx = blockID*blockDim.x + threadIdx.x;
     const uint64_t totalElements = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
     if (primIdx >= totalElements) return;
-
-    //printf("primIdx: %d: scalar %f\n", primIdx, scalars[primIdx]);
-
     box4f primBounds4 = box4f();
     //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
     //length in each dimension of the voxels in world space
@@ -793,25 +790,9 @@ namespace dtracker {
                          primIdx / (vxlGridDims.x * vxlGridDims.y));
 
     //World space coordinates of the voxel corners
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  1e20f));
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, -1e20f));
-    
+    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[primIdx]));
+    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, scalars[primIdx]));
 
-    //find the min and max scalar values of the 8 corners of the voxel via for loops
-    for (int iz = 0; iz < 2; iz++)
-      for (int iy = 0; iy < 2; iy++)
-        for (int ix = 0; ix < 2; ix++) {
-          const uint32_t index
-            = (vxlIdx.x + ix)
-            + (vxlIdx.y + iy) * dims.x
-            + (vxlIdx.z + iz) * dims.x * dims.y;
-          float scalar = scalars[index];
-          primBounds4.lower.w = min(primBounds4.lower.w, 150.f);
-          primBounds4.upper.w = max(primBounds4.upper.w, 160.f);
-          //printf("index: %d, scalar: %f\n", index, scalar);
-        }
-    // if(primBounds4.upper.w >= 4.0f)
-    //printf("primIdx: %d, primBounds4: %f, %f, %f, %f | %f, %f, %f, %f\n", primIdx, primBounds4.lower.x, primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y, primBounds4.upper.z, primBounds4.upper.w);
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4);
   }
 

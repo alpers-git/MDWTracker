@@ -401,9 +401,11 @@ namespace dtracker
     {
       scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawFilePtr->getDims().x * rawFilePtr->getDims().y * rawFilePtr->getDims().z, nullptr);
       //get data as void pointer and create vector of floats
-      const float* data = rawFilePtr->getData();
+      auto data = rawFilePtr->getDataVector();
+      //create linearly increasing float vector called data
+
       //upload data to buffer
-      owlBufferUpload(scalarData, data);
+      owlBufferUpload(scalarData, data.data());
 
       LOG("Creating programs...");
       rayGen = owlRayGenCreate(context, module, "mainRG",
@@ -421,11 +423,6 @@ namespace dtracker
       owlMissProgSet3f(missProg, "color1", owl3f{.1f, .1f, .16f});
 
       lp = owlParamsCreate(context, sizeof(LaunchParams), launchParamVars, -1);
-
-      //  OWLVarDecl structuredElementVars[] = {
-      //     {"scalars", OWL_BUFPTR, OWL_OFFSETOF(StructuredElementData, scalars)},
-      //     {"dims", OWL_UINT3, OWL_OFFSETOF(StructuredElementData, dims)},
-      //     {/* sentinel to mark end of list */}};
 
       OWLVarDecl triangleVars[] = {
           {"triVertices", OWL_BUFPTR, OWL_OFFSETOF(TriangleData, vertices)},

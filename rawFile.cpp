@@ -212,9 +212,9 @@ namespace vkt
         return vkt::getSizeInBytes(dataFormat_);
     }
 
-    const float* RawFile::getData() const
+    const std::vector<float> RawFile::getDataVector() const
     {
-        return data_.data();
+        return data_;
     }
 
     owl::box4f RawFile::getBounds4f() const
