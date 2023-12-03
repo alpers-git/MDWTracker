@@ -604,10 +604,10 @@ namespace dtracker
     const vec3f lower_left_corner = origin - half_width * focusDist * u - half_height * focusDist * v - focusDist * w;
     const vec3f horizontal = 2.0f * half_width * focusDist * u;
     const vec3f vertical = 2.0f * half_height * focusDist * v;
-    if(umeshPtr != nullptr)
+    if(meshType == MeshType::UMESH)
       camera.motionSpeed = umesh::length(umeshPtr->getBounds().size()) / 50.f;
-    // else if(rawPtr != nullptr)
-    //   camera.motionSpeed = umesh::length(rawPtr->getBounds4f().size()) / 50.f;
+    else if(meshType == MeshType::RAW)
+      camera.motionSpeed = owl::length(rawPtr->getBounds().size()) / 50.f;
 
 
     // ----------- set variables  ----------------------------
@@ -706,7 +706,7 @@ namespace dtracker
   void Renderer::ResetDt()
   {
     float minSpan = std::numeric_limits<float>::max();
-    if (umeshPtr != nullptr)
+    if (meshType == MeshType::UMESH)
     {
       //go over all elements calculate bounding boxes and find avg of spans
       for (int i = 0; i < umeshPtr->tets.size(); ++i)
@@ -784,13 +784,15 @@ namespace dtracker
       }
       SetDt(minSpan * 0.5f);
     }
-    else if (rawPtr != nullptr)
+    else if (meshType == MeshType::RAW)
     {
       const auto& span = rawPtr->getBounds().span();
       const auto& dims = rawPtr->getDims();
       float minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
       SetDt(minVoxelSideLength * 0.5f);
     }
+    else
+      exit(1);
     
   }
 
