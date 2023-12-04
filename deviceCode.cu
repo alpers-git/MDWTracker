@@ -114,7 +114,7 @@ float sampleVolume(const vec3f& pos)
         vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
             (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
         // Convert normalized coordinates to grid indices
-        vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.volume.sGrid.dims));
+        vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.volume.sGrid[0].dims));
 
         int indicesList[8];
         // Compute linear index for center and all 8 neighbors sampled for trilinear interpolation
@@ -122,11 +122,11 @@ float sampleVolume(const vec3f& pos)
         for (int i = 0; i < 8; ++i) {
             vec3i neighborIndex = vec3i(gridIndices.x + (i & 1), gridIndices.y + ((i >> 1) & 1), gridIndices.z + ((i >> 2) & 1));
             // Clamp indices to grid dimensions
-            neighborIndex = clamp(neighborIndex, vec3i(0), vec3i(lp.volume.sGrid.dims) - vec3i(1));
+            neighborIndex = clamp(neighborIndex, vec3i(0), vec3i(lp.volume.sGrid[0].dims) - vec3i(1));
 
             // Compute linear index from 3D indices
-            indicesList[i] = neighborIndex.z * lp.volume.sGrid.dims.x * lp.volume.sGrid.dims.y +
-                            neighborIndex.y * lp.volume.sGrid.dims.x +
+            indicesList[i] = neighborIndex.z * lp.volume.sGrid[0].dims.x * lp.volume.sGrid[0].dims.y +
+                            neighborIndex.y * lp.volume.sGrid[0].dims.x +
                             neighborIndex.x;
         }
         
@@ -144,7 +144,7 @@ float sampleVolume(const vec3f& pos)
         // Compute trilinearly interpolated value
         float value = 0.0f;
         for (int i = 0; i < 8; ++i)
-            value += weights[i] * lp.volume.sGrid.scalars[indicesList[i]];
+            value += weights[i] * lp.volume.sGrid[0].scalars[indicesList[i]];
                         
         // Sample scalar field
         return value;

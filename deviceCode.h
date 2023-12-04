@@ -92,7 +92,7 @@ struct LaunchParams
     {
       vec3ui dims;
       float *scalars;
-    } sGrid;
+    } sGrid[MAX_MESHES];
 
     //=== Unstructured Grid ===//
     OptixTraversableHandle elementTLAS;

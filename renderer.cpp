@@ -57,8 +57,16 @@ OWLVarDecl launchParamVars[] = {
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
     {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
     //    structured volume data
-    {"volume.sGrid.scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid.scalars)},
-    {"volume.sGrid.dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid.dims)},
+    {"volume.sGrid[0].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalars)},
+    {"volume.sGrid[0].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].dims)},
+    {"volume.sGrid[1].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalars)},
+    {"volume.sGrid[1].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].dims)},
+    {"volume.sGrid[2].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalars)},
+    {"volume.sGrid[2].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].dims)},
+    {"volume.sGrid[3].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalars)},
+    {"volume.sGrid[3].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].dims)},
+    {"volume.sGrid[4].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalars)},
+    {"volume.sGrid[4].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].dims)},
     // transfer functions
     {"transferFunction[0].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[0].xf)},
     {"transferFunction[0].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[0].volumeDomain)},
@@ -394,12 +402,6 @@ namespace dtracker
     else if(rawPtrs.size() > 0)
     {
       meshType = MeshType::RAW;
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[0]->getDims().x * rawPtrs[0]->getDims().y * rawPtrs[0]->getDims().z, nullptr);
-      //get data as void pointer and create vector of floats
-      auto data = rawPtrs[0]->getDataVector();
-
-      //upload data to buffer
-      owlBufferUpload(scalarData, data.data());
 
       OWLVarDecl triangleVars[] = {
           {"triVertices", OWL_BUFPTR, OWL_OFFSETOF(TriangleData, vertices)},
@@ -439,9 +441,16 @@ namespace dtracker
                           rawPtrs[0]->getBounds4f().upper.z, rawPtrs[0]->getBounds4f().upper.w});
 
       LOG("Setting buffers ...");
+      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[0]->getDims().x * rawPtrs[0]->getDims().y * rawPtrs[0]->getDims().z, nullptr);
+      //get data as void pointer and create vector of floats
+      auto data = rawPtrs[0]->getDataVector();
+
+      //upload data to buffer
+      owlBufferUpload(scalarData, data.data());
+
       //voxel data
-      owlParamsSetBuffer(lp, "volume.sGrid.scalars", scalarData);
-      owlParamsSet3ui(lp, "volume.sGrid.dims", (const owl3ui &)rawPtrs[0]->getDims());
+      owlParamsSetBuffer(lp, "volume.sGrid[0].scalars", scalarData);
+      owlParamsSet3ui(lp, "volume.sGrid[0].dims", (const owl3ui &)rawPtrs[0]->getDims());
 
       // camera
       if(autoSetCamera)
