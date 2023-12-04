@@ -709,6 +709,8 @@ namespace dtracker
       tfdatas[tfID].colorMapTexture = 0;
     }
 
+    tfdatas[tfID].numTexels= tfdatas[tfID].colorMap.size();
+
     cudaResourceDesc res_desc = {};
     cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float4>();
 

@@ -31,6 +31,7 @@ struct TFData
   interval<float> volDomain;
   interval<float> xfDomain = interval<float>({0.f, 1.f});
   std::vector<vec4f> colorMap;
+  int numTexels = 0;
   float opacityScale = 1.0f;
 };
 class Renderer
@@ -139,7 +140,7 @@ public:
     /*! sets the transfer function domain*/
     void SetXFRange(vec2f xfDomain, size_t tfID = 0);
     /*! recalculates the majorants*/
-    void RecalculateDensityRanges(size_t tfIF=0);
+    void RecalculateDensityRanges();
     /*! sets the dt to avg span /2 of bounding boxes of elements*/
     void ResetDt();
     /*! sets the dt to a fixed value*/

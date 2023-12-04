@@ -23,8 +23,7 @@
 __global__
 void _recalculateDensityRanges(
   int numPrims, bool is_background, owl::box4f *bboxes,//const uint8_t* nvdbData, 
-  cudaTextureObject_t texture, int numTexels, 
-  float2 volumeDomain, float2 xfDomain, float opacityScale,
+  dtracker::TFData* tf, size_t numMeshes,
   float* maxima)
 {
     int primID = (blockIdx.x * blockDim.x + threadIdx.x);
@@ -39,31 +38,35 @@ void _recalculateDensityRanges(
       mn = bboxes[primID].lower.w;
       mx = bboxes[primID].upper.w;
     }
+    float maxDensity = 0.f;
+    for(size_t tfID=0; tfID < numMeshes; tfID++)
+    {
+      // empty box
+      if (mx < mn) {
+        maxima[primID] = 0.f;
+        continue;//return;
+      }
 
-    // empty box
-    if (mx < mn) {
-      maxima[primID] = 0.f;
-      return;
+      // transform data min max to transfer function space
+      float remappedMin1 = (mn - tf[tfID].volDomain.lo) / (tf[tfID].volDomain.hi - tf[tfID].volDomain.lo);
+      float remappedMin = (remappedMin1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
+      float remappedMax1 = (mx - tf[tfID].volDomain.lo) / (tf[tfID].volDomain.hi - tf[tfID].volDomain.lo);
+      float remappedMax = (remappedMax1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
+      float addr1 = remappedMin * tf[tfID].numTexels;
+      float addr2 = remappedMax * tf[tfID].numTexels;
+
+      int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), tf[tfID].numTexels-1);
+      int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), tf[tfID].numTexels-1);
+
+      float maxDensityForVolume;
+      for (int i = addrMin; i <= addrMax; ++i) {
+        float density = tex2D<float4>(tf[tfID].colorMapTexture, float(i)/tf[tfID].numTexels ,0.5f).w * tf[tfID].opacityScale;
+        if (i == addrMin) maxDensityForVolume = density;
+        else maxDensityForVolume = max(maxDensityForVolume, density);
+      }
+      maxDensity += maxDensityForVolume;
     }
-
-    // transform data min max to transfer function space
-    float remappedMin1 = (mn - volumeDomain.x) / (volumeDomain.y - volumeDomain.x);
-    float remappedMin = (remappedMin1 - xfDomain.x) / (xfDomain.y - xfDomain.x);
-    float remappedMax1 = (mx - volumeDomain.x) / (volumeDomain.y - volumeDomain.x);
-    float remappedMax = (remappedMax1 - xfDomain.x) / (xfDomain.y - xfDomain.x);
-    float addr1 = remappedMin * numTexels;
-    float addr2 = remappedMax * numTexels;
-
-    int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), numTexels-1);
-    int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), numTexels-1);
-
-    float maxDensity;
-    for (int i = addrMin; i <= addrMax; ++i) {
-      float density = tex2D<float4>(texture, float(i)/numTexels ,0.5f).w * opacityScale;
-      if (i == addrMin) maxDensity = density;
-      else maxDensity = max(maxDensity, density);
-    }
-    maxima[primID] = maxDensity;
+    maxima[primID] = maxDensity/(float)numMeshes;
 
     // if(!is_background) {
     //   printf("box %u bounds {%f %f %f %f %f %f} majorant %f\n", primID, 
@@ -120,52 +123,67 @@ void _recalculateDensityRanges(
 
 __global__
 void _recalculateDensityRanges(
-  int numPrims, float2 *macrocells,//const uint8_t* nvdbData, 
-  cudaTextureObject_t texture, int numTexels, 
-  float2 volumeDomain, float2 xfDomain, float opacityScale,
+  int numPrims, float2 *macrocells,//const uint8_t* nvdbData,
+  dtracker::TFData* tf, size_t numMeshes,
+  // cudaTextureObject_t texture, int numTexels, 
+  // float2* volumeDomain, float2 xfDomain, float opacityScale,
   float* maxima)
 {
     int nodeID = (blockIdx.x * blockDim.x + threadIdx.x);
     if (nodeID >= numPrims) return;
 
-    float mn = macrocells[nodeID].x;
-    float mx = macrocells[nodeID].y;
+    float maxDensity = 0.f;
+    for (size_t tfID = 0; tfID < numMeshes; tfID++)
+    {
+      float mn = macrocells[nodeID * numMeshes + tfID].x;
+      float mx = macrocells[nodeID * numMeshes + tfID].y;
 
-    // empty box
-    if (mx < mn) {
-      maxima[nodeID] = 0.f;
-      return;
+      // empty box
+      if (mx < mn) {
+        maxima[nodeID] = 0.f;
+        continue; //return;
+      }
+
+      // transform data min max to transfer function space
+      float remappedMin1 = (mn - tf[tfID].volDomain.lo) / (tf[tfID].volDomain.hi - tf[tfID].volDomain.lo);
+      float remappedMin = (remappedMin1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
+      float remappedMax1 = (mx - tf[tfID].volDomain.lo) / (tf[tfID].volDomain.hi - tf[tfID].volDomain.lo);
+      float remappedMax = (remappedMax1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
+      float addr1 = remappedMin * tf[tfID].numTexels;
+      float addr2 = remappedMax * tf[tfID].numTexels;
+
+
+      int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), tf[tfID].numTexels-1);
+      int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), tf[tfID].numTexels-1);
+
+      float maxDensityForVolume = 0.f;
+      for (int i = addrMin; i <= addrMax; ++i) {
+        float density = tex2D<float4>(tf[tfID].colorMapTexture, float(i)/tf[tfID].numTexels ,0.5f).w * tf[tfID].opacityScale;
+        if (i == addrMin) maxDensityForVolume = density;
+        else maxDensityForVolume = max(maxDensityForVolume, density);
+      }
+      maxDensity += maxDensityForVolume;
     }
-
-    // transform data min max to transfer function space
-    float remappedMin1 = (mn - volumeDomain.x) / (volumeDomain.y - volumeDomain.x);
-    float remappedMin = (remappedMin1 - xfDomain.x) / (xfDomain.y - xfDomain.x);
-    float remappedMax1 = (mx - volumeDomain.x) / (volumeDomain.y - volumeDomain.x);
-    float remappedMax = (remappedMax1 - xfDomain.x) / (xfDomain.y - xfDomain.x);
-    float addr1 = remappedMin * numTexels;
-    float addr2 = remappedMax * numTexels;
-
-
-    int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), numTexels-1);
-    int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), numTexels-1);
-
-    float maxDensity;
-    for (int i = addrMin; i <= addrMax; ++i) {
-      float density = tex2D<float4>(texture, float(i)/numTexels ,0.5f).w * opacityScale;
-      if (i == addrMin) maxDensity = density;
-      else maxDensity = max(maxDensity, density);
-    }
-    maxima[nodeID] = maxDensity;
+    maxima[nodeID] = maxDensity/(float)numMeshes;
 }
 
 namespace dtracker {
-  void Renderer::RecalculateDensityRanges(size_t tfIF)
+  void Renderer::RecalculateDensityRanges()
   {
-    float2 volumeDomain = {tfdatas[tfIF].volDomain.lower, tfdatas[tfIF].volDomain.upper};
-    float2 tfnDomain = {tfdatas[tfIF].xfDomain.lower, tfdatas[tfIF].xfDomain.upper};
-    float opacityScale = this->tfdatas[tfIF].opacityScale;
-    cudaTextureObject_t colorMapTexture = this->tfdatas[tfIF].colorMapTexture;
-    int colorMapSize = this->tfdatas[tfIF].colorMap.size();
+    size_t numMeshes = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
+    if(numMeshes == 0) throw std::runtime_error("No mesh data found");
+
+    //Create a dvice buffer of TFData
+    OWLBuffer tfdataBuffer = owlDeviceBufferCreate(context, 
+      OWL_USER_TYPE(dtracker::TFData),
+      numMeshes,  tfdatas.data());
+    dtracker::TFData* d_tfdatas = (dtracker::TFData*)owlBufferGetPointer(tfdataBuffer, 0);
+
+    float2 volumeDomain = {tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper};
+    float2 tfnDomain = {tfdatas[0].xfDomain.lower, tfdatas[0].xfDomain.upper};
+    float opacityScale = this->tfdatas[0].opacityScale;
+    cudaTextureObject_t colorMapTexture = this->tfdatas[0].colorMapTexture;
+    int colorMapSize = this->tfdatas[0].colorMap.size();
     dim3 blockSize(32);
     uint32_t numThreads;
     bool isBackground;
@@ -181,8 +199,7 @@ namespace dtracker {
       majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
       _recalculateDensityRanges<<<gridSize,blockSize>>>(
         numThreads, isBackground, bboxes, 
-        colorMapTexture, colorMapSize, volumeDomain,
-        tfnDomain, opacityScale, majorantBuffer);
+        d_tfdatas, numMeshes, majorantBuffer);
       
       CUDA_SYNC_CHECK();
       
@@ -197,7 +214,8 @@ namespace dtracker {
       
       //Calculate Boxes
       _recalculateDensityRanges<<<gridSize,blockSize>>>(
-        numThreads, macrocells, colorMapTexture, colorMapSize, volumeDomain, tfnDomain, opacityScale, 
+        numThreads, macrocells, d_tfdatas, numMeshes,
+        //colorMapTexture, colorMapSize, d_volDomains, tfnDomain, opacityScale, 
         majorantBuffer);
     }
     // {
