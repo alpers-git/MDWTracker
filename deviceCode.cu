@@ -87,7 +87,7 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
 }
 
 inline __device__
-float sampleVolume(const vec3f& pos)
+float sampleVolume(const vec3f& pos, const int meshID = 0)
 {
     auto &lp = optixLaunchParams;
     if(lp.volume.meshType == 1)//Query unstructred mesh
@@ -114,7 +114,7 @@ float sampleVolume(const vec3f& pos)
         vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
             (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
         // Convert normalized coordinates to grid indices
-        vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.volume.sGrid[0].dims));
+        vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.volume.sGrid[meshID].dims));
 
         int indicesList[8];
         // Compute linear index for center and all 8 neighbors sampled for trilinear interpolation
@@ -122,11 +122,11 @@ float sampleVolume(const vec3f& pos)
         for (int i = 0; i < 8; ++i) {
             vec3i neighborIndex = vec3i(gridIndices.x + (i & 1), gridIndices.y + ((i >> 1) & 1), gridIndices.z + ((i >> 2) & 1));
             // Clamp indices to grid dimensions
-            neighborIndex = clamp(neighborIndex, vec3i(0), vec3i(lp.volume.sGrid[0].dims) - vec3i(1));
+            neighborIndex = clamp(neighborIndex, vec3i(0), vec3i(lp.volume.sGrid[meshID].dims) - vec3i(1));
 
             // Compute linear index from 3D indices
-            indicesList[i] = neighborIndex.z * lp.volume.sGrid[0].dims.x * lp.volume.sGrid[0].dims.y +
-                            neighborIndex.y * lp.volume.sGrid[0].dims.x +
+            indicesList[i] = neighborIndex.z * lp.volume.sGrid[meshID].dims.x * lp.volume.sGrid[meshID].dims.y +
+                            neighborIndex.y * lp.volume.sGrid[meshID].dims.x +
                             neighborIndex.x;
         }
         
@@ -144,7 +144,7 @@ float sampleVolume(const vec3f& pos)
         // Compute trilinearly interpolated value
         float value = 0.0f;
         for (int i = 0; i < 8; ++i)
-            value += weights[i] * lp.volume.sGrid[0].scalars[indicesList[i]];
+            value += weights[i] * lp.volume.sGrid[meshID].scalars[indicesList[i]];
                         
         // Sample scalar field
         return value;
@@ -361,14 +361,36 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             }
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
-            const float value = sampleVolume(worldX);
-            prd.samples++;
-            if(isnan(value)) // miss
+            //get values from all meshes and decide which one the sample is gonna come from
+            float opacitySum = 0.0f;
+            float4 sampledTFs[MAX_MESHES];
+            for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
-                event = NULL_COLLISION;
-                continue;
+                const float value = sampleVolume(worldX, meshID);
+                if(isnan(value)) // miss
+                {
+                    event = NULL_COLLISION;
+                    continue;
+                }
+                prd.samples++;
+                sampledTFs[meshID] = transferFunction(value, meshID);
+                opacitySum += sampledTFs[meshID].w;
             }
-            sampledTF = transferFunction(value);
+            if(opacitySum == 0.0f)
+                continue;
+            //sample a mesh based on its opacity
+            size_t selectedMeshID = 0;
+            float meshSelector = prd.rng() * opacitySum;
+            for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
+            {
+                if(meshSelector < sampledTFs[meshID].w)
+                {
+                    selectedMeshID = meshID;
+                    break;
+                }
+                meshSelector -= sampledTFs[meshID].w;
+            }
+            sampledTF = sampledTFs[selectedMeshID];
             
             const float volumeEvent = prd.rng();
 
