@@ -255,6 +255,21 @@ void Viewer::Run()
     GLFWHandler *glfw = GLFWHandler::getInstance();
     renderer->Init(!camGivenAsParam);
     renderer->UpdateCamera();
+    //loop over all transfer functions and set them
+    for (int i = 0; i < numFiles; i++)
+    {
+        auto cm = tfnWidgets[i].GetColormapf();
+        std::vector<owl::vec4f> colorMapVec;
+        for (int i = 0; i < cm.size(); i += 4)
+        {
+            colorMapVec.push_back(owl::vec4f(cm[i],
+                    cm[i + 1], cm[i + 2], cm[i + 3]));
+        }
+        renderer->SetXFColormap(colorMapVec, i);
+        renderer->SetXFOpacityScale(tfnWidgets[i].GetOpacityScale(), i);
+        renderer->SetXFRange(vec2f(tfnWidgets[i].GetRange().x,
+                tfnWidgets[i].GetRange().y), i);
+    }
     while (!glfw->windowShouldClose())
     {
         glfw->pollEvents();
@@ -280,7 +295,7 @@ void Viewer::Run()
         color = renderer->minTime > 0.6f ? red : renderer->minTime < 0.11f ? green : orange;
         ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->minTime, renderer->minTime);
 
-        static bool tabChanged = false;
+
         if(ImGui::CollapsingHeader("Transfer function(s)", ImGuiTreeNodeFlags_DefaultOpen))
         {
             ImGui::BeginTabBar("##42#left_tabs_bar");
@@ -292,7 +307,7 @@ void Viewer::Run()
                     tfnWidgets[i].DrawOpacityScale();
                     tfnWidgets[i].DrawRanges();
                     ImGui::EndTabItem();
-                    tabChanged = selectedTF != i;
+                    //tabChanged = selectedTF != i;
                     selectedTF = i;
                 }
             }
@@ -329,7 +344,7 @@ void Viewer::Run()
         ImGui::End();
         RenderImGuiFrame();
 
-        if(tabChanged || tfnWidgets[selectedTF].ColorMapChanged())
+        if(tfnWidgets[selectedTF].ColorMapChanged())
         {
             auto cm = tfnWidgets[selectedTF].GetColormapf();
             std::vector<owl::vec4f> colorMapVec;
@@ -341,13 +356,12 @@ void Viewer::Run()
             renderer->SetXFColormap(colorMapVec, selectedTF);
         }
 
-        if(tabChanged || tfnWidgets[selectedTF].OpacityScaleChanged())
+        if(tfnWidgets[selectedTF].OpacityScaleChanged())
             renderer->SetXFOpacityScale(tfnWidgets[selectedTF].GetOpacityScale(), selectedTF);
             
-        if(tabChanged || tfnWidgets[selectedTF].RangeChanged())
+        if(tfnWidgets[selectedTF].RangeChanged())
             renderer->SetXFRange(vec2f(tfnWidgets[selectedTF].GetRange().x,
                     tfnWidgets[selectedTF].GetRange().y), selectedTF);
-        
 
         glfw->swapBuffers();
 
