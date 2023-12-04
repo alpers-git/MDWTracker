@@ -24,19 +24,19 @@ inline __device__ bool dbg()
 #endif
 }
 
-inline __both__ float4 transferFunction(float f)
+inline __both__ float4 transferFunction(float f, size_t tfID = 0)
 {
     auto &lp = optixLaunchParams;
-    if (f < lp.transferFunction.volumeDomain.x ||
-        f > lp.transferFunction.volumeDomain.y)
+    if (f < lp.transferFunction[tfID].volumeDomain.x ||
+        f > lp.transferFunction[tfID].volumeDomain.y)
     {
         return make_float4(1.f, 0.f, 1.f, 0.0f);
     }
-    float remapped1 = (f - lp.transferFunction.volumeDomain.x) / (lp.transferFunction.volumeDomain.y - lp.transferFunction.volumeDomain.x);
-    float remapped2 = (remapped1 - lp.transferFunction.xfDomain.x) / (lp.transferFunction.xfDomain.y - lp.transferFunction.xfDomain.x);
+    float remapped1 = (f - lp.transferFunction[tfID].volumeDomain.x) / (lp.transferFunction[tfID].volumeDomain.y - lp.transferFunction[tfID].volumeDomain.x);
+    float remapped2 = (remapped1 - lp.transferFunction[tfID].xfDomain.x) / (lp.transferFunction[tfID].xfDomain.y - lp.transferFunction[tfID].xfDomain.x);
     
-    float4 xf = tex2D<float4>(lp.transferFunction.xf, remapped2, 0.5f);
-    xf.w *= lp.transferFunction.opacityScale;
+    float4 xf = tex2D<float4>(lp.transferFunction[tfID].xf, remapped2, 0.5f);
+    xf.w *= lp.transferFunction[tfID].opacityScale;
 
     return xf;
 }
@@ -276,11 +276,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
     prd.missed = true;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
-
-    const interval<float> xfDomain(lp.transferFunction.xfDomain.x, 
-        lp.transferFunction.xfDomain.y);
-    const interval<float> volDomain(lp.transferFunction.volumeDomain.x,
-        lp.transferFunction.volumeDomain.y);
 
     float unit = lp.volume.dt;
 

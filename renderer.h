@@ -124,6 +124,10 @@ public:
     void Update();
     /*! terminates the renderer*/
     void Terminate();
+    /*! pushes a umesh*/
+    bool PushMesh(std::shared_ptr<umesh::UMesh> umeshPtr);
+    /*! pushes a raw file*/
+    bool PushMesh(std::shared_ptr<raw::RawR> rawPtr);
     /*! resizes the frame buffer */
     void Resize(vec2i newSize);
     /*! updates camera at device*/

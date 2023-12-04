@@ -10,6 +10,7 @@
 using namespace owl;
 
 #define NUM_BINS 32
+#define MAX_MESHES 5
 
 /* variables for the triangle mesh geometry */
 struct TriangleData
@@ -68,6 +69,7 @@ struct LaunchParams
 
   struct
   {
+    int numMeshes = 1;
     //interval<float> domain;
     OptixTraversableHandle rootMacrocellTLAS;
     OptixTraversableHandle macrocellTLAS;
@@ -104,7 +106,7 @@ struct LaunchParams
     float2 volumeDomain;
     float2 xfDomain;
     float opacityScale;
-  } transferFunction;
+  } transferFunction[MAX_MESHES];
 
   struct
   {

@@ -45,6 +45,7 @@ OWLVarDecl launchParamVars[] = {
     {"camera.horiz", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, camera.horizontal)},
     {"camera.vert", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, camera.vertical)},
     // Volume data
+    {"volume.numMeshes",   OWL_INT,   OWL_OFFSETOF(LaunchParams, volume.numMeshes)},
     {"volume.elementTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.elementTLAS)},
     {"volume.macrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.macrocellTLAS)},
     {"volume.rootMacrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.rootMacrocellTLAS)},
@@ -58,11 +59,27 @@ OWLVarDecl launchParamVars[] = {
     //    structured volume data
     {"volume.sGrid.scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid.scalars)},
     {"volume.sGrid.dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid.dims)},
-    // transfer function
-    {"transferFunction.xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction.xf)},
-    {"transferFunction.volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.volumeDomain)},
-    {"transferFunction.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction.opacityScale)},
-    {"transferFunction.xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction.xfDomain)},
+    // transfer functions
+    {"transferFunction[0].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[0].xf)},
+    {"transferFunction[0].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[0].volumeDomain)},
+    {"transferFunction[0].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[0].opacityScale)},
+    {"transferFunction[0].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[0].xfDomain)},
+    {"transferFunction[1].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[1].xf)},
+    {"transferFunction[1].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[1].volumeDomain)},
+    {"transferFunction[1].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[1].opacityScale)},
+    {"transferFunction[1].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[1].xfDomain)},
+    {"transferFunction[2].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[2].xf)},
+    {"transferFunction[2].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[2].volumeDomain)},
+    {"transferFunction[2].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[2].opacityScale)},
+    {"transferFunction[2].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[2].xfDomain)},
+    {"transferFunction[3].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[3].xf)},
+    {"transferFunction[3].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[3].volumeDomain)},
+    {"transferFunction[3].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[3].opacityScale)},
+    {"transferFunction[3].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[3].xfDomain)},
+    {"transferFunction[4].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[4].xf)},
+    {"transferFunction[4].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[4].volumeDomain)},
+    {"transferFunction[4].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[4].opacityScale)},
+    {"transferFunction[4].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[4].xfDomain)},
     {/* sentinel to mark end of list */}};
 
 namespace dtracker
@@ -527,10 +544,12 @@ namespace dtracker
 
     // transfer function
     for(size_t i = 0; i < tfdatas.size(); ++i)
-      owlParamsSet2f(lp, "transferFunction.volumeDomain", //TODO we need a buffer for these
+      owlParamsSet2f(lp, std::string("transferFunction[" + std::to_string(i) + "].volumeDomain").c_str(),
           owl2f{tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper});
 
     ResetDt();
+
+    owlParamsSet1i(lp, "volume.numMeshes", meshType == MeshType::UMESH ? 1 : rawPtrs.size());
 
     LOG("Building programs...");
     owlBuildPipeline(context);
@@ -571,6 +590,36 @@ namespace dtracker
   {
     LOG("Terminating...\n");
     owlContextDestroy(context);
+  }
+
+  bool Renderer::PushMesh(std::shared_ptr<umesh::UMesh> mesh)//TODO
+  {
+    if(meshType == MeshType::UMESH)
+    {
+      LOG("Pushing mesh...\n");
+      umeshPtr = mesh;
+      return true;
+    }
+    else
+    {
+      LOG_ERROR("Cannot push mesh\n");
+      return false;
+    }
+  }
+
+  bool Renderer::PushMesh(std::shared_ptr<raw::RawR> mesh)
+  {
+    if(rawPtrs.size() <= MAX_MESHES)
+    {
+      LOG("Pushing mesh...\n");
+      rawPtrs.push_back(mesh);
+      return true;
+    }
+    else
+    {
+      LOG_ERROR("Cannot push mesh\n");
+      return false;
+    }
   }
 
   void Renderer::Resize(const vec2i newSize)
@@ -623,6 +672,8 @@ namespace dtracker
 
   void Renderer::SetXFColormap(std::vector<vec4f> newCM, size_t tfID)
   {
+    if (tfID >= tfdatas.size())
+      return; // safely return if this does not exist
     for (uint32_t i = 0; i < newCM.size(); ++i)
     {
       newCM[i].w = powf(newCM[i].w, 3.f);
@@ -682,15 +733,21 @@ namespace dtracker
     //   = owlTexture2DCreate(owl,OWL_TEXEL_FORMAT_RGBA32F,
     //                        colorMap.size(),1,
     //                        colorMap.data());
-    owlParamsSetRaw(lp, "transferFunction.xf", &tfdatas[tfID].colorMapTexture);
+    owlParamsSetRaw(lp, 
+      std::string("transferFunction[" + std::to_string(tfID) + "].xf").c_str(),
+      &tfdatas[tfID].colorMapTexture);
     ResetAccumulation();
     RecalculateDensityRanges();
   }
 
   void Renderer::SetXFOpacityScale(float newOpacityScale, size_t tfID)
   {
+    if (tfID >= tfdatas.size())
+      return; // safely return if this does not exist
     tfdatas[tfID].opacityScale = newOpacityScale;
-    owlParamsSet1f(lp, "transferFunction.opacityScale", tfdatas[tfID].opacityScale);
+    owlParamsSet1f(lp, 
+      std::string("transferFunction[" + std::to_string(tfID) + "].opacityScale").c_str(),
+      tfdatas[tfID].opacityScale);
     ResetAccumulation();
 
     RecalculateDensityRanges();
@@ -699,8 +756,12 @@ namespace dtracker
 
   void Renderer::SetXFRange(const vec2f newRange, size_t tfID)
   {
+    if (tfID >= tfdatas.size())
+      return; // safely return if this does not exist
     tfdatas[tfID].xfDomain = interval<float>(newRange.x, newRange.y);
-    owlParamsSet2f(lp, "transferFunction.xfDomain", (const owl2f &)tfdatas[tfID].xfDomain);
+    owlParamsSet2f(lp,
+      std::string("transferFunction[" + std::to_string(tfID) + "].xfDomain").c_str(),
+      (const owl2f &)tfdatas[tfID].xfDomain);
     ResetAccumulation();
     RecalculateDensityRanges();
   }
