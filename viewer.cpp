@@ -290,7 +290,7 @@ void Viewer::Run()
         ImGui::SameLine();
         ImVec4 color = renderer->avgTime > 0.6f ? red : renderer->avgTime < 0.11f ? green : orange;
         ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->avgTime, renderer->avgTime);
-        ImGui::Text("min. fps:");
+        ImGui::Text("best. fps:");
         ImGui::SameLine();
         color = renderer->minTime > 0.6f ? red : renderer->minTime < 0.11f ? green : orange;
         ImGui::TextColored(color," %.3f (%0.3f sec)", 1.0f/renderer->minTime, renderer->minTime);
