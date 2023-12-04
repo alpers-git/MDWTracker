@@ -184,9 +184,9 @@ namespace dtracker
       
       owlBuildPrograms(context);
 
-
-      volDomain = interval<float>({umeshPtr->getBounds4f().lower.w, umeshPtr->getBounds4f().upper.w});
-      printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
+      tfdatas.push_back(TFData());// push one empty transfer function
+      tfdatas[0].volDomain = interval<float>({umeshPtr->getBounds4f().lower.w, umeshPtr->getBounds4f().upper.w});
+      printf("volume domain: %f %f\n", tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper);
       owlParamsSet4f(lp, "volume.globalBoundsLo",
                     owl4f{umeshPtr->getBounds4f().lower.x, umeshPtr->getBounds4f().lower.y,
                           umeshPtr->getBounds4f().lower.z, umeshPtr->getBounds4f().lower.w});
@@ -411,8 +411,9 @@ namespace dtracker
       
       owlBuildPrograms(context);
 
-      volDomain = interval<float>({rawPtrs[0]->getBounds4f().lower.w, rawPtrs[0]->getBounds4f().upper.w});
-      printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
+      tfdatas.push_back(TFData());// push one empty transfer function
+      tfdatas[0].volDomain = interval<float>({rawPtrs[0]->getBounds4f().lower.w, rawPtrs[0]->getBounds4f().upper.w});
+      printf("volume domain: %f %f\n", tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper);
       owlParamsSet4f(lp, "volume.globalBoundsLo",
                     owl4f{rawPtrs[0]->getBounds4f().lower.x, rawPtrs[0]->getBounds4f().lower.y,
                           rawPtrs[0]->getBounds4f().lower.z, rawPtrs[0]->getBounds4f().lower.w});
@@ -503,7 +504,6 @@ namespace dtracker
     }
 
     owlParamsSet1i(lp, "volume.meshType", meshType); //mesh mode
-    xfDomain = interval<float>({0.f, 1.f});
 
     //framebuffer
     frameBuffer = owlHostPinnedBufferCreate(context, OWL_INT, fbSize.x * fbSize.y);
@@ -526,7 +526,9 @@ namespace dtracker
     owlParamsSet1f(lp, "ambientIntensity", ambient);
 
     // transfer function
-    owlParamsSet2f(lp, "transferFunction.volumeDomain", owl2f{volDomain.lower, volDomain.upper});
+    for(size_t i = 0; i < tfdatas.size(); ++i)
+      owlParamsSet2f(lp, "transferFunction.volumeDomain", //TODO we need a buffer for these
+          owl2f{tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper});
 
     ResetDt();
 
@@ -619,45 +621,45 @@ namespace dtracker
     ResetAccumulation();
   }
 
-  void Renderer::SetXFColormap(std::vector<vec4f> newCM)
+  void Renderer::SetXFColormap(std::vector<vec4f> newCM, size_t tfID)
   {
     for (uint32_t i = 0; i < newCM.size(); ++i)
     {
       newCM[i].w = powf(newCM[i].w, 3.f);
     }
 
-    this->colorMap = newCM;
-    if (!colorMapBuffer)
-      colorMapBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4,
+    tfdatas[tfID].colorMap = newCM;
+    if (!tfdatas[tfID].colorMapBuffer)
+      tfdatas[tfID].colorMapBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4,
                                              newCM.size(), nullptr);
-    owlBufferUpload(colorMapBuffer, newCM.data());
+    owlBufferUpload(tfdatas[tfID].colorMapBuffer, newCM.data());
 
-    if (colorMapTexture != 0)
+    if (tfdatas[tfID].colorMapTexture != 0)
     {
-      (cudaDestroyTextureObject(colorMapTexture));
-      colorMapTexture = 0;
+      (cudaDestroyTextureObject(tfdatas[tfID].colorMapTexture));
+      tfdatas[tfID].colorMapTexture = 0;
     }
 
     cudaResourceDesc res_desc = {};
     cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float4>();
 
     // cudaArray_t   voxelArray;
-    if (colorMapArray == 0)
+    if (tfdatas[tfID].colorMapArray == 0)
     {
-      (cudaMallocArray(&colorMapArray,
+      (cudaMallocArray(&tfdatas[tfID].colorMapArray,
                        &channel_desc,
                        newCM.size(), 1));
     }
 
     int pitch = newCM.size() * sizeof(newCM[0]);
-    (cudaMemcpy2DToArray(colorMapArray,
+    (cudaMemcpy2DToArray(tfdatas[tfID].colorMapArray,
                          /* offset */ 0, 0,
                          newCM.data(),
                          pitch, pitch, 1,
                          cudaMemcpyHostToDevice));
 
     res_desc.resType = cudaResourceTypeArray;
-    res_desc.res.array.array = colorMapArray;
+    res_desc.res.array.array = tfdatas[tfID].colorMapArray;
 
     cudaTextureDesc tex_desc = {};
     tex_desc.addressMode[0] = cudaAddressModeClamp;
@@ -673,32 +675,32 @@ namespace dtracker
     tex_desc.borderColor[2] = 0.0f;
     tex_desc.borderColor[3] = 0.0f;
     tex_desc.sRGB = 0;
-    (cudaCreateTextureObject(&colorMapTexture, &res_desc, &tex_desc,
+    (cudaCreateTextureObject(&tfdatas[tfID].colorMapTexture, &res_desc, &tex_desc,
                              nullptr));
 
     // OWLTexture xfTexture
     //   = owlTexture2DCreate(owl,OWL_TEXEL_FORMAT_RGBA32F,
     //                        colorMap.size(),1,
     //                        colorMap.data());
-    owlParamsSetRaw(lp, "transferFunction.xf", &colorMapTexture);
+    owlParamsSetRaw(lp, "transferFunction.xf", &tfdatas[tfID].colorMapTexture);
     ResetAccumulation();
     RecalculateDensityRanges();
   }
 
-  void Renderer::SetXFOpacityScale(float newOpacityScale)
+  void Renderer::SetXFOpacityScale(float newOpacityScale, size_t tfID)
   {
-    opacityScale = newOpacityScale;
-    owlParamsSet1f(lp, "transferFunction.opacityScale", opacityScale);
+    tfdatas[tfID].opacityScale = newOpacityScale;
+    owlParamsSet1f(lp, "transferFunction.opacityScale", tfdatas[tfID].opacityScale);
     ResetAccumulation();
 
     RecalculateDensityRanges();
   }
 
 
-  void Renderer::SetXFRange(const vec2f newRange)
+  void Renderer::SetXFRange(const vec2f newRange, size_t tfID)
   {
-    xfDomain = interval<float>(newRange.x, newRange.y);
-    owlParamsSet2f(lp, "transferFunction.xfDomain", (const owl2f &)xfDomain);
+    tfdatas[tfID].xfDomain = interval<float>(newRange.x, newRange.y);
+    owlParamsSet2f(lp, "transferFunction.xfDomain", (const owl2f &)tfdatas[tfID].xfDomain);
     ResetAccumulation();
     RecalculateDensityRanges();
   }

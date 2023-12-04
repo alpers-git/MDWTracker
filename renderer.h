@@ -20,6 +20,19 @@ enum MeshType
   UMESH = 1,
   RAW = 2
 };
+
+/* transfer function */
+struct TFData
+{
+  OWLBuffer colorMapBuffer{0};
+  cudaArray_t colorMapArray{0};
+  cudaTextureObject_t colorMapTexture{0};
+
+  interval<float> volDomain;
+  interval<float> xfDomain = interval<float>({0.f, 1.f});
+  std::vector<vec4f> colorMap;
+  float opacityScale = 1.0f;
+};
 class Renderer
 {
 private:
@@ -97,15 +110,7 @@ public:
     vec3f bgColor = vec3f(0.0f, 0.0f, 0.0f);
     MeshType meshType = MeshType::UNDEFINED;
 
-    /* transfer function */
-    OWLBuffer colorMapBuffer { 0 };
-    cudaArray_t colorMapArray { 0 };
-    cudaTextureObject_t colorMapTexture { 0 };
-
-    interval<float> volDomain;
-    interval<float> xfDomain;
-    std::vector<vec4f> colorMap;
-    float opacityScale = 1.0f;
+    std::vector<TFData> tfdatas;
 
     /* density majorants */
     uint32_t numClusters = 1;
@@ -124,11 +129,11 @@ public:
     /*! updates camera at device*/
     void UpdateCamera();
     /*! sets the colormap texture on device*/
-    void SetXFColormap(std::vector<vec4f> newCM);
+    void SetXFColormap(std::vector<vec4f> newCM, size_t tfID = 0);
     /*! sets opacity scale*/
-    void SetXFOpacityScale(float opacityScale);
+    void SetXFOpacityScale(float opacityScale, size_t tfID = 0);
     /*! sets the transfer function domain*/
-    void SetXFRange(vec2f xfDomain);
+    void SetXFRange(vec2f xfDomain, size_t tfID = 0);
     /*! recalculates the majorants*/
     void RecalculateDensityRanges();
     /*! sets the dt to avg span /2 of bounding boxes of elements*/

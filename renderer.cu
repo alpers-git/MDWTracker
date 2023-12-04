@@ -161,11 +161,11 @@ void _recalculateDensityRanges(
 namespace dtracker {
   void Renderer::RecalculateDensityRanges()
   {
-    float2 volumeDomain = {volDomain.lower, volDomain.upper};
-    float2 tfnDomain = {xfDomain.lower, xfDomain.upper};
-    float opacityScale = this->opacityScale;
-    cudaTextureObject_t colorMapTexture = this->colorMapTexture;
-    int colorMapSize = this->colorMap.size();
+    float2 volumeDomain = {tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper};
+    float2 tfnDomain = {tfdatas[0].xfDomain.lower, tfdatas[0].xfDomain.upper};
+    float opacityScale = this->tfdatas[0].opacityScale;
+    cudaTextureObject_t colorMapTexture = this->tfdatas[0].colorMapTexture;
+    int colorMapSize = this->tfdatas[0].colorMap.size();
     dim3 blockSize(32);
     uint32_t numThreads;
     bool isBackground;

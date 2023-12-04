@@ -338,15 +338,15 @@ void Viewer::Run()
                 colorMapVec.push_back(owl::vec4f(cm[i],
                         cm[i + 1], cm[i + 2], cm[i + 3]));
             }
-            renderer->SetXFColormap(colorMapVec);
+            renderer->SetXFColormap(colorMapVec, selectedTF);
         }
 
         if(tabChanged || tfnWidgets[selectedTF].OpacityScaleChanged())
-            renderer->SetXFOpacityScale(tfnWidgets[selectedTF].GetOpacityScale());
+            renderer->SetXFOpacityScale(tfnWidgets[selectedTF].GetOpacityScale(), selectedTF);
             
         if(tabChanged || tfnWidgets[selectedTF].RangeChanged())
             renderer->SetXFRange(vec2f(tfnWidgets[selectedTF].GetRange().x,
-                    tfnWidgets[selectedTF].GetRange().y));
+                    tfnWidgets[selectedTF].GetRange().y), selectedTF);
         
 
         glfw->swapBuffers();
