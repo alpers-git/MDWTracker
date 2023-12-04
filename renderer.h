@@ -41,7 +41,7 @@ public:
     ~Renderer();
 
     camera::Camera camera;
-    std::shared_ptr<umesh::UMesh> umeshPtr;
+    std::vector<std::shared_ptr<umesh::UMesh>> umeshPtrs;
     std::vector<std::shared_ptr<raw::RawR>> rawPtrs;
 
     /* raygen */

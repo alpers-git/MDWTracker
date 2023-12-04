@@ -636,7 +636,7 @@ namespace dtracker {
 
   void Renderer::computeRanges(OWLBuffer &ranges) {
     unsigned numThreads = 1024;
-    unsigned numElements = umeshPtr->numVolumeElements();
+    unsigned numElements = umeshPtrs[0]->numVolumeElements();
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
     const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
@@ -648,7 +648,7 @@ namespace dtracker {
     {
       _computeRanges<<<div_up(numElements, numThreads), numThreads>>>(
         d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-        umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(),umeshPtr->vertices.size(),
+        umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size(),umeshPtrs[0]->vertices.size(),
         d_ranges
       );
     }
@@ -1002,14 +1002,14 @@ namespace dtracker {
     {
       const int blockSize = 32;
 
-      const int numBlocks = divRoundUp(int(umeshPtr->numVolumeElements()), blockSize);
+      const int numBlocks = divRoundUp(int(umeshPtrs[0]->numVolumeElements()), blockSize);
       vec3i grid(min(numBlocks,MAX_GRID_SIZE),
                   divRoundUp(numBlocks,MAX_GRID_SIZE),
                   1);
 
       clusterElementsIntoGrid<<<to_dims(grid),blockSize>>>
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-          umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
+          umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size(), umeshPtrs[0]->vertices.size());
 
     }
     CUDA_SYNC_CHECK();
@@ -1039,13 +1039,13 @@ namespace dtracker {
       const int *d_hexahedra = (const int*)owlBufferGetPointer(hexahedraData,0);
       const int blockSize = 32;
 
-      const int numBlocks = divRoundUp(int(umeshPtr->numVolumeElements()), blockSize);
+      const int numBlocks = divRoundUp(int(umeshPtrs[0]->numVolumeElements()), blockSize);
       vec3i grid(min(numBlocks,MAX_GRID_SIZE),
                   divRoundUp(numBlocks,MAX_GRID_SIZE),
                   1);
       rasterElements<<<to_dims(grid),blockSize>>>
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-          umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
+          umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size(), umeshPtrs[0]->vertices.size());
     }
     else if (meshType == MeshType::RAW)
     {
@@ -1523,7 +1523,7 @@ namespace dtracker {
   void Renderer::sortElements(uint64_t* &codesSorted, uint32_t* &elementIdsSorted)
   {
     unsigned numThreads = 1024;
-    unsigned numElements = umeshPtr->numVolumeElements();
+    unsigned numElements = umeshPtrs[0]->numVolumeElements();
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
     const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
@@ -1563,7 +1563,7 @@ namespace dtracker {
     {
       computeCentroidsAndIndices<<<div_up(numElements, numThreads), numThreads>>>(
         centroids, elementIdsUnsorted, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-        umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size()
+        umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size()
       );
     }
 
@@ -1666,7 +1666,7 @@ namespace dtracker {
     bool returnSortedIndexToCluster, uint32_t* sortedIndexToCluster)
   {
     unsigned numThreads = 1024;
-    unsigned numElements = umeshPtr->numVolumeElements();
+    unsigned numElements = umeshPtrs[0]->numVolumeElements();
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
     const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
     const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
@@ -1790,7 +1790,7 @@ namespace dtracker {
         numClusters,
         elementIdsSorted,
         d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-        umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size()
+        umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size()
       ); 
     }
 

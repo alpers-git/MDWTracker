@@ -95,7 +95,7 @@ namespace dtracker
 
   void Renderer::Init(bool autoSetCamera)
   {
-    if(umeshPtr == nullptr && rawPtrs.size() == 0)
+    if(umeshPtrs.size() == 0 && rawPtrs.size() == 0)
     {
       LOG_ERROR("No data source specified!");
       return;
@@ -123,21 +123,21 @@ namespace dtracker
 
       lp = owlParamsCreate(context, sizeof(LaunchParams), launchParamVars, -1);
 
-    if(umeshPtr != nullptr)
+    if(umeshPtrs.size() > 0)
     {
       meshType = MeshType::UMESH;
-      tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
-      pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
-      wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->wedges.size() * 6, nullptr);
-      hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->hexes.size() * 8, nullptr);
-      verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtr->perVertex->values.size(), nullptr);
-      owlBufferUpload(tetrahedraData, umeshPtr->tets.data());
-      owlBufferUpload(pyramidsData, umeshPtr->pyrs.data());
-      owlBufferUpload(wedgesData, umeshPtr->wedges.data());
-      owlBufferUpload(hexahedraData, umeshPtr->hexes.data());
-      owlBufferUpload(verticesData, umeshPtr->vertices.data());
-      owlBufferUpload(scalarData, umeshPtr->perVertex->values.data());
+      tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->tets.size() * 4, nullptr);
+      pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->pyrs.size() * 5, nullptr);
+      wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->wedges.size() * 6, nullptr);
+      hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->hexes.size() * 8, nullptr);
+      verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
+      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtrs[0]->perVertex->values.size(), nullptr);
+      owlBufferUpload(tetrahedraData, umeshPtrs[0]->tets.data());
+      owlBufferUpload(pyramidsData, umeshPtrs[0]->pyrs.data());
+      owlBufferUpload(wedgesData, umeshPtrs[0]->wedges.data());
+      owlBufferUpload(hexahedraData, umeshPtrs[0]->hexes.data());
+      owlBufferUpload(verticesData, umeshPtrs[0]->vertices.data());
+      owlBufferUpload(scalarData, umeshPtrs[0]->perVertex->values.data());
 
       // -------------------------------------------------------
       // declare geometry types
@@ -202,50 +202,50 @@ namespace dtracker
       owlBuildPrograms(context);
 
       tfdatas.push_back(TFData());// push one empty transfer function
-      tfdatas[0].volDomain = interval<float>({umeshPtr->getBounds4f().lower.w, umeshPtr->getBounds4f().upper.w});
+      tfdatas[0].volDomain = interval<float>({umeshPtrs[0]->getBounds4f().lower.w, umeshPtrs[0]->getBounds4f().upper.w});
       printf("volume domain: %f %f\n", tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper);
       owlParamsSet4f(lp, "volume.globalBoundsLo",
-                    owl4f{umeshPtr->getBounds4f().lower.x, umeshPtr->getBounds4f().lower.y,
-                          umeshPtr->getBounds4f().lower.z, umeshPtr->getBounds4f().lower.w});
+                    owl4f{umeshPtrs[0]->getBounds4f().lower.x, umeshPtrs[0]->getBounds4f().lower.y,
+                          umeshPtrs[0]->getBounds4f().lower.z, umeshPtrs[0]->getBounds4f().lower.w});
       owlParamsSet4f(lp, "volume.globalBoundsHi",
-                    owl4f{umeshPtr->getBounds4f().upper.x, umeshPtr->getBounds4f().upper.y,
-                          umeshPtr->getBounds4f().upper.z, umeshPtr->getBounds4f().upper.w});
+                    owl4f{umeshPtrs[0]->getBounds4f().upper.x, umeshPtrs[0]->getBounds4f().upper.y,
+                          umeshPtrs[0]->getBounds4f().upper.z, umeshPtrs[0]->getBounds4f().upper.w});
 
       // camera
       if(autoSetCamera)
       {
-        auto center = umeshPtr->getBounds().center();
-        vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtr->getBounds().upper.z - umeshPtr->getBounds().lower.z));
+        auto center = umeshPtrs[0]->getBounds().center();
+        vec3f eye = vec3f(center.x, center.y, center.z + 2.5f * (umeshPtrs[0]->getBounds().upper.z - umeshPtrs[0]->getBounds().lower.z));
         camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
-        camera.setFocalDistance(umesh::length(umeshPtr->getBounds().size()) / 2.f);
+        camera.setFocalDistance(umesh::length(umeshPtrs[0]->getBounds().size()) / 2.f);
         UpdateCamera();
       }
 
       LOG("Setting buffers ...");
       // Allocate buffers for volume data
-      tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
-      pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
-      wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->wedges.size() * 6, nullptr);
-      hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->hexes.size() * 8, nullptr);
-      verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtr->perVertex->values.size(), nullptr);
+      tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->tets.size() * 4, nullptr);
+      pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->pyrs.size() * 5, nullptr);
+      wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->wedges.size() * 6, nullptr);
+      hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->hexes.size() * 8, nullptr);
+      verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
+      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtrs[0]->perVertex->values.size(), nullptr);
 
       // Upload data
-      owlBufferUpload(tetrahedraData, umeshPtr->tets.data());
-      owlBufferUpload(pyramidsData, umeshPtr->pyrs.data());
-      owlBufferUpload(wedgesData, umeshPtr->wedges.data());
-      owlBufferUpload(hexahedraData, umeshPtr->hexes.data());
-      owlBufferUpload(verticesData, umeshPtr->vertices.data());
-      owlBufferUpload(scalarData, umeshPtr->perVertex->values.data());
+      owlBufferUpload(tetrahedraData, umeshPtrs[0]->tets.data());
+      owlBufferUpload(pyramidsData, umeshPtrs[0]->pyrs.data());
+      owlBufferUpload(wedgesData, umeshPtrs[0]->wedges.data());
+      owlBufferUpload(hexahedraData, umeshPtrs[0]->hexes.data());
+      owlBufferUpload(verticesData, umeshPtrs[0]->vertices.data());
+      owlBufferUpload(scalarData, umeshPtrs[0]->perVertex->values.data());
 
-      indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtr->triangles.size() * 3, nullptr);
-      vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
+      indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtrs[0]->triangles.size() * 3, nullptr);
+      vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
 
       // Macrocell data
       int numMacrocells = 1;
       std::vector<box4f> bboxes;
       bboxes.resize(numMacrocells);
-      auto bb = umeshPtr->getBounds4f();
+      auto bb = umeshPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
@@ -257,8 +257,8 @@ namespace dtracker
       owlBufferUpload(rootBBoxBuffer, bboxes.data());
       
       box3f bounds = {
-          {umeshPtr->bounds.lower.x, umeshPtr->bounds.lower.y, umeshPtr->bounds.lower.z},
-          {umeshPtr->bounds.upper.x, umeshPtr->bounds.upper.y, umeshPtr->bounds.upper.z}
+          {umeshPtrs[0]->bounds.lower.x, umeshPtrs[0]->bounds.lower.y, umeshPtrs[0]->bounds.lower.z},
+          {umeshPtrs[0]->bounds.upper.x, umeshPtrs[0]->bounds.upper.y, umeshPtrs[0]->bounds.upper.z}
         };
       macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
@@ -271,12 +271,12 @@ namespace dtracker
       cudaDeviceSynchronize();
       // Surface geometry
       trianglesGeom = owlGeomCreate(context, triangleType);
-      if(umeshPtr->triangles.size() > 0)
+      if(umeshPtrs[0]->triangles.size() > 0)
       {
-        owlBufferUpload(indexBuffer, umeshPtr->triangles.data());
-        owlBufferUpload(vertexBuffer, umeshPtr->vertices.data());
-        owlTrianglesSetIndices(trianglesGeom, indexBuffer, umeshPtr->triangles.size(), sizeof(vec3i), 0);
-        owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtr->triangles.size(), sizeof(vec3f), 0);
+        owlBufferUpload(indexBuffer, umeshPtrs[0]->triangles.data());
+        owlBufferUpload(vertexBuffer, umeshPtrs[0]->vertices.data());
+        owlTrianglesSetIndices(trianglesGeom, indexBuffer, umeshPtrs[0]->triangles.size(), sizeof(vec3i), 0);
+        owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtrs[0]->triangles.size(), sizeof(vec3f), 0);
         owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
         owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
         trianglesGroup = owlTrianglesGeomGroupCreate(context, 1, &trianglesGeom);
@@ -301,75 +301,75 @@ namespace dtracker
       owlParamsSetGroup(lp, "volume.rootMacrocellTLAS", rootMacrocellTLAS);
 
       // Volume geometry
-      if (umeshPtr->tets.size() > 0)
+      if (umeshPtrs[0]->tets.size() > 0)
       {
         OWLGeom tetrahedraGeom = owlGeomCreate(context, tetrahedraType);
-        owlGeomSetPrimCount(tetrahedraGeom, umeshPtr->tets.size() * 4);
+        owlGeomSetPrimCount(tetrahedraGeom, umeshPtrs[0]->tets.size() * 4);
         owlGeomSetBuffer(tetrahedraGeom, "tetrahedra", tetrahedraData);
         owlGeomSetBuffer(tetrahedraGeom, "vertices", verticesData);
         owlGeomSetBuffer(tetrahedraGeom, "scalars", scalarData);
         owlGeomSet1ul(tetrahedraGeom, "offset", 0);
         owlGeomSet1ui(tetrahedraGeom, "bytesPerIndex", 4);
-        owlGeomSet1ul(tetrahedraGeom, "numTetrahedra", umeshPtr->tets.size());
-        owlGeomSet1ul(tetrahedraGeom, "numPyramids", umeshPtr->pyrs.size());
-        owlGeomSet1ul(tetrahedraGeom, "numWedges", umeshPtr->wedges.size());
-        owlGeomSet1ul(tetrahedraGeom, "numHexahedra", umeshPtr->hexes.size());
+        owlGeomSet1ul(tetrahedraGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
+        owlGeomSet1ul(tetrahedraGeom, "numPyramids", umeshPtrs[0]->pyrs.size());
+        owlGeomSet1ul(tetrahedraGeom, "numWedges", umeshPtrs[0]->wedges.size());
+        owlGeomSet1ul(tetrahedraGeom, "numHexahedra", umeshPtrs[0]->hexes.size());
         OWLGroup tetBLAS = owlUserGeomGroupCreate(context, 1, &tetrahedraGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
         owlGroupBuildAccel(tetBLAS);
         elementBLAS.push_back(tetBLAS);
         elementGeom.push_back(tetrahedraGeom);
       }
-      if (umeshPtr->pyrs.size() > 0)
+      if (umeshPtrs[0]->pyrs.size() > 0)
       {
         OWLGeom pyramidGeom = owlGeomCreate(context, pyramidType);
-        owlGeomSetPrimCount(pyramidGeom, umeshPtr->pyrs.size());
+        owlGeomSetPrimCount(pyramidGeom, umeshPtrs[0]->pyrs.size());
         owlGeomSetBuffer(pyramidGeom, "pyramids", pyramidsData);
         owlGeomSetBuffer(pyramidGeom, "vertices", verticesData);
         owlGeomSetBuffer(pyramidGeom, "scalars", scalarData);
         owlGeomSet1ul(pyramidGeom, "offset", 0);
         owlGeomSet1ui(pyramidGeom, "bytesPerIndex", 4);
-        owlGeomSet1ul(pyramidGeom, "numTetrahedra", umeshPtr->tets.size());
-        owlGeomSet1ul(pyramidGeom, "numPyramids", umeshPtr->pyrs.size());
-        owlGeomSet1ul(pyramidGeom, "numWedges", umeshPtr->wedges.size());
-        owlGeomSet1ul(pyramidGeom, "numHexahedra", umeshPtr->hexes.size());
+        owlGeomSet1ul(pyramidGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
+        owlGeomSet1ul(pyramidGeom, "numPyramids", umeshPtrs[0]->pyrs.size());
+        owlGeomSet1ul(pyramidGeom, "numWedges", umeshPtrs[0]->wedges.size());
+        owlGeomSet1ul(pyramidGeom, "numHexahedra", umeshPtrs[0]->hexes.size());
         OWLGroup pyramidBLAS = owlUserGeomGroupCreate(context, 1, &pyramidGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
         owlGroupBuildAccel(pyramidBLAS);
         elementBLAS.push_back(pyramidBLAS);
         elementGeom.push_back(pyramidGeom);
       }
 
-      if (umeshPtr->wedges.size() > 0)
+      if (umeshPtrs[0]->wedges.size() > 0)
       {
         OWLGeom wedgeGeom = owlGeomCreate(context, wedgeType);
-        owlGeomSetPrimCount(wedgeGeom, umeshPtr->wedges.size());
+        owlGeomSetPrimCount(wedgeGeom, umeshPtrs[0]->wedges.size());
         owlGeomSetBuffer(wedgeGeom, "wedges", wedgesData);
         owlGeomSetBuffer(wedgeGeom, "vertices", verticesData);
         owlGeomSetBuffer(wedgeGeom, "scalars", scalarData);
         owlGeomSet1ul(wedgeGeom, "offset", 0);
         owlGeomSet1ui(wedgeGeom, "bytesPerIndex", 4);
-        owlGeomSet1ul(wedgeGeom, "numTetrahedra", umeshPtr->tets.size());
-        owlGeomSet1ul(wedgeGeom, "numPyramids", umeshPtr->pyrs.size());
-        owlGeomSet1ul(wedgeGeom, "numWedges", umeshPtr->wedges.size());
-        owlGeomSet1ul(wedgeGeom, "numHexahedra", umeshPtr->hexes.size());
+        owlGeomSet1ul(wedgeGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
+        owlGeomSet1ul(wedgeGeom, "numPyramids", umeshPtrs[0]->pyrs.size());
+        owlGeomSet1ul(wedgeGeom, "numWedges", umeshPtrs[0]->wedges.size());
+        owlGeomSet1ul(wedgeGeom, "numHexahedra", umeshPtrs[0]->hexes.size());
         OWLGroup wedgeBLAS = owlUserGeomGroupCreate(context, 1, &wedgeGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
         owlGroupBuildAccel(wedgeBLAS);
         elementBLAS.push_back(wedgeBLAS);
         elementGeom.push_back(wedgeGeom);
       }
 
-      if (umeshPtr->hexes.size() > 0)
+      if (umeshPtrs[0]->hexes.size() > 0)
       {
         OWLGeom hexahedraGeom = owlGeomCreate(context, hexahedraType);
-        owlGeomSetPrimCount(hexahedraGeom, umeshPtr->hexes.size());
+        owlGeomSetPrimCount(hexahedraGeom, umeshPtrs[0]->hexes.size());
         owlGeomSetBuffer(hexahedraGeom, "hexahedra", hexahedraData);
         owlGeomSetBuffer(hexahedraGeom, "vertices", verticesData);
         owlGeomSetBuffer(hexahedraGeom, "scalars", scalarData);
         owlGeomSet1ul(hexahedraGeom, "offset", 0);
         owlGeomSet1ui(hexahedraGeom, "bytesPerIndex", 4);
-        owlGeomSet1ul(hexahedraGeom, "numTetrahedra", umeshPtr->tets.size());
-        owlGeomSet1ul(hexahedraGeom, "numPyramids", umeshPtr->pyrs.size());
-        owlGeomSet1ul(hexahedraGeom, "numWedges", umeshPtr->wedges.size());
-        owlGeomSet1ul(hexahedraGeom, "numHexahedra", umeshPtr->hexes.size());
+        owlGeomSet1ul(hexahedraGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
+        owlGeomSet1ul(hexahedraGeom, "numPyramids", umeshPtrs[0]->pyrs.size());
+        owlGeomSet1ul(hexahedraGeom, "numWedges", umeshPtrs[0]->wedges.size());
+        owlGeomSet1ul(hexahedraGeom, "numHexahedra", umeshPtrs[0]->hexes.size());
         OWLGroup hexBLAS = owlUserGeomGroupCreate(context, 1, &hexahedraGeom, OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION);
         owlGroupBuildAccel(hexBLAS);
         elementBLAS.push_back(hexBLAS);
@@ -453,8 +453,8 @@ namespace dtracker
         UpdateCamera();
       }
 
-      // indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtr->triangles.size() * 3, nullptr);
-      // vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtr->vertices.size(), nullptr);
+      // indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtrs[0]->triangles.size() * 3, nullptr);
+      // vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
 
       // Macrocell data
       int numMacrocells = 1;
@@ -489,12 +489,12 @@ namespace dtracker
       cudaDeviceSynchronize();
       // Surface geometry
       trianglesGeom = owlGeomCreate(context, triangleType);
-      // if(umeshPtr->triangles.size() > 0)
+      // if(umeshPtrs[0]->triangles.size() > 0)
       // {
-      //   owlBufferUpload(indexBuffer, umeshPtr->triangles.data());
-      //   owlBufferUpload(vertexBuffer, umeshPtr->vertices.data());
-      //   owlTrianglesSetIndices(trianglesGeom, indexBuffer, umeshPtr->triangles.size(), sizeof(vec3i), 0);
-      //   owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtr->triangles.size(), sizeof(vec3f), 0);
+      //   owlBufferUpload(indexBuffer, umeshPtrs[0]->triangles.data());
+      //   owlBufferUpload(vertexBuffer, umeshPtrs[0]->vertices.data());
+      //   owlTrianglesSetIndices(trianglesGeom, indexBuffer, umeshPtrs[0]->triangles.size(), sizeof(vec3i), 0);
+      //   owlTrianglesSetVertices(trianglesGeom, vertexBuffer, umeshPtrs[0]->triangles.size(), sizeof(vec3f), 0);
       //   owlGeomSetBuffer(trianglesGeom, "indices", indexBuffer);
       //   owlGeomSetBuffer(trianglesGeom, "triVertices", vertexBuffer);
       //   owlGeomSet3f(trianglesGeom, "color", owl3f{0, 1, 1});
@@ -549,7 +549,7 @@ namespace dtracker
 
     ResetDt();
 
-    owlParamsSet1i(lp, "volume.numMeshes", meshType == MeshType::UMESH ? 1 : rawPtrs.size());
+    owlParamsSet1i(lp, "volume.numMeshes", meshType == MeshType::UMESH ? umeshPtrs.size() : rawPtrs.size());
 
     LOG("Building programs...");
     owlBuildPipeline(context);
@@ -592,12 +592,12 @@ namespace dtracker
     owlContextDestroy(context);
   }
 
-  bool Renderer::PushMesh(std::shared_ptr<umesh::UMesh> mesh)//TODO
+  bool Renderer::PushMesh(std::shared_ptr<umesh::UMesh> mesh)
   {
-    if(meshType == MeshType::UMESH)
+    if(umeshPtrs.size() <= MAX_MESHES)
     {
       LOG("Pushing mesh...\n");
-      umeshPtr = mesh;
+      umeshPtrs.push_back(mesh);
       return true;
     }
     else
@@ -656,7 +656,7 @@ namespace dtracker
     const vec3f horizontal = 2.0f * half_width * focusDist * u;
     const vec3f vertical = 2.0f * half_height * focusDist * v;
     if(meshType == MeshType::UMESH)
-      camera.motionSpeed = umesh::length(umeshPtr->getBounds().size()) / 50.f;
+      camera.motionSpeed = umesh::length(umeshPtrs[0]->getBounds().size()) / 50.f;
     else if(meshType == MeshType::RAW)
       camera.motionSpeed = owl::length(rawPtrs[0]->getBounds().size()) / 50.f;
 
@@ -772,76 +772,76 @@ namespace dtracker
     if (meshType == MeshType::UMESH)
     {
       //go over all elements calculate bounding boxes and find avg of spans
-      for (int i = 0; i < umeshPtr->tets.size(); ++i)
+      for (int i = 0; i < umeshPtrs[0]->tets.size(); ++i)
       {
-        auto tet = umeshPtr->tets[i];
-        auto v0 = umeshPtr->vertices[tet[0]];
-        auto v1 = umeshPtr->vertices[tet[1]];
-        auto v2 = umeshPtr->vertices[tet[2]];
-        auto v3 = umeshPtr->vertices[tet[3]];
-        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[tet[0]]),
-                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[tet[1]]));
-        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[tet[2]]));
-        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[tet[3]]));
+        auto tet = umeshPtrs[0]->tets[i];
+        auto v0 = umeshPtrs[0]->vertices[tet[0]];
+        auto v1 = umeshPtrs[0]->vertices[tet[1]];
+        auto v2 = umeshPtrs[0]->vertices[tet[2]];
+        auto v3 = umeshPtrs[0]->vertices[tet[3]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtrs[0]->perVertex->values[tet[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtrs[0]->perVertex->values[tet[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtrs[0]->perVertex->values[tet[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtrs[0]->perVertex->values[tet[3]]));
         //calculate length of span
         minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
       }
       //same for pyramids
-      for (int i = 0; i < umeshPtr->pyrs.size(); ++i)
+      for (int i = 0; i < umeshPtrs[0]->pyrs.size(); ++i)
       {
-        auto pyr = umeshPtr->pyrs[i];
-        auto v0 = umeshPtr->vertices[pyr[0]];
-        auto v1 = umeshPtr->vertices[pyr[1]];
-        auto v2 = umeshPtr->vertices[pyr[2]];
-        auto v3 = umeshPtr->vertices[pyr[3]];
-        auto v4 = umeshPtr->vertices[pyr[4]];
-        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[pyr[0]]),
-                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[pyr[1]]));
-        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[pyr[2]]));
-        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[pyr[3]]));
-        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[pyr[4]]));
+        auto pyr = umeshPtrs[0]->pyrs[i];
+        auto v0 = umeshPtrs[0]->vertices[pyr[0]];
+        auto v1 = umeshPtrs[0]->vertices[pyr[1]];
+        auto v2 = umeshPtrs[0]->vertices[pyr[2]];
+        auto v3 = umeshPtrs[0]->vertices[pyr[3]];
+        auto v4 = umeshPtrs[0]->vertices[pyr[4]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtrs[0]->perVertex->values[pyr[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtrs[0]->perVertex->values[pyr[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtrs[0]->perVertex->values[pyr[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtrs[0]->perVertex->values[pyr[3]]));
+        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtrs[0]->perVertex->values[pyr[4]]));
         //calculate length of span
         minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
       }
       //same for wedges
-      for (int i = 0; i < umeshPtr->wedges.size(); ++i)
+      for (int i = 0; i < umeshPtrs[0]->wedges.size(); ++i)
       {
-        auto wedge = umeshPtr->wedges[i];
-        auto v0 = umeshPtr->vertices[wedge[0]];
-        auto v1 = umeshPtr->vertices[wedge[1]];
-        auto v2 = umeshPtr->vertices[wedge[2]];
-        auto v3 = umeshPtr->vertices[wedge[3]];
-        auto v4 = umeshPtr->vertices[wedge[4]];
-        auto v5 = umeshPtr->vertices[wedge[5]];
-        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[wedge[0]]),
-                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[wedge[1]]));
-        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[wedge[2]]));
-        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[wedge[3]]));
-        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[wedge[4]]));
-        bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtr->perVertex->values[wedge[5]]));
+        auto wedge = umeshPtrs[0]->wedges[i];
+        auto v0 = umeshPtrs[0]->vertices[wedge[0]];
+        auto v1 = umeshPtrs[0]->vertices[wedge[1]];
+        auto v2 = umeshPtrs[0]->vertices[wedge[2]];
+        auto v3 = umeshPtrs[0]->vertices[wedge[3]];
+        auto v4 = umeshPtrs[0]->vertices[wedge[4]];
+        auto v5 = umeshPtrs[0]->vertices[wedge[5]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtrs[0]->perVertex->values[wedge[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtrs[0]->perVertex->values[wedge[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtrs[0]->perVertex->values[wedge[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtrs[0]->perVertex->values[wedge[3]]));
+        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtrs[0]->perVertex->values[wedge[4]]));
+        bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtrs[0]->perVertex->values[wedge[5]]));
         //calculate length of span
         minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
       }
       //same for hexes
-      for (int i = 0; i < umeshPtr->hexes.size(); ++i)
+      for (int i = 0; i < umeshPtrs[0]->hexes.size(); ++i)
       {
-        auto hex = umeshPtr->hexes[i];
-        auto v0 = umeshPtr->vertices[hex[0]];
-        auto v1 = umeshPtr->vertices[hex[1]];
-        auto v2 = umeshPtr->vertices[hex[2]];
-        auto v3 = umeshPtr->vertices[hex[3]];
-        auto v4 = umeshPtr->vertices[hex[4]];
-        auto v5 = umeshPtr->vertices[hex[5]];
-        auto v6 = umeshPtr->vertices[hex[6]];
-        auto v7 = umeshPtr->vertices[hex[7]];
-        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtr->perVertex->values[hex[0]]),
-                        vec4f(v1.x, v1.y, v1.z, umeshPtr->perVertex->values[hex[1]]));
-        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtr->perVertex->values[hex[2]]));
-        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtr->perVertex->values[hex[3]]));
-        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtr->perVertex->values[hex[4]]));
-        bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtr->perVertex->values[hex[5]]));
-        bb.extend(vec4f(v6.x, v6.y, v6.z, umeshPtr->perVertex->values[hex[6]]));
-        bb.extend(vec4f(v7.x, v7.y, v7.z, umeshPtr->perVertex->values[hex[7]]));
+        auto hex = umeshPtrs[0]->hexes[i];
+        auto v0 = umeshPtrs[0]->vertices[hex[0]];
+        auto v1 = umeshPtrs[0]->vertices[hex[1]];
+        auto v2 = umeshPtrs[0]->vertices[hex[2]];
+        auto v3 = umeshPtrs[0]->vertices[hex[3]];
+        auto v4 = umeshPtrs[0]->vertices[hex[4]];
+        auto v5 = umeshPtrs[0]->vertices[hex[5]];
+        auto v6 = umeshPtrs[0]->vertices[hex[6]];
+        auto v7 = umeshPtrs[0]->vertices[hex[7]];
+        auto bb = box4f(vec4f(v0.x, v0.y, v0.z, umeshPtrs[0]->perVertex->values[hex[0]]),
+                        vec4f(v1.x, v1.y, v1.z, umeshPtrs[0]->perVertex->values[hex[1]]));
+        bb.extend(vec4f(v2.x, v2.y, v2.z, umeshPtrs[0]->perVertex->values[hex[2]]));
+        bb.extend(vec4f(v3.x, v3.y, v3.z, umeshPtrs[0]->perVertex->values[hex[3]]));
+        bb.extend(vec4f(v4.x, v4.y, v4.z, umeshPtrs[0]->perVertex->values[hex[4]]));
+        bb.extend(vec4f(v5.x, v5.y, v5.z, umeshPtrs[0]->perVertex->values[hex[5]]));
+        bb.extend(vec4f(v6.x, v6.y, v6.z, umeshPtrs[0]->perVertex->values[hex[6]]));
+        bb.extend(vec4f(v7.x, v7.y, v7.z, umeshPtrs[0]->perVertex->values[hex[7]]));
         //calculate length of span
         minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
       }

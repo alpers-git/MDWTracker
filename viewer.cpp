@@ -135,7 +135,7 @@ Viewer::Viewer(int argc, char *argv[])
         std::cout << "found " << umeshHdlPtr->wedges.size() << " wedges" << std::endl;
         std::cout << "found " << umeshHdlPtr->hexes.size() << " hexahedra" << std::endl;
         std::cout << "found " << umeshHdlPtr->vertices.size() << " vertices" << std::endl;
-        renderer->umeshPtr = umeshHdlPtr;
+        renderer->PushMesh(umeshHdlPtr);
         numFiles++;
     }
     else if(program.is_used("-dr"))
