@@ -786,9 +786,13 @@ namespace dtracker
     }
     else if (meshType == MeshType::RAW)
     {
-      const auto& span = rawPtrs[0]->getBounds().span();
-      const auto& dims = rawPtrs[0]->getDims();
-      float minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
+      float minVoxelSideLength = std::numeric_limits<float>::max();
+      for (int i = 0; i < rawPtrs.size(); ++i)
+      {
+        const auto& span = rawPtrs[i]->getBounds().span();
+        const auto& dims = rawPtrs[i]->getDims();
+        minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
+      }
       SetDt(minVoxelSideLength * 0.5f);
     }
     else

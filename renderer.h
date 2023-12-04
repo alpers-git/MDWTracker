@@ -58,24 +58,22 @@ public:
 
     OWLGeomType triangleType;
 
-    OWLBuffer tetrahedraData;
-    OWLBuffer pyramidsData;
-    OWLBuffer hexahedraData;
-    OWLBuffer wedgesData;
-    OWLBuffer verticesData;
-    OWLBuffer scalarData;
-    OWLBuffer gridBuffer;
-    OWLBuffer majorantBuffer;
-    OWLBuffer vertexBuffer;
-    OWLBuffer indexBuffer;
+    OWLBuffer tetrahedraData; //Unstructured mesh elements
+    OWLBuffer pyramidsData;   //Unstructured mesh elements
+    OWLBuffer hexahedraData;  //Unstructured mesh elements
+    OWLBuffer wedgesData;     //Unstructured mesh elements
+    OWLBuffer verticesData;   //Unstructured mesh vertices
+    OWLBuffer scalarData;     //TODO we need N scalar buffers for N meshes
+    OWLBuffer gridBuffer;     //TODO Unsure if we need N grid buffers for N meshes
+    OWLBuffer majorantBuffer; //this will account for all macrocell grids
+    OWLBuffer vertexBuffer;   //triangle vertices
+    OWLBuffer indexBuffer;    //triangle indices
 
-    OWLBuffer macrocellsBuffer;
-    OWLBuffer rootBBoxBuffer;
-    OWLBuffer rootMaximaBuffer;
-    OWLBuffer gridMaximaBuffer;
-    OWLBuffer clusterMaximaBuffer;
-
-    OWLBuffer clusterBBoxBuffer;
+    OWLBuffer macrocellsBuffer; //TODO N macrocell buffers for N meshes
+    OWLBuffer rootBBoxBuffer;   // used for RootMacrocellTLAS
+    OWLBuffer rootMaximaBuffer; // used for RootMacrocellTLAS
+    OWLBuffer gridMaximaBuffer; //Unsure?
+    OWLBuffer clusterMaximaBuffer;//Unused?
 
     /* frame */
     OWLBuffer accumBuffer{0};
