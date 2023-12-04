@@ -29,7 +29,7 @@ public:
 
     camera::Camera camera;
     std::shared_ptr<umesh::UMesh> umeshPtr;
-    std::shared_ptr<raw::RawR> rawPtr;
+    std::vector<std::shared_ptr<raw::RawR>> rawPtrs;
 
     /* raygen */
     OWLRayGen rayGen{0};

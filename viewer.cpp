@@ -150,7 +150,7 @@ Viewer::Viewer(int argc, char *argv[])
             std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
             std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
             std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
-            renderer->rawPtr = rawFile;
+            renderer->rawPtrs.push_back(rawFile);
             numFiles++;
         }
     }
@@ -378,6 +378,27 @@ void Viewer::Run()
         if(glfw->key.isPressed(GLFW_KEY_C) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"C"
             printCameraParameters();
+        if(glfw->key.isPressed(GLFW_KEY_X)) //switch up vector to x/-x
+        {
+            vec3f up = vec3f(-1.f, .0f, .0f) * renderer->camera.getUp();
+            up.x = up.x == .0f ? 1.f : up.x;
+            renderer->camera.setUpVector(up);
+            renderer->UpdateCamera();
+        }
+        if(glfw->key.isPressed(GLFW_KEY_Y)) //switch up vector to y/-y
+        {
+            vec3f up = vec3f(.0f, -1.f, .0f) * renderer->camera.getUp();
+            up.y = up.y == .0f ? 1.f : up.y;
+            renderer->camera.setUpVector(up);
+            renderer->UpdateCamera();
+        }
+        if(glfw->key.isPressed(GLFW_KEY_Z)) //switch up vector to z/-z
+        {
+            vec3f up = vec3f(.0f, .0f, -1.f) * renderer->camera.getUp();
+            up.z = up.z == .0f ? 1.f : up.z;
+            renderer->camera.setUpVector(up);
+            renderer->UpdateCamera();
+        }
         if(glfw->key.isPressed(GLFW_KEY_H)) //"h"
         {
             heatmap = !heatmap;

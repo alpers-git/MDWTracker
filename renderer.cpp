@@ -78,7 +78,7 @@ namespace dtracker
 
   void Renderer::Init(bool autoSetCamera)
   {
-    if(umeshPtr == nullptr && rawPtr == nullptr)
+    if(umeshPtr == nullptr && rawPtrs.size() == 0)
     {
       LOG_ERROR("No data source specified!");
       return;
@@ -108,6 +108,7 @@ namespace dtracker
 
     if(umeshPtr != nullptr)
     {
+      meshType = MeshType::UMESH;
       tetrahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->tets.size() * 4, nullptr);
       pyramidsData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->pyrs.size() * 5, nullptr);
       wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtr->wedges.size() * 6, nullptr);
@@ -247,7 +248,6 @@ namespace dtracker
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
-      meshType = MeshType::UMESH;
 
       LOG("Building geometries ...");
 
@@ -374,11 +374,12 @@ namespace dtracker
       owlGroupGetAccelSize(elementTLAS, &final, &peak);
     }
     //================================================================================================
-    else if(rawPtr != nullptr)
+    else if(rawPtrs.size() > 0)
     {
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtr->getDims().x * rawPtr->getDims().y * rawPtr->getDims().z, nullptr);
+      meshType = MeshType::RAW;
+      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[0]->getDims().x * rawPtrs[0]->getDims().y * rawPtrs[0]->getDims().z, nullptr);
       //get data as void pointer and create vector of floats
-      auto data = rawPtr->getDataVector();
+      auto data = rawPtrs[0]->getDataVector();
 
       //upload data to buffer
       owlBufferUpload(scalarData, data.data());
@@ -410,19 +411,19 @@ namespace dtracker
       
       owlBuildPrograms(context);
 
-      volDomain = interval<float>({rawPtr->getBounds4f().lower.w, rawPtr->getBounds4f().upper.w});
+      volDomain = interval<float>({rawPtrs[0]->getBounds4f().lower.w, rawPtrs[0]->getBounds4f().upper.w});
       printf("volume domain: %f %f\n", volDomain.lower, volDomain.upper);
       owlParamsSet4f(lp, "volume.globalBoundsLo",
-                    owl4f{rawPtr->getBounds4f().lower.x, rawPtr->getBounds4f().lower.y,
-                          rawPtr->getBounds4f().lower.z, rawPtr->getBounds4f().lower.w});
+                    owl4f{rawPtrs[0]->getBounds4f().lower.x, rawPtrs[0]->getBounds4f().lower.y,
+                          rawPtrs[0]->getBounds4f().lower.z, rawPtrs[0]->getBounds4f().lower.w});
       owlParamsSet4f(lp, "volume.globalBoundsHi",
-                    owl4f{rawPtr->getBounds4f().upper.x, rawPtr->getBounds4f().upper.y,
-                          rawPtr->getBounds4f().upper.z, rawPtr->getBounds4f().upper.w});
+                    owl4f{rawPtrs[0]->getBounds4f().upper.x, rawPtrs[0]->getBounds4f().upper.y,
+                          rawPtrs[0]->getBounds4f().upper.z, rawPtrs[0]->getBounds4f().upper.w});
 
       LOG("Setting buffers ...");
       //voxel data
       owlParamsSetBuffer(lp, "volume.sGrid.scalars", scalarData);
-      owlParamsSet3ui(lp, "volume.sGrid.dims", (const owl3ui &)rawPtr->getDims());
+      owlParamsSet3ui(lp, "volume.sGrid.dims", (const owl3ui &)rawPtrs[0]->getDims());
 
       // camera
       if(autoSetCamera)
@@ -441,7 +442,7 @@ namespace dtracker
       int numMacrocells = 1;
       std::vector<box4f> bboxes;
       bboxes.resize(numMacrocells);
-      auto bb = rawPtr->getBounds4f();
+      auto bb = rawPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
@@ -453,8 +454,8 @@ namespace dtracker
       owlBufferUpload(rootBBoxBuffer, bboxes.data());
       
       box3f bounds = {
-          {rawPtr->getBounds4f().lower.x, rawPtr->getBounds4f().lower.y, rawPtr->getBounds4f().lower.z},
-          {rawPtr->getBounds4f().upper.x, rawPtr->getBounds4f().upper.y, rawPtr->getBounds4f().upper.z}
+          {rawPtrs[0]->getBounds4f().lower.x, rawPtrs[0]->getBounds4f().lower.y, rawPtrs[0]->getBounds4f().lower.z},
+          {rawPtrs[0]->getBounds4f().upper.x, rawPtrs[0]->getBounds4f().upper.y, rawPtrs[0]->getBounds4f().upper.z}
         };
 
       printf("bounds: %f %f %f %f %f %f\n", bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
@@ -464,7 +465,6 @@ namespace dtracker
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
-      meshType = MeshType::RAW;
 
       LOG("Building geometries ...");
 
@@ -607,7 +607,7 @@ namespace dtracker
     if(meshType == MeshType::UMESH)
       camera.motionSpeed = umesh::length(umeshPtr->getBounds().size()) / 50.f;
     else if(meshType == MeshType::RAW)
-      camera.motionSpeed = owl::length(rawPtr->getBounds().size()) / 50.f;
+      camera.motionSpeed = owl::length(rawPtrs[0]->getBounds().size()) / 50.f;
 
 
     // ----------- set variables  ----------------------------
@@ -786,8 +786,8 @@ namespace dtracker
     }
     else if (meshType == MeshType::RAW)
     {
-      const auto& span = rawPtr->getBounds().span();
-      const auto& dims = rawPtr->getDims();
+      const auto& span = rawPtrs[0]->getBounds().span();
+      const auto& dims = rawPtrs[0]->getDims();
       float minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
       SetDt(minVoxelSideLength * 0.5f);
     }

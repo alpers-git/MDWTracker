@@ -1029,7 +1029,7 @@ namespace dtracker {
     printf("Building Spatial Macrocells\n");
 
     
-    if(umeshPtr != nullptr)
+    if(meshType == MeshType::UMESH)
     {
       const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
       const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
@@ -1047,11 +1047,11 @@ namespace dtracker {
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
           umeshPtr->tets.size(), umeshPtr->pyrs.size(), umeshPtr->wedges.size(), umeshPtr->hexes.size(), umeshPtr->vertices.size());
     }
-    else if (rawPtr != nullptr)
+    else if (meshType == MeshType::RAW)
     {
       const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
       const int blockSize = 32;
-      const vec3i vxlGridDims = rawPtr->getDims(); 
+      const vec3i vxlGridDims = rawPtrs[0]->getDims(); 
       const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
       const int numBlocks = divRoundUp(elementCount, blockSize);
       vec3i grid(min(numBlocks,MAX_GRID_SIZE),
