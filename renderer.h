@@ -139,7 +139,7 @@ public:
     /*! sets the transfer function domain*/
     void SetXFRange(vec2f xfDomain, size_t tfID = 0);
     /*! recalculates the majorants*/
-    void RecalculateDensityRanges();
+    void RecalculateDensityRanges(size_t tfIF=0);
     /*! sets the dt to avg span /2 of bounding boxes of elements*/
     void ResetDt();
     /*! sets the dt to a fixed value*/

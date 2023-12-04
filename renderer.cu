@@ -159,13 +159,13 @@ void _recalculateDensityRanges(
 }
 
 namespace dtracker {
-  void Renderer::RecalculateDensityRanges()
+  void Renderer::RecalculateDensityRanges(size_t tfIF)
   {
-    float2 volumeDomain = {tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper};
-    float2 tfnDomain = {tfdatas[0].xfDomain.lower, tfdatas[0].xfDomain.upper};
-    float opacityScale = this->tfdatas[0].opacityScale;
-    cudaTextureObject_t colorMapTexture = this->tfdatas[0].colorMapTexture;
-    int colorMapSize = this->tfdatas[0].colorMap.size();
+    float2 volumeDomain = {tfdatas[tfIF].volDomain.lower, tfdatas[tfIF].volDomain.upper};
+    float2 tfnDomain = {tfdatas[tfIF].xfDomain.lower, tfdatas[tfIF].xfDomain.upper};
+    float opacityScale = this->tfdatas[tfIF].opacityScale;
+    cudaTextureObject_t colorMapTexture = this->tfdatas[tfIF].colorMapTexture;
+    int colorMapSize = this->tfdatas[tfIF].colorMap.size();
     dim3 blockSize(32);
     uint32_t numThreads;
     bool isBackground;
@@ -451,7 +451,7 @@ namespace dtracker {
           const uint32_t cellID
             = (ix
             + iy * dims.x
-            + iz * dims.x * dims.y) * 2 * numMeshes + meshIndex * 2;
+            + iz * dims.x * dims.y) * 2 * numMeshes + 2 * meshIndex;
             
           atomicMin(&d_mcGrid[cellID],primBounds4.lower.w);
           atomicMax(&d_mcGrid[cellID + 1],primBounds4.upper.w);
@@ -775,8 +775,9 @@ namespace dtracker {
   __global__ void rasterElements(float *d_mcGrid,
                              const vec3i dims,
                              const box3f worldBounds,
-                             const float *scalars[MAX_MESHES],
+                             const float *scalars,
                              const vec3i vxlGridDims,
+                             const size_t meshIndex=0,
                              size_t numMeshes=1
                              )
   {
@@ -795,15 +796,11 @@ namespace dtracker {
                         (primIdx / vxlGridDims.x) % vxlGridDims.y,
                          primIdx / (vxlGridDims.x * vxlGridDims.y));
 
-    for(size_t i = 0; i < numMeshes; ++i)
-    {
-      //World space coordinates of the voxel corners
-      primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[i][primIdx]));
-      primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, scalars[i][primIdx]));
+    //World space coordinates of the voxel corners
+    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[primIdx]));
+    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, scalars[primIdx]));
 
-      rasterBox(d_mcGrid,dims,worldBounds,primBounds4,i, numMeshes);
-      primBounds4 = box4f();
-    }
+    rasterBox(d_mcGrid,dims,worldBounds,primBounds4,meshIndex,numMeshes);
   }
 
   __global__ void rasterElements(box4f *d_mcGrid,
@@ -1031,7 +1028,7 @@ namespace dtracker {
     uint32_t numMacrocells = dims.x * dims.y * dims.z;
     size_t numMeshes = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
     if(numMeshes == 0) throw std::runtime_error("No mesh data found");
-    
+
     OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float), 
             numMacrocells*2*numMeshes, nullptr);
     float *d_mcGrid = (float*)owlBufferGetPointer(MacrocellBuffer, 0);
@@ -1065,20 +1062,22 @@ namespace dtracker {
     }
     else if (meshType == MeshType::RAW)
     {
-      const float *d_scalars[MAX_MESHES];
       for (size_t i = 0; i < numMeshes; i++)
-        d_scalars[i] = (const float*)owlBufferGetPointer(scalarData[0],0);
-      
-      const int blockSize = 32;
-      const vec3i vxlGridDims = rawPtrs[0]->getDims(); 
-      const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
-      const int numBlocks = divRoundUp(elementCount, blockSize);
-      vec3i grid(min(numBlocks,MAX_GRID_SIZE),
-                  divRoundUp(numBlocks,MAX_GRID_SIZE),
-                  1);
+      {
+        const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[i],0);
+        const int blockSize = 32;
+        const vec3i vxlGridDims = rawPtrs[i]->getDims(); 
+        const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
+        const int numBlocks = divRoundUp(elementCount, blockSize);
+        vec3i grid(min(numBlocks,MAX_GRID_SIZE),
+                    divRoundUp(numBlocks,MAX_GRID_SIZE),
+                    1);
 
-      rasterElements<<<to_dims(grid),blockSize>>>
-        (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,numMeshes);
+        rasterElements<<<to_dims(grid),blockSize>>>
+          (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numMeshes);
+
+      }
+      
     }
     CUDA_SYNC_CHECK();
     return MacrocellBuffer;
