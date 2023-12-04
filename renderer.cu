@@ -639,7 +639,7 @@ namespace dtracker {
     unsigned numElements = umeshPtrs[0]->numVolumeElements();
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
-    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0);//!!
     const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
     const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
     const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
@@ -994,7 +994,7 @@ namespace dtracker {
     CUDA_SYNC_CHECK();
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
-    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0);//!!
     const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
     const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
     const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
@@ -1032,7 +1032,7 @@ namespace dtracker {
     if(meshType == MeshType::UMESH)
     {
       const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
-      const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+      const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0);//!!
       const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
       const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
       const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
@@ -1049,7 +1049,7 @@ namespace dtracker {
     }
     else if (meshType == MeshType::RAW)
     {
-      const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+      const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0);//TODO fix
       const int blockSize = 32;
       const vec3i vxlGridDims = rawPtrs[0]->getDims(); 
       const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
@@ -1526,7 +1526,7 @@ namespace dtracker {
     unsigned numElements = umeshPtrs[0]->numVolumeElements();
 
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
-    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0); //!!
     const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
     const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
     const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);
@@ -1668,7 +1668,7 @@ namespace dtracker {
     unsigned numThreads = 1024;
     unsigned numElements = umeshPtrs[0]->numVolumeElements();
     const vec3f *d_vertices = (const vec3f*)owlBufferGetPointer(verticesData,0);
-    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData,0);
+    const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0);//!!
     const int *d_tetrahedra = (const int*)owlBufferGetPointer(tetrahedraData,0);
     const int *d_pyramids = (const int*)owlBufferGetPointer(pyramidsData,0);
     const int *d_wedges = (const int*)owlBufferGetPointer(wedgesData,0);

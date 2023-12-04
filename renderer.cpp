@@ -139,13 +139,13 @@ namespace dtracker
       wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->wedges.size() * 6, nullptr);
       hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->hexes.size() * 8, nullptr);
       verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtrs[0]->perVertex->values.size(), nullptr);
+      scalarData[0] = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtrs[0]->perVertex->values.size(), nullptr);//!!
       owlBufferUpload(tetrahedraData, umeshPtrs[0]->tets.data());
       owlBufferUpload(pyramidsData, umeshPtrs[0]->pyrs.data());
       owlBufferUpload(wedgesData, umeshPtrs[0]->wedges.data());
       owlBufferUpload(hexahedraData, umeshPtrs[0]->hexes.data());
       owlBufferUpload(verticesData, umeshPtrs[0]->vertices.data());
-      owlBufferUpload(scalarData, umeshPtrs[0]->perVertex->values.data());
+      owlBufferUpload(scalarData[0], umeshPtrs[0]->perVertex->values.data());//!!
 
       // -------------------------------------------------------
       // declare geometry types
@@ -236,7 +236,7 @@ namespace dtracker
       wedgesData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->wedges.size() * 6, nullptr);
       hexahedraData = owlDeviceBufferCreate(context, OWL_INT, umeshPtrs[0]->hexes.size() * 8, nullptr);
       verticesData = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtrs[0]->perVertex->values.size(), nullptr);
+      scalarData[0] = owlDeviceBufferCreate(context, OWL_FLOAT, umeshPtrs[0]->perVertex->values.size(), nullptr);//!!
 
       // Upload data
       owlBufferUpload(tetrahedraData, umeshPtrs[0]->tets.data());
@@ -244,7 +244,7 @@ namespace dtracker
       owlBufferUpload(wedgesData, umeshPtrs[0]->wedges.data());
       owlBufferUpload(hexahedraData, umeshPtrs[0]->hexes.data());
       owlBufferUpload(verticesData, umeshPtrs[0]->vertices.data());
-      owlBufferUpload(scalarData, umeshPtrs[0]->perVertex->values.data());
+      owlBufferUpload(scalarData[0], umeshPtrs[0]->perVertex->values.data());//!!
 
       indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtrs[0]->triangles.size() * 3, nullptr);
       vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
@@ -315,7 +315,7 @@ namespace dtracker
         owlGeomSetPrimCount(tetrahedraGeom, umeshPtrs[0]->tets.size() * 4);
         owlGeomSetBuffer(tetrahedraGeom, "tetrahedra", tetrahedraData);
         owlGeomSetBuffer(tetrahedraGeom, "vertices", verticesData);
-        owlGeomSetBuffer(tetrahedraGeom, "scalars", scalarData);
+        owlGeomSetBuffer(tetrahedraGeom, "scalars", scalarData[0]);
         owlGeomSet1ul(tetrahedraGeom, "offset", 0);
         owlGeomSet1ui(tetrahedraGeom, "bytesPerIndex", 4);
         owlGeomSet1ul(tetrahedraGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
@@ -333,7 +333,7 @@ namespace dtracker
         owlGeomSetPrimCount(pyramidGeom, umeshPtrs[0]->pyrs.size());
         owlGeomSetBuffer(pyramidGeom, "pyramids", pyramidsData);
         owlGeomSetBuffer(pyramidGeom, "vertices", verticesData);
-        owlGeomSetBuffer(pyramidGeom, "scalars", scalarData);
+        owlGeomSetBuffer(pyramidGeom, "scalars", scalarData[0]);
         owlGeomSet1ul(pyramidGeom, "offset", 0);
         owlGeomSet1ui(pyramidGeom, "bytesPerIndex", 4);
         owlGeomSet1ul(pyramidGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
@@ -352,7 +352,7 @@ namespace dtracker
         owlGeomSetPrimCount(wedgeGeom, umeshPtrs[0]->wedges.size());
         owlGeomSetBuffer(wedgeGeom, "wedges", wedgesData);
         owlGeomSetBuffer(wedgeGeom, "vertices", verticesData);
-        owlGeomSetBuffer(wedgeGeom, "scalars", scalarData);
+        owlGeomSetBuffer(wedgeGeom, "scalars", scalarData[0]);
         owlGeomSet1ul(wedgeGeom, "offset", 0);
         owlGeomSet1ui(wedgeGeom, "bytesPerIndex", 4);
         owlGeomSet1ul(wedgeGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
@@ -371,7 +371,7 @@ namespace dtracker
         owlGeomSetPrimCount(hexahedraGeom, umeshPtrs[0]->hexes.size());
         owlGeomSetBuffer(hexahedraGeom, "hexahedra", hexahedraData);
         owlGeomSetBuffer(hexahedraGeom, "vertices", verticesData);
-        owlGeomSetBuffer(hexahedraGeom, "scalars", scalarData);
+        owlGeomSetBuffer(hexahedraGeom, "scalars", scalarData[0]);
         owlGeomSet1ul(hexahedraGeom, "offset", 0);
         owlGeomSet1ui(hexahedraGeom, "bytesPerIndex", 4);
         owlGeomSet1ul(hexahedraGeom, "numTetrahedra", umeshPtrs[0]->tets.size());
@@ -429,28 +429,32 @@ namespace dtracker
       owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveDTCH");
       
       owlBuildPrograms(context);
+      for (size_t i = 0; i < rawPtrs.size(); i++)
+      {
 
-      tfdatas.push_back(TFData());// push one empty transfer function
-      tfdatas[0].volDomain = interval<float>({rawPtrs[0]->getBounds4f().lower.w, rawPtrs[0]->getBounds4f().upper.w});
-      printf("volume domain: %f %f\n", tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper);
-      owlParamsSet4f(lp, "volume.globalBoundsLo",
-                    owl4f{rawPtrs[0]->getBounds4f().lower.x, rawPtrs[0]->getBounds4f().lower.y,
-                          rawPtrs[0]->getBounds4f().lower.z, rawPtrs[0]->getBounds4f().lower.w});
-      owlParamsSet4f(lp, "volume.globalBoundsHi",
-                    owl4f{rawPtrs[0]->getBounds4f().upper.x, rawPtrs[0]->getBounds4f().upper.y,
-                          rawPtrs[0]->getBounds4f().upper.z, rawPtrs[0]->getBounds4f().upper.w});
+        tfdatas.push_back(TFData());// push one empty transfer function
+        tfdatas[i].volDomain = interval<float>({rawPtrs[i]->getBounds4f().lower.w, rawPtrs[i]->getBounds4f().upper.w});
+        printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
+        owlParamsSet4f(lp, "volume.globalBoundsLo",
+                      owl4f{rawPtrs[i]->getBounds4f().lower.x, rawPtrs[i]->getBounds4f().lower.y,
+                            rawPtrs[i]->getBounds4f().lower.z, rawPtrs[i]->getBounds4f().lower.w});
+        owlParamsSet4f(lp, "volume.globalBoundsHi",
+                      owl4f{rawPtrs[i]->getBounds4f().upper.x, rawPtrs[i]->getBounds4f().upper.y,
+                            rawPtrs[i]->getBounds4f().upper.z, rawPtrs[i]->getBounds4f().upper.w});
 
-      LOG("Setting buffers ...");
-      scalarData = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[0]->getDims().x * rawPtrs[0]->getDims().y * rawPtrs[0]->getDims().z, nullptr);
-      //get data as void pointer and create vector of floats
-      auto data = rawPtrs[0]->getDataVector();
+        LOG("Setting buffers ...");
+        scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
+        //get data as void pointer and create vector of floats
+        auto data = rawPtrs[i]->getDataVector();
 
-      //upload data to buffer
-      owlBufferUpload(scalarData, data.data());
+        //upload data to buffer
+        owlBufferUpload(scalarData[i], data.data());
 
-      //voxel data
-      owlParamsSetBuffer(lp, "volume.sGrid[0].scalars", scalarData);
-      owlParamsSet3ui(lp, "volume.sGrid[0].dims", (const owl3ui &)rawPtrs[0]->getDims());
+        //structured grid data
+        owlParamsSetBuffer(lp, ("volume.sGrid[" + std::to_string(i) + "].scalars").c_str(), scalarData[i]);
+        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
+      }
+      
 
       // camera
       if(autoSetCamera)
@@ -469,8 +473,11 @@ namespace dtracker
       int numMacrocells = 1;
       std::vector<box4f> bboxes;
       bboxes.resize(numMacrocells);
-      auto bb = rawPtrs[0]->getBounds4f();
-      bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
+      bboxes[0] = box4f();
+      for (size_t i = 0; i < rawPtrs.size(); i++)
+      {
+        bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
+      }
 
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
