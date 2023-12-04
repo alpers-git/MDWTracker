@@ -471,15 +471,15 @@ namespace dtracker
 
       // Macrocell data
       int numMacrocells = 1;
-      std::vector<box4f> bboxes;
+      // Although there is only one macrocell, we still use a vector since bufferUpload expects a pointer
+      std::vector<box4f> bboxes; 
       bboxes.resize(numMacrocells);
       bboxes[0] = box4f();
       for (size_t i = 0; i < rawPtrs.size(); i++)
-      {
         bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
-      }
 
-      gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
+      gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
+              macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
       owlParamsSetBuffer(lp, "volume.majorants", gridMaximaBuffer);
 
@@ -488,12 +488,14 @@ namespace dtracker
       owlBufferUpload(rootBBoxBuffer, bboxes.data());
       
       box3f bounds = {
-          {rawPtrs[0]->getBounds4f().lower.x, rawPtrs[0]->getBounds4f().lower.y, rawPtrs[0]->getBounds4f().lower.z},
-          {rawPtrs[0]->getBounds4f().upper.x, rawPtrs[0]->getBounds4f().upper.y, rawPtrs[0]->getBounds4f().upper.z}
+          {bboxes[0].lower.x, bboxes[0].lower.y, bboxes[0].lower.z},
+          {bboxes[0].upper.x, bboxes[0].upper.y, bboxes[0].upper.z}
         };
 
-      printf("bounds: %f %f %f %f %f %f\n", bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
-      macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
+      printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
+      macrocellsBuffer = buildSpatialMacrocells(
+          {int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)},
+          bounds);
       //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};

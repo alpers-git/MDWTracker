@@ -269,7 +269,7 @@ namespace dtracker {
     d_mcGrid[cellID].upper.z = ((worldBounds.upper.z - worldBounds.lower.z) * ((cellIdx.z + 1.f) / float(dims.z)) + worldBounds.lower.z);
   }
 
-  __global__ void sizeMCs(float2 *d_mcGrid, const vec3i dims, const box3f worldBounds)
+  __global__ void sizeMCs(float *d_mcGrid, const vec3i dims, const box3f worldBounds, const size_t numMeshes=1)
   {
     const vec3i cellIdx
       = vec3i(threadIdx)
@@ -279,11 +279,14 @@ namespace dtracker {
     if (cellIdx.z >= dims.z) return;
 
     const uint32_t cellID
-      = cellIdx.x
+      = (cellIdx.x
       + cellIdx.y * dims.x
-      + cellIdx.z * dims.x * dims.y;
+      + cellIdx.z * dims.x * dims.y) * 2 * numMeshes;
 
-    d_mcGrid[cellID] = make_float2(0.f, -1.f);
+    d_mcGrid[cellID] = 0.f; //make_float2(0.f, -1.f);
+    d_mcGrid[cellID + 1] = -1.f;
+    d_mcGrid[cellID + 2] = 0.f; //make_float2(0.f, -1.f);
+    d_mcGrid[cellID + 3] = -1.f;
   }
 
   inline dim3 to_dims(const vec3i v)
@@ -425,10 +428,12 @@ namespace dtracker {
   }
 
   inline __device__
-  void rasterBox(float2 *d_mcGrid,
+  void rasterBox(float *d_mcGrid,
                  const vec3i dims,
                  const box3f worldBounds,
                  const box4f primBounds4,
+                 const size_t meshIndex=0,
+                 const size_t numMeshes=1,
                  bool dbg=false)
   {
     box3f pb = box3f(vec3f(primBounds4.lower),
@@ -444,12 +449,12 @@ namespace dtracker {
       for (int iy=lo.y;iy<=hi.y;iy++)
         for (int ix=lo.x;ix<=hi.x;ix++) {
           const uint32_t cellID
-            = ix
+            = (ix
             + iy * dims.x
-            + iz * dims.x * dims.y;
-          auto &cell = d_mcGrid[cellID];
-          atomicMin(&cell.x,primBounds4.lower.w);
-          atomicMax(&cell.y,primBounds4.upper.w);
+            + iz * dims.x * dims.y) * 2 * numMeshes + meshIndex * 2;
+            
+          atomicMin(&d_mcGrid[cellID],primBounds4.lower.w);
+          atomicMax(&d_mcGrid[cellID + 1],primBounds4.upper.w);
         }
   }
 
@@ -767,11 +772,12 @@ namespace dtracker {
     insertIntoBox(d_mcGrid,dims,worldBounds,primBounds4);
   }
 
-  __global__ void rasterElements(float2 *d_mcGrid,
+  __global__ void rasterElements(float *d_mcGrid,
                              const vec3i dims,
                              const box3f worldBounds,
-                             const float *scalars,
-                             const vec3i vxlGridDims
+                             const float *scalars[MAX_MESHES],
+                             const vec3i vxlGridDims,
+                             size_t numMeshes=1
                              )
   {
     const uint64_t blockID
@@ -789,11 +795,15 @@ namespace dtracker {
                         (primIdx / vxlGridDims.x) % vxlGridDims.y,
                          primIdx / (vxlGridDims.x * vxlGridDims.y));
 
-    //World space coordinates of the voxel corners
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[primIdx]));
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, scalars[primIdx]));
+    for(size_t i = 0; i < numMeshes; ++i)
+    {
+      //World space coordinates of the voxel corners
+      primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[i][primIdx]));
+      primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, scalars[i][primIdx]));
 
-    rasterBox(d_mcGrid,dims,worldBounds,primBounds4);
+      rasterBox(d_mcGrid,dims,worldBounds,primBounds4,i, numMeshes);
+      primBounds4 = box4f();
+    }
   }
 
   __global__ void rasterElements(box4f *d_mcGrid,
@@ -893,7 +903,7 @@ namespace dtracker {
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4);
   }
 
-  __global__ void rasterElements(float2 *d_mcGrid,
+  __global__ void rasterElements(float *d_mcGrid,
                              const vec3i dims,
                              const box3f worldBounds,
                              const vec3f *vertices,
@@ -906,7 +916,8 @@ namespace dtracker {
                              const uint64_t numPyramids,
                              const uint64_t numWedges,
                              const uint64_t numHexahedra,
-                             const uint64_t numVertices
+                             const uint64_t numVertices,
+                             const size_t numElements = 1
                              )
   {
     const uint64_t blockID
@@ -981,7 +992,7 @@ namespace dtracker {
       primBounds4 = primBounds4.extend({vertices[i7].x, vertices[i7].y, vertices[i7].z, scalars[i7]} );
     }
 
-    rasterBox(d_mcGrid,dims,worldBounds,primBounds4);
+    rasterBox(d_mcGrid,dims,worldBounds,primBounds4, 0, numElements);//!!
   }
 
   OWLBuffer Renderer::buildObjectOrientedMacrocells(const vec3i &dims, const box3f &bounds) {
@@ -1018,12 +1029,16 @@ namespace dtracker {
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds) {
     uint32_t numMacrocells = dims.x * dims.y * dims.z;
-    OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), numMacrocells, nullptr);
-    float2 *d_mcGrid = (float2*)owlBufferGetPointer(MacrocellBuffer, 0);
+    size_t numMeshes = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
+    if(numMeshes == 0) throw std::runtime_error("No mesh data found");
+    
+    OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float), 
+            numMacrocells*2*numMeshes, nullptr);
+    float *d_mcGrid = (float*)owlBufferGetPointer(MacrocellBuffer, 0);
 
     const vec3i blockSize = vec3i(4);
     sizeMCs<<<to_dims(divRoundUp(dims,blockSize)),to_dims(blockSize)>>>
-      (d_mcGrid,dims,bounds);
+      (d_mcGrid,dims,bounds,numMeshes);
     CUDA_SYNC_CHECK();
 
     printf("Building Spatial Macrocells\n");
@@ -1045,11 +1060,15 @@ namespace dtracker {
                   1);
       rasterElements<<<to_dims(grid),blockSize>>>
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
-          umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size(), umeshPtrs[0]->vertices.size());
+          umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size(),
+          umeshPtrs[0]->vertices.size(), numMeshes);
     }
     else if (meshType == MeshType::RAW)
     {
-      const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[0],0);//TODO fix
+      const float *d_scalars[MAX_MESHES];
+      for (size_t i = 0; i < numMeshes; i++)
+        d_scalars[i] = (const float*)owlBufferGetPointer(scalarData[0],0);
+      
       const int blockSize = 32;
       const vec3i vxlGridDims = rawPtrs[0]->getDims(); 
       const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
@@ -1059,7 +1078,7 @@ namespace dtracker {
                   1);
 
       rasterElements<<<to_dims(grid),blockSize>>>
-        (d_mcGrid,dims,bounds,d_scalars,vxlGridDims);
+        (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,numMeshes);
     }
     CUDA_SYNC_CHECK();
     return MacrocellBuffer;
