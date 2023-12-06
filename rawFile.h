@@ -28,6 +28,7 @@ namespace raw
         UInt16,
         UInt32,
         Float32,
+        Double64,
 
         // Keep last!
         Count,
@@ -48,6 +49,7 @@ namespace raw
             { DataFormat::UInt16,       2 },
             { DataFormat::UInt32,       4 },
             { DataFormat::Float32,      4 },
+            { DataFormat::Double64,     8}
 
     };
 
@@ -65,6 +67,9 @@ namespace raw
 
        if (dataFormat == DataFormat::Float32)
            return 4;
+        
+        if (dataFormat == DataFormat::Double64)
+            return 8;
 
        return 255;
     }

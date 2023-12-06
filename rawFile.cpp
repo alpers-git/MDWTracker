@@ -74,6 +74,8 @@ namespace raw
                 dataFormat_ = DataFormat::UInt32; continue;
             } else if (str == "float32") {
                 dataFormat_ = DataFormat::Float32; continue;
+            } else if (str == "double64") {
+                dataFormat_ = DataFormat::Double64; continue;
             } else {
                 dataFormat_ = DataFormat::Unspecified; continue;
             }
@@ -109,6 +111,9 @@ namespace raw
                 break;
             case DataFormat::Float32:
                 data_[i] = ((float*)buf)[i];
+                break;
+            case DataFormat::Double64:
+                data_[i] = (float)((double*)buf)[i];
                 break;
             default:
                 break;

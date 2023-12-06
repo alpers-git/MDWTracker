@@ -1,5 +1,7 @@
 #include "renderer.h"
 #include <chrono>
+#include "owl/helper/cuda.h"
+#include "owl/Texture.h"
 
 #include "glfwHandler.h"
 
@@ -58,14 +60,19 @@ OWLVarDecl launchParamVars[] = {
     {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
     //    structured volume data
     {"volume.sGrid[0].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalars)},
+    {"volume.sGrid[0].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalarTex)},
     {"volume.sGrid[0].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].dims)},
     {"volume.sGrid[1].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalars)},
+    {"volume.sGrid[1].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex)},
     {"volume.sGrid[1].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].dims)},
     {"volume.sGrid[2].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalars)},
+    {"volume.sGrid[2].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex)},
     {"volume.sGrid[2].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].dims)},
     {"volume.sGrid[3].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalars)},
+    {"volume.sGrid[3].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex)},
     {"volume.sGrid[3].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].dims)},
     {"volume.sGrid[4].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalars)},
+    {"volume.sGrid[4].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex)},
     {"volume.sGrid[4].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].dims)},
     // transfer functions
     {"transferFunction[0].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[0].xf)},
@@ -446,13 +453,75 @@ namespace dtracker
         scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
         //get data as void pointer and create vector of floats
         auto data = rawPtrs[i]->getDataVector();
-
-        //upload data to buffer
         owlBufferUpload(scalarData[i], data.data());
+
+        //Create texture for scalars
+        cudaTextureObject_t volumeTexture;
+        cudaResourceDesc res_desc = {};
+        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float>();
+
+        cudaArray_t   voxelArray;
+        cudaMalloc3DArray(&voxelArray,
+                                &channel_desc,
+                                make_cudaExtent(rawPtrs[i]->getDims().x,
+                                                rawPtrs[i]->getDims().y,
+                                                rawPtrs[i]->getDims().z));
+        
+        cudaMemcpy3DParms copyParams = {0};
+        cudaExtent volumeSize = make_cudaExtent(rawPtrs[i]->getDims().x,
+                                                rawPtrs[i]->getDims().y,
+                                                rawPtrs[i]->getDims().z);
+        copyParams.srcPtr
+          = make_cudaPitchedPtr((void *)data.data(),
+                                volumeSize.width
+                                * sizeof(float),
+                                volumeSize.width,
+                                volumeSize.height);
+        copyParams.dstArray = voxelArray;
+        copyParams.extent   = volumeSize;
+        copyParams.kind     = cudaMemcpyHostToDevice;
+        cudaMemcpy3D(&copyParams);
+        
+        cudaResourceDesc            texRes;
+        memset(&texRes,0,sizeof(cudaResourceDesc));
+        
+        texRes.resType            = cudaResourceTypeArray;
+        texRes.res.array.array    = voxelArray;
+        
+        cudaTextureDesc             texDescr;
+        memset(&texDescr,0,sizeof(cudaTextureDesc));
+        
+        texDescr.normalizedCoords = true; // access with normalized texture coordinates
+        texDescr.filterMode       = cudaFilterModeLinear; // linear interpolation
+        // wrap texture coordinates
+        texDescr.addressMode[0] = cudaAddressModeClamp;//Wrap;
+        texDescr.addressMode[1] = cudaAddressModeClamp;//Wrap;
+        texDescr.addressMode[2] = cudaAddressModeClamp;//Wrap;
+        texDescr.sRGB                = 0;
+
+        // texDescr.addressMode[0]      = cudaAddressModeBorder;
+        // texDescr.addressMode[1]      = cudaAddressModeBorder;
+        texDescr.filterMode          = cudaFilterModeLinear;
+        texDescr.normalizedCoords    = 1;
+        texDescr.maxAnisotropy       = 1;
+        texDescr.maxMipmapLevelClamp = 0;
+        texDescr.minMipmapLevelClamp = 0;
+        texDescr.mipmapFilterMode    = cudaFilterModePoint;
+        texDescr.borderColor[0]      = 0.0f;
+        texDescr.borderColor[1]      = 0.0f;
+        texDescr.borderColor[2]      = 0.0f;
+        texDescr.borderColor[3]      = 0.0f;
+        texDescr.sRGB                = 0;
+        
+        texDescr.readMode = cudaReadModeElementType;
+    
+        cudaCreateTextureObject(&volumeTexture, &texRes, &texDescr, NULL);
+
 
         //structured grid data
         owlParamsSetBuffer(lp, ("volume.sGrid[" + std::to_string(i) + "].scalars").c_str(), scalarData[i]);
         owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
+        owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
       }
       
 
