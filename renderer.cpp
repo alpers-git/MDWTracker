@@ -92,6 +92,72 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction[4].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[4].xfDomain)},
     {/* sentinel to mark end of list */}};
 
+    cudaTextureObject_t& create3DTexture(float* data, vec3i dims)
+    {
+      //Create texture for scalars
+        cudaTextureObject_t volumeTexture;
+        cudaResourceDesc res_desc = {};
+        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float>();
+
+        cudaArray_t   voxelArray;
+        cudaMalloc3DArray(&voxelArray,
+                          &channel_desc,
+                          make_cudaExtent(dims.x,
+                                          dims.y,
+                                          dims.z));
+        
+        cudaMemcpy3DParms copyParams = {0};
+        cudaExtent volumeSize = make_cudaExtent(dims.x,
+                                                dims.y,
+                                                dims.z);
+        copyParams.srcPtr
+          = make_cudaPitchedPtr((void *)data,
+                                volumeSize.width
+                                * sizeof(float),
+                                volumeSize.width,
+                                volumeSize.height);
+        copyParams.dstArray = voxelArray;
+        copyParams.extent   = volumeSize;
+        copyParams.kind     = cudaMemcpyHostToDevice;
+        cudaMemcpy3D(&copyParams);
+        
+        cudaResourceDesc            texRes;
+        memset(&texRes,0,sizeof(cudaResourceDesc));
+        
+        texRes.resType            = cudaResourceTypeArray;
+        texRes.res.array.array    = voxelArray;
+        
+        cudaTextureDesc             texDescr;
+        memset(&texDescr,0,sizeof(cudaTextureDesc));
+        
+        texDescr.normalizedCoords = true; // access with normalized texture coordinates
+        texDescr.filterMode       = cudaFilterModeLinear; // linear interpolation
+        // wrap texture coordinates
+        texDescr.addressMode[0] = cudaAddressModeClamp;//Wrap;
+        texDescr.addressMode[1] = cudaAddressModeClamp;//Wrap;
+        texDescr.addressMode[2] = cudaAddressModeClamp;//Wrap;
+        texDescr.sRGB                = 0;
+
+        // texDescr.addressMode[0]      = cudaAddressModeBorder;
+        // texDescr.addressMode[1]      = cudaAddressModeBorder;
+        texDescr.filterMode          = cudaFilterModeLinear;
+        texDescr.normalizedCoords    = 1;
+        texDescr.maxAnisotropy       = 1;
+        texDescr.maxMipmapLevelClamp = 0;
+        texDescr.minMipmapLevelClamp = 0;
+        texDescr.mipmapFilterMode    = cudaFilterModePoint;
+        texDescr.borderColor[0]      = 0.0f;
+        texDescr.borderColor[1]      = 0.0f;
+        texDescr.borderColor[2]      = 0.0f;
+        texDescr.borderColor[3]      = 0.0f;
+        texDescr.sRGB                = 0;
+        
+        texDescr.readMode = cudaReadModeElementType;
+    
+        cudaCreateTextureObject(&volumeTexture, &texRes, &texDescr, NULL);
+        return volumeTexture;
+    } 
+
 namespace dtracker
 {
 
@@ -450,68 +516,7 @@ namespace dtracker
         auto data = rawPtrs[i]->getDataVector();
         owlBufferUpload(scalarData[i], data.data());
 
-        //Create texture for scalars
-        cudaTextureObject_t volumeTexture;
-        cudaResourceDesc res_desc = {};
-        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float>();
-
-        cudaArray_t   voxelArray;
-        cudaMalloc3DArray(&voxelArray,
-                                &channel_desc,
-                                make_cudaExtent(rawPtrs[i]->getDims().x,
-                                                rawPtrs[i]->getDims().y,
-                                                rawPtrs[i]->getDims().z));
-        
-        cudaMemcpy3DParms copyParams = {0};
-        cudaExtent volumeSize = make_cudaExtent(rawPtrs[i]->getDims().x,
-                                                rawPtrs[i]->getDims().y,
-                                                rawPtrs[i]->getDims().z);
-        copyParams.srcPtr
-          = make_cudaPitchedPtr((void *)data.data(),
-                                volumeSize.width
-                                * sizeof(float),
-                                volumeSize.width,
-                                volumeSize.height);
-        copyParams.dstArray = voxelArray;
-        copyParams.extent   = volumeSize;
-        copyParams.kind     = cudaMemcpyHostToDevice;
-        cudaMemcpy3D(&copyParams);
-        
-        cudaResourceDesc            texRes;
-        memset(&texRes,0,sizeof(cudaResourceDesc));
-        
-        texRes.resType            = cudaResourceTypeArray;
-        texRes.res.array.array    = voxelArray;
-        
-        cudaTextureDesc             texDescr;
-        memset(&texDescr,0,sizeof(cudaTextureDesc));
-        
-        texDescr.normalizedCoords = true; // access with normalized texture coordinates
-        texDescr.filterMode       = cudaFilterModeLinear; // linear interpolation
-        // wrap texture coordinates
-        texDescr.addressMode[0] = cudaAddressModeClamp;//Wrap;
-        texDescr.addressMode[1] = cudaAddressModeClamp;//Wrap;
-        texDescr.addressMode[2] = cudaAddressModeClamp;//Wrap;
-        texDescr.sRGB                = 0;
-
-        // texDescr.addressMode[0]      = cudaAddressModeBorder;
-        // texDescr.addressMode[1]      = cudaAddressModeBorder;
-        texDescr.filterMode          = cudaFilterModeLinear;
-        texDescr.normalizedCoords    = 1;
-        texDescr.maxAnisotropy       = 1;
-        texDescr.maxMipmapLevelClamp = 0;
-        texDescr.minMipmapLevelClamp = 0;
-        texDescr.mipmapFilterMode    = cudaFilterModePoint;
-        texDescr.borderColor[0]      = 0.0f;
-        texDescr.borderColor[1]      = 0.0f;
-        texDescr.borderColor[2]      = 0.0f;
-        texDescr.borderColor[3]      = 0.0f;
-        texDescr.sRGB                = 0;
-        
-        texDescr.readMode = cudaReadModeElementType;
-    
-        cudaCreateTextureObject(&volumeTexture, &texRes, &texDescr, NULL);
-
+        cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
 
         //structured grid data
         owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
