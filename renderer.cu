@@ -301,10 +301,9 @@ namespace dtracker {
       + cellIdx.y * dims.x
       + cellIdx.z * dims.x * dims.y) * numMeshes;
 
-    d_mcGrid[cellID].x = 0.f; //make_float2(0.f, -1.f);
-    d_mcGrid[cellID].y = -1.f;
-    d_mcGrid[cellID + 1].x = 0.f; //make_float2(0.f, -1.f);
-    d_mcGrid[cellID + 1].y = -1.f;
+    for (size_t meshIndex=0; meshIndex < numMeshes; meshIndex++) {
+      d_mcGrid[cellID + meshIndex] = make_float2(0.f, -1.f);
+    }
   }
 
   inline dim3 to_dims(const vec3i v)
