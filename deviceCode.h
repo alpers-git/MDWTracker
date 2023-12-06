@@ -91,7 +91,6 @@ struct LaunchParams
     struct
     {
       vec3ui dims;
-      float *scalars;
       cudaTextureObject_t scalarTex;
     } sGrid[MAX_MESHES];
 

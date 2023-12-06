@@ -113,38 +113,8 @@ float sampleVolume(const vec3f& pos, const int meshID = 0)
         //normalize pos to [0,1] using bounds of voxel grid
         vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
             (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
-        // Convert normalized coordinates to grid indices
-        vec3ui gridIndices = vec3ui(normalizedPos * vec3f(lp.volume.sGrid[meshID].dims));
-
-        int indicesList[8];
-        // Compute linear index for center and all 8 neighbors sampled for trilinear interpolation
-        // clamp the indices to the grid dimensions
-        for (int i = 0; i < 8; ++i) {
-            vec3i neighborIndex = vec3i(gridIndices.x + (i & 1), gridIndices.y + ((i >> 1) & 1), gridIndices.z + ((i >> 2) & 1));
-            // Clamp indices to grid dimensions
-            neighborIndex = clamp(neighborIndex, vec3i(0), vec3i(lp.volume.sGrid[meshID].dims) - vec3i(1));
-
-            // Compute linear index from 3D indices
-            indicesList[i] = neighborIndex.z * lp.volume.sGrid[meshID].dims.x * lp.volume.sGrid[meshID].dims.y +
-                            neighborIndex.y * lp.volume.sGrid[meshID].dims.x +
-                            neighborIndex.x;
-        }
-        
-        // Compute weights for trilinear interpolation
-        float weights[8];
-        weights[0] = (1.0f - normalizedPos.x) * (1.0f - normalizedPos.y) * (1.0f - normalizedPos.z);
-        weights[1] = normalizedPos.x * (1.0f - normalizedPos.y) * (1.0f - normalizedPos.z);
-        weights[2] = (1.0f - normalizedPos.x) * normalizedPos.y * (1.0f - normalizedPos.z);
-        weights[3] = normalizedPos.x * normalizedPos.y * (1.0f - normalizedPos.z);
-        weights[4] = (1.0f - normalizedPos.x) * (1.0f - normalizedPos.y) * normalizedPos.z;
-        weights[5] = normalizedPos.x * (1.0f - normalizedPos.y) * normalizedPos.z;
-        weights[6] = (1.0f - normalizedPos.x) * normalizedPos.y * normalizedPos.z;
-        weights[7] = normalizedPos.x * normalizedPos.y * normalizedPos.z;
-
-        // Compute trilinearly interpolated value
-        float value = 0.0f;
-        for (int i = 0; i < 8; ++i)
-            value += weights[i] * lp.volume.sGrid[meshID].scalars[indicesList[i]];
+        float value = tex3D<float>(lp.volume.sGrid[meshID].scalarTex, 
+                normalizedPos.x, normalizedPos.y,normalizedPos.z);
                         
         // Sample scalar field
         return value;

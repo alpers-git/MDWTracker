@@ -59,19 +59,14 @@ OWLVarDecl launchParamVars[] = {
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
     {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
     //    structured volume data
-    {"volume.sGrid[0].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalars)},
     {"volume.sGrid[0].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalarTex)},
     {"volume.sGrid[0].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].dims)},
-    {"volume.sGrid[1].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalars)},
     {"volume.sGrid[1].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex)},
     {"volume.sGrid[1].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].dims)},
-    {"volume.sGrid[2].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalars)},
     {"volume.sGrid[2].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex)},
     {"volume.sGrid[2].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].dims)},
-    {"volume.sGrid[3].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalars)},
     {"volume.sGrid[3].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex)},
     {"volume.sGrid[3].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].dims)},
-    {"volume.sGrid[4].scalars", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalars)},
     {"volume.sGrid[4].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex)},
     {"volume.sGrid[4].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].dims)},
     // transfer functions
@@ -519,7 +514,6 @@ namespace dtracker
 
 
         //structured grid data
-        owlParamsSetBuffer(lp, ("volume.sGrid[" + std::to_string(i) + "].scalars").c_str(), scalarData[i]);
         owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
         owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
       }
@@ -565,12 +559,17 @@ namespace dtracker
       macrocellsBuffer = buildSpatialMacrocells(
           {int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)},
           bounds);
+    
       //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
       const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
 
+      //delete scalar buffers since we don't need them anymore
+      for (size_t i = 0; i < rawPtrs.size(); i++)
+        owlBufferDestroy(scalarData[i]);
+      
       LOG("Building geometries ...");
 
       cudaDeviceSynchronize();
