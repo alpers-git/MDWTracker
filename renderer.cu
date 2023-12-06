@@ -804,7 +804,7 @@ namespace dtracker {
     box4f primBounds4 = box4f();
     //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
     //length in each dimension of the voxels in world space
-    vec3f boxLenghts = (worldBounds.size() - vec3f(0.00000000001f)) / vec3f(vxlGridDims);
+    vec3f boxLenghts = (worldBounds.size()) / vec3f(vxlGridDims);
     //check if we are accessing the last voxel in each dimension if so make that dimension lenght negative
     if (vxlGridDims.x - 1 == primIdx % vxlGridDims.x) boxLenghts.x *= -1;
     if (vxlGridDims.y - 1 == (primIdx / vxlGridDims.x) % vxlGridDims.y) boxLenghts.y *= -1;
