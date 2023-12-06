@@ -334,6 +334,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             //get values from all meshes and decide which one the sample is gonna come from
             float opacitySum = 0.0f;
             float4 sampledTFs[MAX_MESHES];
+            if(prd.debug)
+                printf("\tworldX = %f, %f, %f\n", worldX.x, worldX.y, worldX.z);
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
                 const float value = sampleVolume(worldX, meshID);
@@ -349,7 +351,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             if(opacitySum == 0.0f)
                 continue;
             //sample a mesh based on its opacity
-            size_t selectedMeshID = 0;
+            int selectedMeshID = -1;
             float meshSelector = prd.rng() * opacitySum;
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
@@ -364,7 +366,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             
             const float volumeEvent = prd.rng();
 
-            const float extinction = sampledTF.w + 0.f; // absorption + scattering
+            const float extinction = opacitySum + 0.f; // absorption + scattering
             const float nullCollision = majorant - extinction;
 
             const float denom = extinction + abs(nullCollision); // to avoid re-computing this

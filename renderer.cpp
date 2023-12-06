@@ -105,7 +105,7 @@ OWLVarDecl launchParamVars[] = {
                           make_cudaExtent(dims.x,
                                           dims.y,
                                           dims.z));
-        
+        OWL_CUDA_SYNC_CHECK();
         cudaMemcpy3DParms copyParams = {0};
         cudaExtent volumeSize = make_cudaExtent(dims.x,
                                                 dims.y,
@@ -140,8 +140,6 @@ OWLVarDecl launchParamVars[] = {
 
         // texDescr.addressMode[0]      = cudaAddressModeBorder;
         // texDescr.addressMode[1]      = cudaAddressModeBorder;
-        texDescr.filterMode          = cudaFilterModeLinear;
-        texDescr.normalizedCoords    = 1;
         texDescr.maxAnisotropy       = 1;
         texDescr.maxMipmapLevelClamp = 0;
         texDescr.minMipmapLevelClamp = 0;
@@ -150,8 +148,6 @@ OWLVarDecl launchParamVars[] = {
         texDescr.borderColor[1]      = 0.0f;
         texDescr.borderColor[2]      = 0.0f;
         texDescr.borderColor[3]      = 0.0f;
-        texDescr.sRGB                = 0;
-        
         texDescr.readMode = cudaReadModeElementType;
     
         cudaCreateTextureObject(&volumeTexture, &texRes, &texDescr, NULL);
@@ -497,46 +493,15 @@ namespace dtracker
       owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveDTCH");
       
       owlBuildPrograms(context);
+      LOG("Setting buffers ...");
+      
       for (size_t i = 0; i < rawPtrs.size(); i++)
       {
-
-        tfdatas.push_back(TFData());// push one empty transfer function
-        tfdatas[i].volDomain = interval<float>({rawPtrs[i]->getBounds4f().lower.w, rawPtrs[i]->getBounds4f().upper.w});
-        printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
-        owlParamsSet4f(lp, "volume.globalBoundsLo",
-                      owl4f{rawPtrs[i]->getBounds4f().lower.x, rawPtrs[i]->getBounds4f().lower.y,
-                            rawPtrs[i]->getBounds4f().lower.z, rawPtrs[i]->getBounds4f().lower.w});
-        owlParamsSet4f(lp, "volume.globalBoundsHi",
-                      owl4f{rawPtrs[i]->getBounds4f().upper.x, rawPtrs[i]->getBounds4f().upper.y,
-                            rawPtrs[i]->getBounds4f().upper.z, rawPtrs[i]->getBounds4f().upper.w});
-
-        LOG("Setting buffers ...");
         scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
         //get data as void pointer and create vector of floats
         auto data = rawPtrs[i]->getDataVector();
         owlBufferUpload(scalarData[i], data.data());
-
-        cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
-
-        //structured grid data
-        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
-        owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
       }
-      
-
-      // camera
-      if(autoSetCamera)
-      {
-        vec3f center = {0.5f, 0.5f, 0.5f};
-        vec3f eye = vec3f(center.x, center.y, center.z + 2.5f);
-        camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
-        camera.setFocalDistance(3.f);
-        UpdateCamera();
-      }
-
-      // indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtrs[0]->triangles.size() * 3, nullptr);
-      // vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
-
       // Macrocell data
       int numMacrocells = 1;
       // Although there is only one macrocell, we still use a vector since bufferUpload expects a pointer
@@ -574,6 +539,46 @@ namespace dtracker
       //delete scalar buffers since we don't need them anymore
       for (size_t i = 0; i < rawPtrs.size(); i++)
         owlBufferDestroy(scalarData[i]);
+
+      for (size_t i = 0; i < rawPtrs.size(); i++)
+      {
+        OWL_CUDA_SYNC_CHECK();
+        tfdatas.push_back(TFData());// push one empty transfer function
+        tfdatas[i].volDomain = interval<float>({rawPtrs[i]->getBounds4f().lower.w, rawPtrs[i]->getBounds4f().upper.w});
+        printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
+        owlParamsSet4f(lp, "volume.globalBoundsLo",
+                      owl4f{rawPtrs[i]->getBounds4f().lower.x, rawPtrs[i]->getBounds4f().lower.y,
+                            rawPtrs[i]->getBounds4f().lower.z, rawPtrs[i]->getBounds4f().lower.w});
+        owlParamsSet4f(lp, "volume.globalBoundsHi",
+                      owl4f{rawPtrs[i]->getBounds4f().upper.x, rawPtrs[i]->getBounds4f().upper.y,
+                            rawPtrs[i]->getBounds4f().upper.z, rawPtrs[i]->getBounds4f().upper.w});
+        
+        //scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
+        //get data as void pointer and create vector of floats
+        auto data = rawPtrs[i]->getDataVector();
+        //owlBufferUpload(scalarData[i], data.data());
+
+        cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
+
+        //structured grid data
+        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
+        owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
+      }
+      
+
+      // camera
+      if(autoSetCamera)
+      {
+        vec3f center = {0.5f, 0.5f, 0.5f};
+        vec3f eye = vec3f(center.x, center.y, center.z + 2.5f);
+        camera.setOrientation(eye, vec3f(center.x, center.y, center.z), vec3f(0, 1, 0), 45.0f);
+        camera.setFocalDistance(3.f);
+        UpdateCamera();
+      }
+
+      // indexBuffer = owlDeviceBufferCreate(context, OWL_INT3, umeshPtrs[0]->triangles.size() * 3, nullptr);
+      // vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT3, umeshPtrs[0]->vertices.size(), nullptr);
+      
       
       LOG("Building geometries ...");
 

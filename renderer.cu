@@ -43,7 +43,7 @@ void _recalculateDensityRanges(
     {
       // empty box
       if (mx < mn) {
-        maxima[primID] = 0.f;
+        //maxima[primID] = 0.f;
         continue;//return;
       }
 
@@ -123,11 +123,8 @@ void _recalculateDensityRanges(
 
 __global__
 void _recalculateDensityRanges(
-  int numPrims, float2 *macrocells,//const uint8_t* nvdbData,
-  dtracker::TFData* tf, size_t numMeshes,
-  // cudaTextureObject_t texture, int numTexels, 
-  // float2* volumeDomain, float2 xfDomain, float opacityScale,
-  float* maxima)
+  int numPrims, const float2 *macrocells,//const uint8_t* nvdbData,
+  const dtracker::TFData* tf, size_t numMeshes, float* maxima)
 {
     int nodeID = (blockIdx.x * blockDim.x + threadIdx.x);
     if (nodeID >= numPrims) return;
@@ -140,7 +137,7 @@ void _recalculateDensityRanges(
 
       // empty box
       if (mx < mn) {
-        maxima[nodeID] = 0.f;
+        //maxima[nodeID] = 0.f;
         continue; //return;
       }
 
@@ -164,7 +161,7 @@ void _recalculateDensityRanges(
       }
       maxDensity += maxDensityForVolume;
     }
-    maxima[nodeID] = maxDensity/(float)numMeshes;
+    maxima[nodeID] = maxDensity;
 }
 
 namespace dtracker {
@@ -807,15 +804,29 @@ namespace dtracker {
     box4f primBounds4 = box4f();
     //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
     //length in each dimension of the voxels in world space
-    vec3f boxLenghts = worldBounds.size() / vec3f(vxlGridDims);
+    vec3f boxLenghts = (worldBounds.size() - vec3f(0.00000000001f)) / vec3f(vxlGridDims);
+    //check if we are accessing the last voxel in each dimension if so make that dimension lenght negative
+    if (vxlGridDims.x - 1 == primIdx % vxlGridDims.x) boxLenghts.x *= -1;
+    if (vxlGridDims.y - 1 == (primIdx / vxlGridDims.x) % vxlGridDims.y) boxLenghts.y *= -1;
+    if (vxlGridDims.z - 1 == primIdx / (vxlGridDims.x * vxlGridDims.y)) boxLenghts.z *= -1;
     //3D index of the voxel in the grid
     vec3i vxlIdx = vec3i(primIdx % vxlGridDims.x, 
                         (primIdx / vxlGridDims.x) % vxlGridDims.y,
                          primIdx / (vxlGridDims.x * vxlGridDims.y));
+    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[primIdx]));
+    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1)) * boxLenghts, scalars[primIdx]));
+    //go over all neighboring voxels and fetch the scalar values for the 8 corners
+    for(int ix =0; ix < 2; ix++)
+      for(int iy =0; iy < 2; iy++)
+        for(int iz =0; iz < 2; iz++){
+          vec3i neighborIdx = vxlIdx + vec3i(ix, iy, iz);
+          if(neighborIdx.x < 0 || neighborIdx.x >= vxlGridDims.x) continue;
+          if(neighborIdx.y < 0 || neighborIdx.y >= vxlGridDims.y) continue;
+          if(neighborIdx.z < 0 || neighborIdx.z >= vxlGridDims.z) continue;
+          primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts, scalars[neighborIdx.x + neighborIdx.y * vxlGridDims.x + neighborIdx.z * vxlGridDims.x * vxlGridDims.y]));
+        }
 
     //World space coordinates of the voxel corners
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[primIdx]));
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1,1,1)) * boxLenghts, scalars[primIdx]));
 
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4,meshIndex,numMeshes);
   }
@@ -1092,7 +1103,7 @@ namespace dtracker {
 
         rasterElements<<<to_dims(grid),blockSize>>>
           (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numMeshes);
-
+        CUDA_SYNC_CHECK();
       }
       
     }
