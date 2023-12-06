@@ -81,7 +81,7 @@ struct LaunchParams
 
     vec3ui macrocellDims;
     box3f rootDomain;
-    float* macrocells; // scalar ranges for each macrocell. stride = 2*numMeshes
+    float2* macrocells; // scalar ranges for each macrocell.
     float* majorants; // majorant values for each macrocell
 
     float4 globalBoundsLo;

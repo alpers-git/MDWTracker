@@ -287,7 +287,7 @@ namespace dtracker {
     d_mcGrid[cellID].upper.z = ((worldBounds.upper.z - worldBounds.lower.z) * ((cellIdx.z + 1.f) / float(dims.z)) + worldBounds.lower.z);
   }
 
-  __global__ void sizeMCs(float *d_mcGrid, const vec3i dims, const box3f worldBounds, const size_t numMeshes=1)
+  __global__ void sizeMCs(float2 *d_mcGrid, const vec3i dims, const box3f worldBounds, const size_t numMeshes=1)
   {
     const vec3i cellIdx
       = vec3i(threadIdx)
@@ -299,12 +299,12 @@ namespace dtracker {
     const uint32_t cellID
       = (cellIdx.x
       + cellIdx.y * dims.x
-      + cellIdx.z * dims.x * dims.y) * 2 * numMeshes;
+      + cellIdx.z * dims.x * dims.y) * numMeshes;
 
-    d_mcGrid[cellID] = 0.f; //make_float2(0.f, -1.f);
-    d_mcGrid[cellID + 1] = -1.f;
-    d_mcGrid[cellID + 2] = 0.f; //make_float2(0.f, -1.f);
-    d_mcGrid[cellID + 3] = -1.f;
+    d_mcGrid[cellID].x = 0.f; //make_float2(0.f, -1.f);
+    d_mcGrid[cellID].y = -1.f;
+    d_mcGrid[cellID + 1].x = 0.f; //make_float2(0.f, -1.f);
+    d_mcGrid[cellID + 1].y = -1.f;
   }
 
   inline dim3 to_dims(const vec3i v)
@@ -446,7 +446,7 @@ namespace dtracker {
   }
 
   inline __device__
-  void rasterBox(float *d_mcGrid,
+  void rasterBox(float2 *d_mcGrid,
                  const vec3i dims,
                  const box3f worldBounds,
                  const box4f primBounds4,
@@ -469,10 +469,10 @@ namespace dtracker {
           const uint32_t cellID
             = (ix
             + iy * dims.x
-            + iz * dims.x * dims.y) * 2 * numMeshes + 2 * meshIndex;
+            + iz * dims.x * dims.y) * numMeshes +  meshIndex;
             
-          atomicMin(&d_mcGrid[cellID],primBounds4.lower.w);
-          atomicMax(&d_mcGrid[cellID + 1],primBounds4.upper.w);
+          atomicMin(&d_mcGrid[cellID].x,primBounds4.lower.w);
+          atomicMax(&d_mcGrid[cellID].y,primBounds4.upper.w);
         }
   }
 
@@ -790,7 +790,7 @@ namespace dtracker {
     insertIntoBox(d_mcGrid,dims,worldBounds,primBounds4);
   }
 
-  __global__ void rasterElements(float *d_mcGrid,
+  __global__ void rasterElements(float2 *d_mcGrid,
                              const vec3i dims,
                              const box3f worldBounds,
                              const float *scalars,
@@ -918,7 +918,7 @@ namespace dtracker {
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4);
   }
 
-  __global__ void rasterElements(float *d_mcGrid,
+  __global__ void rasterElements(float2 *d_mcGrid,
                              const vec3i dims,
                              const box3f worldBounds,
                              const vec3f *vertices,
@@ -1047,9 +1047,9 @@ namespace dtracker {
     size_t numMeshes = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
     if(numMeshes == 0) throw std::runtime_error("No mesh data found");
 
-    OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float), 
-            numMacrocells*2*numMeshes, nullptr);
-    float *d_mcGrid = (float*)owlBufferGetPointer(MacrocellBuffer, 0);
+    OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), 
+            numMacrocells*numMeshes, nullptr);
+    float2 *d_mcGrid = (float2*)owlBufferGetPointer(MacrocellBuffer, 0);
 
     const vec3i blockSize = vec3i(4);
     sizeMCs<<<to_dims(divRoundUp(dims,blockSize)),to_dims(blockSize)>>>
