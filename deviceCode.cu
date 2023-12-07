@@ -336,6 +336,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             float4 sampledTFs[MAX_MESHES];
             if(prd.debug)
                 printf("\tworldX = %f, %f, %f\n", worldX.x, worldX.y, worldX.z);
+            prd.samples++;
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
                 const float value = sampleVolume(worldX, meshID);
@@ -344,7 +345,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
                     event = NULL_COLLISION;
                     continue;
                 }
-                prd.samples++;
                 sampledTFs[meshID] = transferFunction(value, meshID);
                 opacitySum += sampledTFs[meshID].w;
             }
