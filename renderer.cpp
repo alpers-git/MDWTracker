@@ -954,7 +954,7 @@ namespace dtracker
         const auto& dims = rawPtrs[i]->getDims();
         minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
       }
-      SetDt(minVoxelSideLength * 0.5f);
+      SetDt(minVoxelSideLength);
     }
     else
       exit(1);

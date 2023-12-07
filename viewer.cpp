@@ -44,6 +44,7 @@ private:
     const float pixels_per_move = 90.f;
     bool camGivenAsParam = false;
     bool heatmap = false;
+    float dt = -1.f;
 
     friend class dtracker::Renderer;
 };
@@ -56,9 +57,9 @@ Viewer::Viewer(int argc, char *argv[])
     // parse arguments
     argparse::ArgumentParser program("DTracker Viewer");
 
-    program.add_argument("-du", "--umesh-data")
+    program.add_argument("-fu", "--umesh-data")
         .help("path to the .umesh file");
-    program.add_argument("-dr", "--raw-data")
+    program.add_argument("-fr", "--raw-data")
         .help("path to the .raw data file(s)")
         .nargs(argparse::nargs_pattern::any);
     program.add_argument("-c", "--camera")
@@ -75,6 +76,13 @@ Viewer::Viewer(int argc, char *argv[])
         .help("background color")
         .nargs(3)
         .scan<'g', float>();
+    program.add_argument("-dt", "--delta-t")
+        .help("sampling distance")
+        .scan<'g', float>();
+    program.add_argument("-cb", "--correct-bounds")
+        .help("correct the bounds of the raw file to the grid dimensions")
+        .default_value(false)
+        .implicit_value(true);
 
     try
     {
@@ -123,10 +131,10 @@ Viewer::Viewer(int argc, char *argv[])
         auto bg = program.get<std::vector<float>>("-bg");
         renderer->bgColor = vec3f(bg[0], bg[1], bg[2]);
     }
-    if(program.is_used("-du"))
+    if(program.is_used("-fu"))
     {
         auto start = std::chrono::high_resolution_clock::now();
-        auto umeshHdlPtr = umesh::io::loadBinaryUMesh(program.get<std::string>("-du"));
+        auto umeshHdlPtr = umesh::io::loadBinaryUMesh(program.get<std::string>("-fu"));
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "Time taken to load umesh: " << duration.count() << " milliseconds" << std::endl;
@@ -138,13 +146,15 @@ Viewer::Viewer(int argc, char *argv[])
         renderer->PushMesh(umeshHdlPtr);
         numFiles++;
     }
-    else if(program.is_used("-dr"))
+    else if(program.is_used("-fr"))
     {
-        auto paths = program.get<std::vector<std::string>>("-dr");
+        auto paths = program.get<std::vector<std::string>>("-fr");
         for (auto path : paths)
         {
             auto start = std::chrono::high_resolution_clock::now();
             auto rawFile = std::make_shared<raw::RawR>(path.c_str(), "rb");
+            if (program.get<bool>("-cb"))
+                rawFile->reshapeBounds();
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
@@ -170,6 +180,10 @@ Viewer::Viewer(int argc, char *argv[])
         {
             tfnWidgets[i].LoadState(tfStates[i]);
         }
+    }
+    if(program.is_used("-dt"))
+    {
+        dt = program.get<float>("-dt");
     }
 
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
@@ -254,6 +268,8 @@ void Viewer::Run()
 {
     GLFWHandler *glfw = GLFWHandler::getInstance();
     renderer->Init(!camGivenAsParam);
+    if(dt > 0.f)
+        renderer->SetDt(dt);
     renderer->UpdateCamera();
     //loop over all transfer functions and set them
     for (int i = 0; i < numFiles; i++)

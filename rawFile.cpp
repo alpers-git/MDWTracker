@@ -213,6 +213,17 @@ namespace raw
             {bounds_.upper.x, bounds_.upper.y, bounds_.upper.z});
     }
 
+    void RawR::reshapeBounds()
+    {
+        //rescale the bounds to match the dimension resolution
+        bounds_.lower.x = bounds_.lower.x * dims_.x;
+        bounds_.lower.y = bounds_.lower.y * dims_.y;
+        bounds_.lower.z = bounds_.lower.z * dims_.z;
+        bounds_.upper.x = bounds_.upper.x * dims_.x;
+        bounds_.upper.y = bounds_.upper.y * dims_.y;
+        bounds_.upper.z = bounds_.upper.z * dims_.z;
+    }
+
 } // raw
 
 //

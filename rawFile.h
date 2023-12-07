@@ -145,6 +145,10 @@ namespace raw
         * @brief Get domain of the values in the volume
         */
         owl::box3f getBounds() const;
+        /*!
+        * @brief Reshape the geometric bounds proportionally to the grid dimensions
+        */
+        void reshapeBounds();
 
     private:
         char const* fileName_ = 0;
