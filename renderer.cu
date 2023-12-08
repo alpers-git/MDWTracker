@@ -205,7 +205,7 @@ namespace dtracker {
     }
     {
       float2* macrocells = (float2*)owlBufferGetPointer(macrocellsBuffer, 0); 
-      numThreads = macrocellsPerSide * macrocellsPerSide * macrocellsPerSide;
+      numThreads = macrocellDims.x * macrocellDims.y * macrocellDims.z;
       gridSize = dim3 ((numThreads + blockSize.x - 1) / blockSize.x);
       majorantBuffer = (float*)owlBufferGetPointer(gridMaximaBuffer, 0);
       

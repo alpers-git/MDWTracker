@@ -115,7 +115,7 @@ public:
 
     /* density majorants */
     uint32_t numClusters = 1;
-    unsigned macrocellsPerSide = 32; // 4096 exceeds the size of a uint32_t when squared...
+    vec3ui macrocellDims = {0,0,0}; // 4096 exceeds the size of a uint32_t when squared...
 
     /*! initializes renderer */
     void Init(bool autoSetCamera = true);
@@ -153,6 +153,8 @@ public:
     void SetAmbient(float ambient);
     /*reset accumilation*/
     void ResetAccumulation();
+    /*!estimate best mcgrid sizes given the mesh*/
+    vec3ui CalculateMCGridDims(int estimatedElementPerMc);
 
     // For umeshes, use this to generate some object oriented macrocells.
     // idea, rasterize elements into a grid, expand or shrink bounding boxes to contain elements,

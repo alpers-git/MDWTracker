@@ -71,6 +71,7 @@ Viewer::Viewer(int argc, char *argv[])
         .nargs(argparse::nargs_pattern::any);
     program.add_argument("-mc", "--macrocells")
         .help("number of macrocells per side")
+        .nargs(0,3)
         .scan<'u', unsigned int>();
     program.add_argument("-bg", "--background")
         .help("background color")
@@ -117,14 +118,23 @@ Viewer::Viewer(int argc, char *argv[])
     if (program.is_used("-mc"))
     {
         //check if mc is positive
-        auto mc = program.get<unsigned int>("-mc");
-        printf("mc: %d\n", mc);
-        if (mc < 1)
+        auto mc = program.get<std::vector<unsigned int>>("-mc");
+        int i =0;
+        if(mc.size() == 1)
         {
-            std::cerr << "Number of macrocells per side must be positive" << std::endl;
-            std::exit(1);
+            mc.push_back(mc[0]);
+            mc.push_back(mc[0]);
         }
-        renderer->macrocellsPerSide = mc;
+        for (auto m : mc)
+        {
+            if (m < 1)
+            {
+                std::cerr << "Number of macrocells per side must be positive" << std::endl;
+                std::exit(1);
+            }
+            renderer->macrocellDims[i++] = m;
+        }
+        printf("Using MC Grid Dims: %u, %u, %u\n", renderer->macrocellDims.x, renderer->macrocellDims.y, renderer->macrocellDims.z);
     }
     if (program.is_used("-bg"))
     {

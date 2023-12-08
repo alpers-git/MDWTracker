@@ -211,6 +211,14 @@ namespace dtracker
       owlBufferUpload(verticesData, umeshPtrs[0]->vertices.data());
       owlBufferUpload(scalarData[0], umeshPtrs[0]->perVertex->values.data());//!!
 
+      if(macrocellDims.x == 0 || macrocellDims.y == 0 || macrocellDims.z == 0)
+      {
+        auto tmp = CalculateMCGridDims(8);
+        for(int i = 0; i < 3; i++)
+          if(macrocellDims[i] == 0)
+            macrocellDims[i] = tmp[i];
+      }
+
       // -------------------------------------------------------
       // declare geometry types
       // -------------------------------------------------------
@@ -320,7 +328,8 @@ namespace dtracker
       auto bb = umeshPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
-      gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
+      gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
+          macrocellDims.x*macrocellDims.y*macrocellDims.z, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
       owlParamsSetBuffer(lp, "volume.majorants", gridMaximaBuffer);
 
@@ -332,9 +341,9 @@ namespace dtracker
           {umeshPtrs[0]->bounds.lower.x, umeshPtrs[0]->bounds.lower.y, umeshPtrs[0]->bounds.lower.z},
           {umeshPtrs[0]->bounds.upper.x, umeshPtrs[0]->bounds.upper.y, umeshPtrs[0]->bounds.upper.z}
         };
-      macrocellsBuffer = buildSpatialMacrocells({int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)}, bounds);
+      macrocellsBuffer = buildSpatialMacrocells({int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)}, bounds);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
-      const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
+      //const uint3 macrocellDims = {macrocellDims, macrocellDims, macrocellDims};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
 
@@ -466,6 +475,13 @@ namespace dtracker
     else if(rawPtrs.size() > 0)
     {
       meshType = MeshType::RAW;
+      if (macrocellDims.x == 0 || macrocellDims.y == 0 || macrocellDims.z == 0)
+      {
+        auto tmp = CalculateMCGridDims(8);
+        for (int i = 0; i < 3; i++)
+          if (macrocellDims[i] == 0)
+            macrocellDims[i] = tmp[i];
+      }
 
       OWLVarDecl triangleVars[] = {
           {"triVertices", OWL_BUFPTR, OWL_OFFSETOF(TriangleData, vertices)},
@@ -512,7 +528,7 @@ namespace dtracker
         bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
 
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
-              macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
+              macrocellDims.x*macrocellDims.y*macrocellDims.z, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
       owlParamsSetBuffer(lp, "volume.majorants", gridMaximaBuffer);
 
@@ -527,12 +543,12 @@ namespace dtracker
 
       printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
       macrocellsBuffer = buildSpatialMacrocells(
-          {int(macrocellsPerSide), int(macrocellsPerSide), int(macrocellsPerSide)},
+          {int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)},
           bounds);
     
       //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
-      const uint3 macrocellDims = {macrocellsPerSide, macrocellsPerSide, macrocellsPerSide};
+      //const uint3 macrocellDims = {macrocellDims, macrocellDims, macrocellDims};
 
       owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
 
@@ -862,6 +878,50 @@ namespace dtracker
       (const owl2f &)tfdatas[tfID].xfDomain);
     ResetAccumulation();
     RecalculateDensityRanges();
+  }
+
+  vec3ui Renderer::CalculateMCGridDims(int estimatedElementPerMc)
+  {
+    if(meshType == MeshType::UMESH)
+    {
+      auto avgDims = vec3ui(0);
+      for(auto mesh : umeshPtrs)
+      {
+        //get total number of elements
+        size_t numElements = mesh->numVolumeElements();
+        //lets assume elements are distributed uniformly in space
+        //calculate number of elements per dimension
+        //since dimensions are not necessarily cubic, we need to calculate the volume of the bounding box
+        //and then calculate the number of elements per dimension
+        auto size = mesh->getBounds().size();
+        float volume = size.x * size.y * size.z;
+        float NumElementsToVolumeRatio = (float)numElements / volume;
+        float NumElementsPerDim = powf(NumElementsToVolumeRatio, 1.f / 3.f);
+        vec3ui dims(size.x * NumElementsPerDim, size.y * NumElementsPerDim, size.z * NumElementsPerDim);
+        avgDims += dims/(float)estimatedElementPerMc;
+      }
+      avgDims /= (float)umeshPtrs.size();
+      printf("Calculated MC Grid Dims: %d %d %d\n", avgDims.x, avgDims.y, avgDims.z);
+      return avgDims;
+
+    }
+    else if(meshType == MeshType::RAW)
+    {
+      auto avgDims = vec3ui(0);
+      for(auto mesh : rawPtrs)
+      {
+        vec3i dims = mesh->getDims();
+        avgDims += dims/(float)estimatedElementPerMc;
+      }
+      avgDims /= (float)rawPtrs.size();
+      printf("Calculated MC Grid Dims: %d %d %d\n", avgDims.x, avgDims.y, avgDims.z);
+      return avgDims;
+    }
+    else
+    {
+      LOG_ERROR("Mesh type not supported\n");
+      return vec3ui(0);
+    }
   }
 
   void Renderer::ResetDt()
