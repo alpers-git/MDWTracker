@@ -59,7 +59,7 @@ struct LaunchParams
 
   OptixTraversableHandle triangleTLAS;
   bool enableShadows;
-  bool enableHeatmap;
+  short heatMapMode = 0;
   bool enableAccumulation;
   vec3f lightDir;
   float lightIntensity;
@@ -129,6 +129,7 @@ struct RayPayload
   float dataValue;
   float tHit;
   int samples = 0;
+  int rejections = 0;
   float maxima[NUM_BINS];
   bool shadowRay;
   bool missed;

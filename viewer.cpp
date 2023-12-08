@@ -43,7 +43,7 @@ private:
     const float degrees_per_drag_fraction = 250;
     const float pixels_per_move = 90.f;
     bool camGivenAsParam = false;
-    bool heatmap = false;
+    short heatMapMode = 0;
     float dt = -1.f;
 
     friend class dtracker::Renderer;
@@ -302,7 +302,7 @@ void Viewer::Run()
 
         glfw->mouseState.imGuiPolling = ImGui::GetIO().WantCaptureMouse;
 
-        renderer->Render(heatmap);
+        renderer->Render(heatMapMode);
 
         renderer->Update();
 
@@ -362,9 +362,18 @@ void Viewer::Run()
         ImGui::SameLine();
         if(ImGui::Button("Reset Dt"))
             renderer->ResetDt();
-        if(ImGui::Checkbox("Heatmap", &heatmap))
+        //render radio button group for heatmap mode
+        ImGui::Text("Heatmap Mode");
+        ImGui::BeginGroup();
+        if(ImGui::RadioButton("Off", (int*)&heatMapMode, 0))
             renderer->ResetAccumulation();
         ImGui::SameLine();
+        if(ImGui::RadioButton("samples", (int*)&heatMapMode, 1))
+            renderer->ResetAccumulation();
+        ImGui::SameLine();
+        if(ImGui::RadioButton("rejects", (int*)&heatMapMode, 2))
+            renderer->ResetAccumulation();
+        ImGui::EndGroup();
         if(ImGui::Checkbox("Accumulation", &(renderer->enableAccumulation)))
             renderer->ResetAccumulation();
         ImGui::End();
@@ -441,7 +450,7 @@ void Viewer::Run()
         }
         if(glfw->key.isPressed(GLFW_KEY_H)) //"h"
         {
-            heatmap = !heatmap;
+            heatMapMode = ++heatMapMode % 3;
             renderer->ResetAccumulation();
         }
         // Camera movement

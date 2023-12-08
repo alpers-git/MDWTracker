@@ -29,7 +29,7 @@ OWLVarDecl launchParamVars[] = {
     {"fbSize", OWL_INT2, OWL_OFFSETOF(LaunchParams, fbSize)},
     // renderer variables
     {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
-    {"enableHeatmap", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableHeatmap)},
+    {"heatMapMode", OWL_SHORT, OWL_OFFSETOF(LaunchParams, heatMapMode)},
     {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
     {"bgColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, bgColor)},
     // light variables
@@ -669,7 +669,7 @@ namespace dtracker
     //RecalculateDensityRanges();
   }
 
-  void Renderer::Render(bool heatMap)
+  void Renderer::Render(short heatMapMode)
   {
     owlBuildSBT(context);
 
@@ -684,7 +684,7 @@ namespace dtracker
 
     owlParamsSet1i(lp, "accumID", accumID++);
     owlParamsSet1i(lp, "frameID", frameID++);
-    owlParamsSet1b(lp, "enableHeatmap", heatMap);
+    owlParamsSet1s(lp, "heatMapMode", heatMapMode);
   }
 
   void Renderer::Update()

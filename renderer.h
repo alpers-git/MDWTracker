@@ -120,7 +120,7 @@ public:
     /*! initializes renderer */
     void Init(bool autoSetCamera = true);
     /*! renders the scene, visualizes heatmaps if param is true*/
-    void Render(bool heatMap = false);
+    void Render(short heatMapMode= 0);
     /*! updates the launch params on device */
     void Update();
     /*! terminates the renderer*/

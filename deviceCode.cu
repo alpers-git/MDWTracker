@@ -174,16 +174,23 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
             color = vec4f(albedo * shadow * lp.lightIntensity, 1.0f);
 
             volumePrd.samples += shadowbyVolPrd.samples;// for heatmap
+            volumePrd.rejections += shadowbyVolPrd.rejections;// for heatmap
         }
         else
             color = vec4f(albedo * lp.lightIntensity, 1.0f);
     }
 
-    if(lp.enableHeatmap)
+    if(lp.heatMapMode == 1)
     {
         //heatmap
         int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 50);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 250.f, samples / 250.f, samples / 250.f, 1.f));
+    }
+    else if(lp.heatMapMode == 2)
+    {
+        //heatmap
+        int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 50);
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / 250.f, rejections / 250.f, rejections / 250.f, 1.f));
     }
     else
     {
@@ -314,6 +321,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             // A brick boundary has been hit
             if (t >= t1){
                 event = NULL_COLLISION;
+                prd.rejections++;
                 break; // go to next cell
             }
 
@@ -327,6 +335,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             if (tWorld >= prd.t1)
             {
                 event = NULL_COLLISION;
+                //prd.rejections++;
                 return false; // terminate traversal
             }
             
@@ -389,7 +398,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             // }
             // Null collision
             else
+            {
                 event = NULL_COLLISION;
+                prd.rejections++;
+            }
         }
 
         switch (event)
