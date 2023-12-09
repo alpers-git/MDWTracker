@@ -380,7 +380,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
             const float denom = extinction + abs(nullCollision); // to avoid re-computing this
 
-            const float p_absorb = sampledTF.w / denom;
+            const float p_absorb = opacitySum / denom;
             //const float p_scatter = 0.0f / denom; //scattering probability is 0 for now
             const float p_null = abs(nullCollision) / denom;
 
