@@ -121,6 +121,20 @@ float sampleVolume(const vec3f& pos, const int meshID = 0)
     }
 }
 
+inline __device__
+float sampleVolumeTexture(const vec3f& pos, const int meshID = 0)
+{
+    auto &lp = optixLaunchParams;
+    //normalize pos to [0,1] using bounds of voxel grid
+    vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
+        (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
+    float value = tex3D<float>(lp.volume.sGrid[meshID].scalarTex, 
+            normalizedPos.x, normalizedPos.y,normalizedPos.z);
+                    
+    // Sample scalar field
+    return value;
+}
+
 
 OPTIX_RAYGEN_PROGRAM(mainRG)
 ()
@@ -348,7 +362,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             prd.samples++;
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
-                const float value = sampleVolume(worldX, meshID);
+                const float value = sampleVolumeTexture(worldX, meshID);
                 if(isnan(value)) // miss
                 {
                     event = NULL_COLLISION;
