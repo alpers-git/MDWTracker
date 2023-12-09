@@ -87,6 +87,17 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
 }
 
 inline __device__
+float sampleVolumeTexture(const vec3f& normalizedPos, const int meshID = 0)
+{
+    auto &lp = optixLaunchParams;
+    float value = tex3D<float>(lp.volume.sGrid[meshID].scalarTex, 
+            normalizedPos.x, normalizedPos.y,normalizedPos.z);
+                    
+    // Sample scalar field
+    return value;
+}
+
+inline __device__
 float sampleVolume(const vec3f& pos, const int meshID = 0)
 {
     auto &lp = optixLaunchParams;
@@ -112,27 +123,10 @@ float sampleVolume(const vec3f& pos, const int meshID = 0)
     {
         //normalize pos to [0,1] using bounds of voxel grid
         vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
-            (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
-        float value = tex3D<float>(lp.volume.sGrid[meshID].scalarTex, 
-                normalizedPos.x, normalizedPos.y,normalizedPos.z);
-                        
+            (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo)); 
         // Sample scalar field
-        return value;
+        return sampleVolumeTexture(normalizedPos, meshID);
     }
-}
-
-inline __device__
-float sampleVolumeTexture(const vec3f& pos, const int meshID = 0)
-{
-    auto &lp = optixLaunchParams;
-    //normalize pos to [0,1] using bounds of voxel grid
-    vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
-        (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo));
-    float value = tex3D<float>(lp.volume.sGrid[meshID].scalarTex, 
-            normalizedPos.x, normalizedPos.y,normalizedPos.z);
-                    
-    // Sample scalar field
-    return value;
 }
 
 
@@ -272,7 +266,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
     vec3f worldOrg = optixGetWorldRayOrigin();
     vec3f org = optixGetWorldRayOrigin();
-    vec3f dir = optixGetWorldRayDirection();
+    vec3f worldDir = optixGetWorldRayDirection();
 
     // assuming ray is already in voxel space
     box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
@@ -281,34 +275,14 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
     org = org - worlddim.lower;
 
-    auto unitToWorld = affine3f(
-        linear3f(
-          vec3f((worlddim.upper.x - worlddim.lower.x), 0.f, 0.f),
-          vec3f(0.f, (worlddim.upper.y - worlddim.lower.y), 0.f),
-          vec3f(0.f, 0.f, (worlddim.upper.z - worlddim.lower.z))),
-            vec3f(0.f, 0.f, 0.f));
-    auto worldToUnit = affine3f(
-        linear3f(
-            vec3f((worlddim.upper.x - worlddim.lower.x), 0.f, 0.f),
-            vec3f(0.f, (worlddim.upper.y - worlddim.lower.y), 0.f),
-            vec3f(0.f, 0.f, (worlddim.upper.z - worlddim.lower.z))).inverse(),
-            vec3f(0.f, 0.f, 0.f));
-    auto gridToUnit = affine3f(
-        linear3f(
-          vec3f(griddim.x, 0.f, 0.f),
-          vec3f(0.f, griddim.y, 0.f),
-          vec3f(0.f, 0.f, griddim.z)).inverse(),
-            vec3f(0.f, 0.f, 0.f));
-    
-    auto unitToGrid = affine3f(
-        linear3f(
-            vec3f(griddim.x, 0.f, 0.f),
-            vec3f(0.f, griddim.y, 0.f),
-            vec3f(0.f, 0.f, griddim.z)),
-            vec3f(0.f, 0.f, 0.f));
+    const vec3f unitToWorld = worlddim.upper - worlddim.lower;
+    const vec3f worldToUnit = 1.f / unitToWorld;
+    const vec3f unitToGrid = vec3f(griddim.x, griddim.y, griddim.z);
+    const vec3f gridToUnit = 1.f / unitToGrid;
 
-    org = xfmPoint(unitToGrid, xfmPoint(worldToUnit, org));
-    dir = xfmVector(unitToGrid, xfmVector(worldToUnit, dir));
+    org = unitToGrid *worldToUnit * org;
+    vec3f dir = worldToUnit * unitToGrid * worldDir;
+    const float gridToWorldT = 1.f / length(dir);
     dir = normalize(dir);
 
     VolumeEvent event = NULL_COLLISION;
@@ -325,6 +299,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             return true;
 
         float t = t0;
+        //const float gridToWorldT = 1.f / length(xfmVector(unitToGrid, xfmVector(worldToUnit, worldDir)));
 
         // Sample free-flight distance
         while (true)
@@ -332,7 +307,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             t = t - (log(1.0f - prd.rng()) / majorant) * unit;
 
-            // A brick boundary has been hit
+            // A cell boundary has been hit
             if (t >= t1){
                 event = NULL_COLLISION;
                 prd.rejections++;
@@ -340,11 +315,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             }
 
             // Update current position
-            const vec3f x = org + t * dir;
-            const vec3f worldX = xfmPoint(gridToUnit, xfmPoint(unitToWorld, x)) + worlddim.lower;
-
-            const float tWorld = length(worldX - worldOrg);
-
+            const float tWorld = t * gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
             // A world boundary has been hit
             if (tWorld >= prd.t1)
             {
@@ -357,13 +329,12 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             //get values from all meshes and decide which one the sample is gonna come from
             float opacitySum = 0.0f;
             float4 sampledTFs[MAX_MESHES];
-            if(prd.debug)
-                printf("\tworldX = %f, %f, %f\n", worldX.x, worldX.y, worldX.z);
+
             prd.samples++;
 
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
-                const float value = sampleVolumeTexture(worldX, meshID);
+                const float value = sampleVolumeTexture(xTexture, meshID);
                 if(isnan(value)) // miss
                 {
                     event = NULL_COLLISION;
