@@ -577,7 +577,9 @@ namespace dtracker
         printf("Created texture object \n");
         cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
 
-        const owl3ui dims = {uint(rawPtrs[i]->getDims().x), uint(rawPtrs[i]->getDims().y), uint(rawPtrs[i]->getDims().z)};
+        const owl3ui dims = {static_cast<unsigned int>(rawPtrs[i]->getDims().x),
+                              static_cast<unsigned int>(rawPtrs[i]->getDims().y),
+                              static_cast<unsigned int>(rawPtrs[i]->getDims().z)};
         //structured grid data
         owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), dims);
         owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
