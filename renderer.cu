@@ -806,9 +806,7 @@ namespace dtracker {
     //length in each dimension of the voxels in world space
     vec3f boxLenghts = (worldBounds.size()) / vec3f(vxlGridDims);
     //check if we are accessing the last voxel in each dimension if so make that dimension lenght negative
-    // if (vxlGridDims.x - 1 == primIdx % vxlGridDims.x) boxLenghts.x *= -1;
-    // if (vxlGridDims.y - 1 == (primIdx / vxlGridDims.x) % vxlGridDims.y) boxLenghts.y *= -1;
-    // if (vxlGridDims.z - 1 == primIdx / (vxlGridDims.x * vxlGridDims.y)) boxLenghts.z *= -1;
+    
     //3D index of the voxel in the grid
     vec3i vxlIdx = vec3i(primIdx % vxlGridDims.x, 
                         (primIdx / vxlGridDims.x) % vxlGridDims.y,

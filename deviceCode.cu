@@ -360,6 +360,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             if(prd.debug)
                 printf("\tworldX = %f, %f, %f\n", worldX.x, worldX.y, worldX.z);
             prd.samples++;
+
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
                 const float value = sampleVolumeTexture(worldX, meshID);
@@ -373,9 +374,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             }
             if(opacitySum == 0.0f)
                 continue;
+
             //sample a mesh based on its opacity
             int selectedMeshID = -1;
-            float meshSelector = prd.rng() * opacitySum;
+            float meshSelector = prd.rng() * majorant;
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
                 if(meshSelector < sampledTFs[meshID].w)
@@ -385,32 +387,15 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
                 }
                 meshSelector -= sampledTFs[meshID].w;
             }
-            sampledTF = sampledTFs[selectedMeshID];
-            
-            const float volumeEvent = prd.rng();
-
-            const float extinction = opacitySum + 0.f; // absorption + scattering
-            const float nullCollision = majorant - extinction;
-
-            const float denom = extinction + abs(nullCollision); // to avoid re-computing this
-
-            const float p_absorb = opacitySum / denom;
-            //const float p_scatter = 0.0f / denom; //scattering probability is 0 for now
-            const float p_null = abs(nullCollision) / denom;
 
             // Sample event
-            if (volumeEvent < p_absorb)
+            if (selectedMeshID != -1)//(volumeEvent < p_absorb)
             {
                 prd.tHit = tWorld;
+                sampledTF = sampledTFs[selectedMeshID];
                 event = ABSORPTION;
                 break;
             }
-            // else if (volumeEvent < p_absorb /*+ p_scatter*/)
-            // {
-            //     event = SCATTERING;
-            //     break;
-            // }
-            // Null collision
             else
             {
                 event = NULL_COLLISION;
