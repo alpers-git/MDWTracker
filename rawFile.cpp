@@ -92,22 +92,22 @@ namespace raw
             switch (dataFormat_)
             {
             case DataFormat::Int8:
-                data_[i] = (float)((int8_t*)buf)[i];
+                data_[i] = ((float)((int8_t*)buf)[i] * 255 - 128);
                 break;
             case DataFormat::Int16:
-                data_[i] = (float)((int16_t*)buf)[i];
+                data_[i] = ((float)((int16_t*)buf)[i] * 65535 - 32768);
                 break;
             case DataFormat::Int32:
-                data_[i] = (float)((int32_t*)buf)[i];
+                data_[i] = ((float)((int32_t*)buf)[i] * 4294967295 - 2147483648);
                 break;
             case DataFormat::UInt8:
-                data_[i] = (float)((uint8_t*)buf)[i];
+                data_[i] = ((float)((uint8_t*)buf)[i] * 255);
                 break;
             case DataFormat::UInt16:
-                data_[i] = (float)((uint16_t*)buf)[i];
+                data_[i] = ((float)((uint16_t*)buf)[i] * 65535);
                 break;
             case DataFormat::UInt32:
-                data_[i] = (float)((uint32_t*)buf)[i];
+                data_[i] = ((float)((uint32_t*)buf)[i] * 4294967295);
                 break;
             case DataFormat::Float32:
                 data_[i] = ((float*)buf)[i];
