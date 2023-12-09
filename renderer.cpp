@@ -92,7 +92,7 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction[4].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[4].xfDomain)},
     {/* sentinel to mark end of list */}};
 
-    cudaTextureObject_t& create3DTexture(float* data, vec3i dims)
+    cudaTextureObject_t create3DTexture(float* data, vec3i dims)
     {
       //Create texture for scalars
         cudaTextureObject_t volumeTexture;
@@ -574,10 +574,12 @@ namespace dtracker
         auto data = rawPtrs[i]->getDataVector();
         //owlBufferUpload(scalarData[i], data.data());
 
+        printf("Created texture object \n");
         cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
 
+        const owl3ui dims = {uint(rawPtrs[i]->getDims().x), uint(rawPtrs[i]->getDims().y), uint(rawPtrs[i]->getDims().z)};
         //structured grid data
-        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), (const owl3ui &)rawPtrs[i]->getDims());
+        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), dims);
         owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
       }
       
