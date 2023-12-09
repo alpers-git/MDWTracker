@@ -388,7 +388,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
                 meshSelector -= sampledTFs[meshID].w;
             }
 
-            // Sample event
+            // Sample event if no mesh is selected none satisfies the condition---losers...
             if (selectedMeshID != -1)//(volumeEvent < p_absorb)
             {
                 prd.tHit = tWorld;
