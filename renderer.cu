@@ -299,7 +299,7 @@ namespace dtracker {
       + cellIdx.z * dims.x * dims.y) * numMeshes;
 
     for (size_t meshIndex=0; meshIndex < numMeshes; meshIndex++) {
-      d_mcGrid[cellID + meshIndex] = make_float2(0.f, -1.f);
+      d_mcGrid[cellID + meshIndex] = make_float2(1e20, -1e20);
     }
   }
 
@@ -805,26 +805,17 @@ namespace dtracker {
     //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
     //length in each dimension of the voxels in world space
     vec3f boxLenghts = (worldBounds.size()) / vec3f(vxlGridDims);
-    //check if we are accessing the last voxel in each dimension if so make that dimension lenght negative
     
     //3D index of the voxel in the grid
     vec3i vxlIdx = vec3i(primIdx % vxlGridDims.x, 
                         (primIdx / vxlGridDims.x) % vxlGridDims.y,
                          primIdx / (vxlGridDims.x * vxlGridDims.y));
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts,  scalars[primIdx]));
-    primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx + vec3i(1)) * boxLenghts, scalars[primIdx]));
-    //go over all neighboring voxels and fetch the scalar values for the 8 corners
-    for(int ix =0; ix < 2; ix++)
-      for(int iy =0; iy < 2; iy++)
-        for(int iz =0; iz < 2; iz++){
-          vec3i neighborIdx = vxlIdx + vec3i(ix, iy, iz);
-          if(neighborIdx.x < 0 || neighborIdx.x >= vxlGridDims.x) continue;
-          if(neighborIdx.y < 0 || neighborIdx.y >= vxlGridDims.y) continue;
-          if(neighborIdx.z < 0 || neighborIdx.z >= vxlGridDims.z) continue;
-          primBounds4.extend(vec4f(worldBounds.lower + vec3f(vxlIdx) * boxLenghts, scalars[neighborIdx.x + neighborIdx.y * vxlGridDims.x + neighborIdx.z * vxlGridDims.x * vxlGridDims.y]));
-        }
-
+                         
     //World space coordinates of the voxel corners
+    vec3f vxlLower = worldBounds.lower + vec3f(vxlIdx) * boxLenghts;
+    vec3f vxlUpper = vxlLower + boxLenghts;
+    primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
+    primBounds4.upper = vec4f(vxlUpper, scalars[primIdx]);
 
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4,meshIndex,numMeshes);
   }
