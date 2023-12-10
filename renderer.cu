@@ -155,7 +155,7 @@ void _recalculateDensityRanges(
 
       float maxDensityForVolume = 0.f;
       for (int i = addrMin; i <= addrMax; ++i) {
-        float density = tex2D<float4>(tf[tfID].colorMapTexture, float(i)/tf[tfID].numTexels ,0.5f).w * tf[tfID].opacityScale;
+        float density = tex2D<float4>(tf[tfID].colorMapTexture, (float(i)+0.5f)/tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
         if (i == addrMin) maxDensityForVolume = density;
         else maxDensityForVolume = max(maxDensityForVolume, density);
       }
@@ -810,7 +810,7 @@ namespace dtracker {
     vec3i vxlIdx = vec3i(primIdx % vxlGridDims.x, 
                         (primIdx / vxlGridDims.x) % vxlGridDims.y,
                          primIdx / (vxlGridDims.x * vxlGridDims.y));
-                         
+
     //World space coordinates of the voxel corners
     vec3f vxlLower = worldBounds.lower + vec3f(vxlIdx) * boxLenghts;
     vec3f vxlUpper = vxlLower + boxLenghts;
