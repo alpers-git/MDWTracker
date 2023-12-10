@@ -146,8 +146,8 @@ void _recalculateDensityRanges(
       float remappedMin = (remappedMin1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
       float remappedMax1 = (mx - tf[tfID].volDomain.lo) / (tf[tfID].volDomain.hi - tf[tfID].volDomain.lo);
       float remappedMax = (remappedMax1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
-      float addr1 = remappedMin * tf[tfID].numTexels;
-      float addr2 = remappedMax * tf[tfID].numTexels;
+      float addr1 = remappedMin * (tf[tfID].numTexels-1);
+      float addr2 = remappedMax * (tf[tfID].numTexels-1);
 
 
       int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), tf[tfID].numTexels-1);
@@ -813,9 +813,23 @@ namespace dtracker {
 
     //World space coordinates of the voxel corners
     vec3f vxlLower = worldBounds.lower + vec3f(vxlIdx) * boxLenghts;
-    vec3f vxlUpper = vxlLower + boxLenghts;
+
     primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
-    primBounds4.upper = vec4f(vxlUpper, scalars[primIdx]);
+    primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
+
+    for (int iz=-1;iz<=1;iz++)
+      for (int iy=-1;iy<=1;iy++)
+        for (int ix=-1;ix<=1;ix++) {
+          const uint32_t neighborIdx 
+            = (vxlIdx.x + ix)
+            + (vxlIdx.y + iy) * vxlGridDims.x
+            + (vxlIdx.z + iz) * vxlGridDims.x * vxlGridDims.y;
+            if(vxlIdx.x + ix < 0 || vxlIdx.x + ix >= vxlGridDims.x) continue;
+            if(vxlIdx.y + iy < 0 || vxlIdx.y + iy >= vxlGridDims.y) continue;
+            if(vxlIdx.z + iz < 0 || vxlIdx.z + iz >= vxlGridDims.z) continue;
+            
+          primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
+        }
 
     rasterBox(d_mcGrid,dims,worldBounds,primBounds4,meshIndex,numMeshes);
   }
