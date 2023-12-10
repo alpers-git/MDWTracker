@@ -694,8 +694,10 @@ namespace dtracker
   void Renderer::Update()
   {
     auto glfw = GLFWHandler::getInstance();
+#if !OFFLINE_VIEWER
     if (glfw->getWindowSize() != fbSize)
       Resize(glfw->getWindowSize());
+#endif
     owlParamsSet1f(lp, "volume.dt", dt);
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     owlParamsSet1b(lp, "enableShadows", enableShadows);

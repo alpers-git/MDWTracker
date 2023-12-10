@@ -18,6 +18,11 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+#--------------compile options----------------#
+# Set the default value to false
+option(OFFLINE_VIEWER "Enable offline viewer" OFF)
+#---------------------------------------------#
+
 # if linux
 if(UNIX)
   find_package(SDL2 REQUIRED)
@@ -46,6 +51,7 @@ set(OWL_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 add_definitions(${UMESH_DEFINITIONS})
 include_directories(submodules/umesh)
+set(UMESH_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 #----------------------------------------------------
 
 #-------------------- imgui -------------------------
@@ -111,4 +117,5 @@ target_link_libraries(dTViewer
   umesh
   ImGui
   ImGuiTFN)
+ target_compile_definitions(dTViewer PRIVATE OFFLINE_VIEWER=${OFFLINE_VIEWER})
 #----------------------------------------------------

@@ -45,6 +45,7 @@ private:
     bool camGivenAsParam = false;
     short heatMapMode = 0;
     float dt = -1.f;
+    unsigned int offlineFrames = 100;
 
     friend class dtracker::Renderer;
 };
@@ -84,6 +85,12 @@ Viewer::Viewer(int argc, char *argv[])
         .help("correct the bounds of the raw file to the grid dimensions")
         .default_value(false)
         .implicit_value(true);
+#if OFFLINE_VIEWER
+    program.add_argument("-n", "--num-frame")
+        .help("number of frames to render")
+        .default_value(100)
+        .scan<'u', unsigned int>();
+#endif
 
     try
     {
@@ -97,14 +104,17 @@ Viewer::Viewer(int argc, char *argv[])
     }
 
     renderer = std::make_shared<dtracker::Renderer>();
+#if !OFFLINE_VIEWER
     GLFWHandler::getInstance()->initWindow(720, 720, "DTracker Viewer");
-
     // init imgui
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
 
     // Initialize ImGui
     InitImGui();
+#else
+        offlineFrames = program.get<unsigned int>("-n");
+#endif
 
     if (program.is_used("-c"))
     {
@@ -276,7 +286,9 @@ const ImVec4 green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
 
 void Viewer::Run()
 {
+#if !OFFLINE_VIEWER
     GLFWHandler *glfw = GLFWHandler::getInstance();
+#endif 
     renderer->Init(!camGivenAsParam);
     if(dt > 0.f)
         renderer->SetDt(dt);
@@ -296,16 +308,24 @@ void Viewer::Run()
         renderer->SetXFRange(vec2f(tfnWidgets[i].GetRange().x,
                 tfnWidgets[i].GetRange().y), i);
     }
-    while (!glfw->windowShouldClose())
+    while (
+#if OFFLINE_VIEWER
+        renderer->frameID < offlineFrames
+#else
+        !glfw->windowShouldClose()
+#endif  
+        )
     {
+#if !OFFLINE_VIEWER
         glfw->pollEvents();
 
         glfw->mouseState.imGuiPolling = ImGui::GetIO().WantCaptureMouse;
+#endif  
 
         renderer->Render(heatMapMode);
 
         renderer->Update();
-
+#if !OFFLINE_VIEWER
         glfw->draw((const uint32_t *)
                        owlBufferGetPointer(renderer->frameBuffer, 0));
 
@@ -462,9 +482,16 @@ void Viewer::Run()
 
         if (glfw->mouseState.middleButtonDown)
             CenterMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
+#endif
     }
+#if OFFLINE_VIEWER
+//write the frame as number of frames taken
+    TakeSnapshot("output_over_" + std::to_string(renderer->frameID) + "frames.png");
+#endif
     renderer->Terminate();
+#if !OFFLINE_VIEWER
     glfw->destroyWindow();
+#endif
 }
 
 int main(int argc, char *argv[])
