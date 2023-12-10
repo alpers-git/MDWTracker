@@ -21,6 +21,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 #--------------compile options----------------#
 # Set the default value to false
 option(OFFLINE_VIEWER "Enable offline viewer" OFF)
+
+if (OFFLINE_VIEWER)
+add_compile_definitions(OFFLINE_VIEWER=1)
+else()
+add_compile_definitions(OFFLINE_VIEWER=0)
+endif()
 #---------------------------------------------#
 
 # if linux

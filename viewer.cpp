@@ -113,7 +113,8 @@ Viewer::Viewer(int argc, char *argv[])
     // Initialize ImGui
     InitImGui();
 #else
-        offlineFrames = program.get<unsigned int>("-n");
+        if(program.is_used("-n"))
+            offlineFrames = program.get<unsigned int>("-n");
 #endif
 
     if (program.is_used("-c"))
@@ -191,7 +192,7 @@ Viewer::Viewer(int argc, char *argv[])
     }
     
     // init transfer function widgets
-    tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles);
+    tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles, OFFLINE_VIEWER);
     // if tf argument is given, load it
     if (program.is_used("-t"))
     {
