@@ -526,6 +526,19 @@ void Viewer::Run()
 #endif
     }
 #if OFFLINE_VIEWER
+//print scene info
+    printf("============ Scene Info ============\n");
+    printf("Number of frames: %u\n", renderer->frameID - wuFrames);
+    printf("Shadowing: %s\n", renderer->enableShadows ? "on" : "off");
+    printf("Macrocell dimesions: %u, %u, %u\n", renderer->macrocellDims.x, renderer->macrocellDims.y, renderer->macrocellDims.z);
+    for(int i = 0; i < numFiles; i++)
+    {
+        printf("Volume #%d size: %ux%ux%u (%u MiB)\n", 
+            i, renderer->rawPtrs[i]->getDims().x, renderer->rawPtrs[i]->getDims().y,
+            renderer->rawPtrs[i]->getDims().z, renderer->rawPtrs[i]->getDims().x *
+            renderer->rawPtrs[i]->getDims().y * renderer->rawPtrs[i]->getDims().z *
+            renderer->rawPtrs[i]->getBytesPerVoxel() / 1024 / 1024);
+    }
     printf("avg. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->avgTime, renderer->avgTime);
     printf("best. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->minTime, renderer->minTime);
 //write the frame as number of frames taken
