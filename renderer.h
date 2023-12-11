@@ -97,7 +97,7 @@ public:
 
     /* timing */
     float avgTime = 0.0f;
-    float minTime = std::numeric_limits<float>::max();;
+    float minTime = std::numeric_limits<float>::max();
     float totalTime = 0.0f;
 
     /* scene */

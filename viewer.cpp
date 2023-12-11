@@ -46,6 +46,7 @@ private:
     short heatMapMode = 0;
     float dt = -1.f;
     unsigned int offlineFrames = 100;
+    unsigned int wuFrames = 0;
 
     friend class dtracker::Renderer;
 };
@@ -85,10 +86,18 @@ Viewer::Viewer(int argc, char *argv[])
         .help("correct the bounds of the raw file to the grid dimensions")
         .default_value(false)
         .implicit_value(true);
+    program.add_argument("-r", "--resolution")
+        .help("resolution of the framebuffer")
+        .nargs(2)
+        .scan<'u', unsigned int>();
 #if OFFLINE_VIEWER
     program.add_argument("-n", "--num-frame")
         .help("number of frames to render")
         .default_value(100)
+        .scan<'u', unsigned int>();
+    program.add_argument("-wu", "warm-up")
+        .help("number of frames to render before measuring")
+        .default_value(0)
         .scan<'u', unsigned int>();
 #endif
 
@@ -105,7 +114,7 @@ Viewer::Viewer(int argc, char *argv[])
 
     renderer = std::make_shared<dtracker::Renderer>();
 #if !OFFLINE_VIEWER
-    GLFWHandler::getInstance()->initWindow(720, 720, "DTracker Viewer");
+    GLFWHandler::getInstance()->initWindow(renderer->fbSize.x, renderer->fbSize.y, "DTracker Viewer");
     // init imgui
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
@@ -113,9 +122,16 @@ Viewer::Viewer(int argc, char *argv[])
     // Initialize ImGui
     InitImGui();
 #else
-        if(program.is_used("-n"))
-            offlineFrames = program.get<unsigned int>("-n");
+    if(program.is_used("-n"))
+        offlineFrames = program.get<unsigned int>("-n");
+    if(program.is_used("-wu"))
+        wuFrames = program.get<unsigned int>("-wu");
 #endif
+    if (program.is_used("-r"))
+    {
+        auto res = program.get<std::vector<unsigned int>>("-r");
+        renderer->fbSize = vec2i(res[0], res[1]);
+    }
 
     if (program.is_used("-c"))
     {
@@ -311,7 +327,7 @@ void Viewer::Run()
     }
     while (
 #if OFFLINE_VIEWER
-        renderer->frameID < offlineFrames
+        renderer->frameID < (offlineFrames + wuFrames)
 #else
         !glfw->windowShouldClose()
 #endif  
@@ -321,6 +337,9 @@ void Viewer::Run()
         glfw->pollEvents();
 
         glfw->mouseState.imGuiPolling = ImGui::GetIO().WantCaptureMouse;
+#else   
+        if(renderer->frameID == wuFrames)
+            renderer->ResetAccumulation();
 #endif  
 
         renderer->Render(heatMapMode);
@@ -483,11 +502,19 @@ void Viewer::Run()
 
         if (glfw->mouseState.middleButtonDown)
             CenterMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
+#else   
+        if(renderer->frameID < wuFrames)
+            printf("Remaining warm-up ");
+        else
+            printf("Rendered ");
+        printf("frame(s) %u\n", owl::abs(renderer->frameID - (int)wuFrames));
 #endif
     }
 #if OFFLINE_VIEWER
+    printf("avg. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->avgTime, renderer->avgTime);
+    printf("best. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->minTime, renderer->minTime);
 //write the frame as number of frames taken
-    TakeSnapshot("output_over_" + std::to_string(renderer->frameID) + "frames.png");
+    TakeSnapshot("out_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
 #endif
     renderer->Terminate();
 #if !OFFLINE_VIEWER
