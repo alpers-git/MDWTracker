@@ -477,7 +477,7 @@ namespace dtracker
       meshType = MeshType::RAW;
       if (macrocellDims.x == 0 || macrocellDims.y == 0 || macrocellDims.z == 0)
       {
-        auto tmp = CalculateMCGridDims(8);
+        auto tmp = CalculateMCGridDims(4);
         for (int i = 0; i < 3; i++)
           if (macrocellDims[i] == 0)
             macrocellDims[i] = tmp[i];

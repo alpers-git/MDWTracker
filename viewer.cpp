@@ -90,6 +90,11 @@ Viewer::Viewer(int argc, char *argv[])
         .help("resolution of the framebuffer")
         .nargs(2)
         .scan<'u', unsigned int>();
+    program.add_argument("-sh", "--shadows")
+        .help("enable shadows. Takes light direction<x,y,z>, light intensity, ambient intensity")
+        .scan<'g', float>()
+        .nargs(3,5);
+
 #if OFFLINE_VIEWER
     program.add_argument("-n", "--num-frame")
         .help("number of frames to render")
@@ -167,6 +172,16 @@ Viewer::Viewer(int argc, char *argv[])
     {
         auto bg = program.get<std::vector<float>>("-bg");
         renderer->bgColor = vec3f(bg[0], bg[1], bg[2]);
+    }
+    if(program.is_used("-sh"))
+    {
+        auto sh = program.get<std::vector<float>>("-sh");
+        renderer->enableShadows = true;
+        renderer->lightDir = vec3f(sh[0], sh[1], sh[2]);
+        if (sh.size() > 3)
+            renderer->lightIntensity = sh[3];
+        if (sh.size() > 4)
+            renderer->ambient = sh[4];
     }
     if(program.is_used("-fu"))
     {
