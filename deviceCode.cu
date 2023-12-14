@@ -247,12 +247,12 @@ OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
 
 
 //define an enum for different volume rendering events
-enum VolumeEvent
-{
-    ABSORPTION,
-    SCATTERING,
-    NULL_COLLISION // also used as no collision
-};
+// enum VolumeEvent
+// {
+//     ABSORPTION,
+//     SCATTERING,
+//     NULL_COLLISION // also used as no collision
+// };
 OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 ()
 {
@@ -285,8 +285,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     const float gridToWorldT = 1.f / length(dir);
     dir = normalize(dir);
 
-    VolumeEvent event = NULL_COLLISION;
-    float4 sampledTF = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+    //VolumeEvent event = NULL_COLLISION;
+    float4 sample = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
@@ -311,8 +311,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
             // A cell boundary has been hit
             if (t >= t1){
-                event = NULL_COLLISION;
-                prd.rejections++;
+                //event = NULL_COLLISION;
                 break; // go to next cell
             }
 
@@ -322,76 +321,39 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             // A world boundary has been hit
             if (tWorld >= prd.t1)
             {
-                event = NULL_COLLISION;
-                //prd.rejections++;
+                //event = NULL_COLLISION;
+                prd.rejections++;
                 return false; // terminate traversal
             }
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
-            float opacitySum = 0.0f;
-            float4 sampledTFs[MAX_MESHES];
-
-            prd.samples++;
-
-            for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
-            {
-                const float value = sampleVolumeTexture(xTexture, meshID);
-                if(isnan(value)) // miss
-                {
-                    event = NULL_COLLISION;
-                    continue;
-                }
-                sampledTFs[meshID] = transferFunction(value, meshID);
-                opacitySum += sampledTFs[meshID].w;
-            }
-            if(opacitySum == 0.0f)
-                continue;
-
-            //sample a mesh based on its opacity
-            int selectedMeshID = -1;
             float meshSelector = prd.rng() * majorant;
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
-                if(meshSelector < sampledTFs[meshID].w)
+                const float value = sampleVolumeTexture(xTexture, meshID);
+                prd.samples++;
+                if(isnan(value)) // miss: this shouldnt happen in structured volumes
                 {
-                    selectedMeshID = meshID;
-                    break;
+                    //event = NULL_COLLISION;
+                    continue;
                 }
-                meshSelector -= sampledTFs[meshID].w;
+                const float4 curSample = transferFunction(value, meshID);
+                //sample a mesh based on its opacity
+                if(curSample.w > 0.0f && meshSelector < curSample.w)
+                {
+                    //event = ABSORPTION;
+                    prd.tHit = tWorld;
+                    prd.rgba = curSample;
+                    prd.rgba.w = 1.0f;
+                    prd.missed = false;
+                    return false;
+                }
+                meshSelector -= curSample.w;
             }
-
-            // Sample event if no mesh is selected none satisfies the condition---losers...
-            if (selectedMeshID != -1)//(volumeEvent < p_absorb)
-            {
-                prd.tHit = tWorld;
-                sampledTF = sampledTFs[selectedMeshID];
-                event = ABSORPTION;
-                break;
-            }
-            else
-            {
-                event = NULL_COLLISION;
-                prd.rejections++;
-            }
-        }
-
-        switch (event)
-        {
-        case NULL_COLLISION:
-            return true; // move to next cell with dda
-        case ABSORPTION:
-            prd.rgba = sampledTF;
-            prd.rgba.w = 1.0f;
-            //prd.tHit = t;
-            prd.missed = false;
-            return false; // terminate traversal
-        case SCATTERING: //shouldnt happen
-            prd.rgba = sampledTF;
-            prd.rgba.w = 1.0f;
-            //prd.tHit = t;
-            prd.missed = false;
-            return false; // terminate traversal
+            //if the process survies all meshes, it is a null collision, keep going
+            //event = NULL_COLLISION;
+            prd.rejections++;
         }
 
         return true;
