@@ -271,13 +271,13 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     // assuming ray is already in voxel space
     box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
                       {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
-    vec3ui griddim = lp.volume.macrocellDims;
+    vec3ui mcDim = lp.volume.macrocellDims;
 
     org = org - worlddim.lower;
 
     const vec3f unitToWorld = worlddim.upper - worlddim.lower;
     const vec3f worldToUnit = 1.f / unitToWorld;
-    const vec3f unitToGrid = vec3f(griddim.x, griddim.y, griddim.z);
+    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
     const vec3f gridToUnit = 1.f / unitToGrid;
 
     org = unitToGrid *worldToUnit * org;
@@ -289,7 +289,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     float4 sampledTF = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
-        const int cellID = cellIdx.x + cellIdx.y * griddim.x + cellIdx.z * griddim.x * griddim.y;
+        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
         float majorant = lp.volume.majorants[cellID];
 
         if(prd.debug)
@@ -394,7 +394,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
         return true;
     };
-    dda::dda3(org,dir,1e20f,griddim,lambda,false);
+    dda::dda3(org,dir,1e20f,mcDim,lambda,false);
 }
 
 OPTIX_MISS_PROGRAM(miss)
@@ -799,12 +799,7 @@ OPTIX_INTERSECT_PROGRAM(hexahedraPointQuery)
   {
     RayPayload &prd = owl::getPRD<RayPayload>();
     const auto &self = owl::getProgramData<MacrocellData>();
-    const int primID = optixGetPrimitiveIndex() + self.offset; 
-    
-    // avoid intersecting the same brick twice
-    // if (primID == prd.prevNode) return;
-    //if (prd.rgba.w > 1.000001f) return;
-
+    const int primID = optixGetPrimitiveIndex() + self.offset;
 
     box4f bbox = self.bboxes[primID];
     float3 lb = make_float3(bbox.lower.x, bbox.lower.y, bbox.lower.z);

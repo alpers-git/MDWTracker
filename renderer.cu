@@ -43,8 +43,7 @@ void _recalculateDensityRanges(
     {
       // empty box
       if (mx < mn) {
-        //maxima[primID] = 0.f;
-        continue;//return;
+        continue;
       }
 
       // transform data min max to transfer function space
@@ -67,18 +66,6 @@ void _recalculateDensityRanges(
       maxDensity += maxDensityForVolume;
     }
     maxima[primID] = maxDensity/(float)numMeshes;
-
-    // if(!is_background) {
-    //   printf("box %u bounds {%f %f %f %f %f %f} majorant %f\n", primID, 
-    //     bboxes[primID].lower.x,
-    //     bboxes[primID].lower.y,
-    //     bboxes[primID].lower.z,
-    //     bboxes[primID].upper.x,
-    //     bboxes[primID].upper.y,
-    //     bboxes[primID].upper.z,
-    //     maxDensity
-    //   );
-    // }
 }
 
 __global__
@@ -787,10 +774,10 @@ namespace dtracker {
   }
 
   __global__ void rasterElements(float2 *d_mcGrid,
-                             const vec3i dims,
+                             const vec3i mcDims,
                              const box3f worldBounds,
                              const float *scalars,
-                             const vec3i vxlGridDims,
+                             const vec3i gridDims,
                              const size_t meshIndex=0,
                              size_t numMeshes=1
                              )
@@ -799,17 +786,17 @@ namespace dtracker {
       = blockIdx.x
       + blockIdx.y * MAX_GRID_SIZE;
     uint64_t primIdx = blockID*blockDim.x + threadIdx.x;
-    const uint64_t totalElements = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
+    const uint64_t totalElements = gridDims.x * gridDims.y * gridDims.z;
     if (primIdx >= totalElements) return;
     box4f primBounds4 = box4f();
     //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
     //length in each dimension of the voxels in world space
-    vec3f boxLenghts = (worldBounds.size()) / vec3f(vxlGridDims);
+    vec3f boxLenghts = (worldBounds.size()) / vec3f(gridDims);
     
     //3D index of the voxel in the grid
-    vec3i vxlIdx = vec3i(primIdx % vxlGridDims.x, 
-                        (primIdx / vxlGridDims.x) % vxlGridDims.y,
-                         primIdx / (vxlGridDims.x * vxlGridDims.y));
+    vec3i vxlIdx = vec3i(primIdx % gridDims.x, 
+                        (primIdx / gridDims.x) % gridDims.y,
+                         primIdx / (gridDims.x * gridDims.y));
 
     //World space coordinates of the voxel corners
     vec3f vxlLower = worldBounds.lower + vec3f(vxlIdx) * boxLenghts;
@@ -822,16 +809,16 @@ namespace dtracker {
         for (int ix=-1;ix<=1;ix++) {
           const uint32_t neighborIdx 
             = (vxlIdx.x + ix)
-            + (vxlIdx.y + iy) * vxlGridDims.x
-            + (vxlIdx.z + iz) * vxlGridDims.x * vxlGridDims.y;
-            if(vxlIdx.x + ix < 0 || vxlIdx.x + ix >= vxlGridDims.x) continue;
-            if(vxlIdx.y + iy < 0 || vxlIdx.y + iy >= vxlGridDims.y) continue;
-            if(vxlIdx.z + iz < 0 || vxlIdx.z + iz >= vxlGridDims.z) continue;
+            + (vxlIdx.y + iy) * gridDims.x
+            + (vxlIdx.z + iz) * gridDims.x * gridDims.y;
+            if(vxlIdx.x + ix < 0 || vxlIdx.x + ix >= gridDims.x) continue;
+            if(vxlIdx.y + iy < 0 || vxlIdx.y + iy >= gridDims.y) continue;
+            if(vxlIdx.z + iz < 0 || vxlIdx.z + iz >= gridDims.z) continue;
             
           primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
         }
 
-    rasterBox(d_mcGrid,dims,worldBounds,primBounds4,meshIndex,numMeshes);
+    rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numMeshes);
   }
 
   __global__ void rasterElements(box4f *d_mcGrid,
