@@ -216,7 +216,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if (pixelID.x == lp.fbSize.x / 2 || pixelID.y == lp.fbSize.y / 2 || 
         pixelID.x == lp.fbSize.x / 2 + 1 || pixelID.y == lp.fbSize.y / 2 + 1 || 
         pixelID.x == lp.fbSize.x / 2 - 1 || pixelID.y == lp.fbSize.y / 2 - 1)
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(finalColor.z, finalColor.y, finalColor.x, 1.f));
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(1.0f-finalColor.x, 1.0f-finalColor.y, 1.0f-finalColor.y, 1.f));
 #endif
     }
 }
