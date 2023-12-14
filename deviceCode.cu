@@ -262,7 +262,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     prd.missed = true;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
-    float unit = lp.volume.dt;
+    float unit = lp.volume.globalOpacity;
 
     vec3f worldOrg = optixGetWorldRayOrigin();
     vec3f org = optixGetWorldRayOrigin();

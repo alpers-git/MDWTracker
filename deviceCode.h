@@ -77,7 +77,7 @@ struct LaunchParams
     int numModes;
     int meshType;
     int numAdaptiveSamplingRays;
-    float dt;
+    float globalOpacity;
 
     vec3ui macrocellDims;
     box3f rootDomain;

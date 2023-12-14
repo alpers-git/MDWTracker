@@ -101,7 +101,7 @@ public:
     float totalTime = 0.0f;
 
     /* scene */
-    float dt = 0.05f;
+    float globalOpacity = 0.05f;
     bool enableShadows = false;
     bool enableAccumulation = true;
     vec3f lightDir = vec3f(0.0001f, -1.f, 0.0001f);
@@ -141,10 +141,10 @@ public:
     void SetXFRange(vec2f xfDomain, size_t tfID = 0);
     /*! recalculates the majorants*/
     void RecalculateDensityRanges();
-    /*! sets the dt to avg span /2 of bounding boxes of elements*/
-    void ResetDt();
-    /*! sets the dt to a fixed value*/
-    void SetDt(float dt);
+    /*! sets the globalOpacity to avg span /2 of bounding boxes of elements*/
+    void ResetGlobalOpacity();
+    /*! sets the globalOpacity to a fixed value*/
+    void SetGlobalOpacity(float globalOpacity);
     /*! sets the light direction*/
     void SetLightDirection(vec3f lightDir);
     /*! sets the light intensity*/

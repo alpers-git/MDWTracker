@@ -54,7 +54,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.macrocellDims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.macrocellDims)},
     {"volume.macrocells",   OWL_BUFPTR,       OWL_OFFSETOF(LaunchParams,volume.macrocells) },
     {"volume.majorants",    OWL_BUFPTR,       OWL_OFFSETOF(LaunchParams,volume.majorants) },
-    {"volume.dt", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, volume.dt)},
+    {"volume.globalOpacity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, volume.globalOpacity)},
     {"volume.globalBoundsLo", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsLo)},
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
     {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
@@ -663,7 +663,7 @@ namespace dtracker
       owlParamsSet2f(lp, std::string("transferFunction[" + std::to_string(i) + "].volumeDomain").c_str(),
           owl2f{tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper});
 
-    ResetDt();
+    ResetGlobalOpacity();
 
     owlParamsSet1i(lp, "volume.numMeshes", meshType == MeshType::UMESH ? umeshPtrs.size() : rawPtrs.size());
 
@@ -698,7 +698,7 @@ namespace dtracker
     if (glfw->getWindowSize() != fbSize)
       Resize(glfw->getWindowSize());
 #endif
-    owlParamsSet1f(lp, "volume.dt", dt);
+    owlParamsSet1f(lp, "volume.globalOpacity", globalOpacity);
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     owlParamsSet1b(lp, "enableShadows", enableShadows);
     owlParamsSet1b(lp, "enableAccumulation", enableAccumulation);
@@ -930,7 +930,7 @@ namespace dtracker
     }
   }
 
-  void Renderer::ResetDt()
+  void Renderer::ResetGlobalOpacity()
   {
     float minSpan = std::numeric_limits<float>::max();
     if (meshType == MeshType::UMESH)
@@ -1009,7 +1009,7 @@ namespace dtracker
         //calculate length of span
         minSpan = min(minSpan,max(length(vec3f(bb.span())), 0.05f));
       }
-      SetDt(minSpan * 0.5f);
+      SetGlobalOpacity(minSpan * 0.5f);
     }
     else if (meshType == MeshType::RAW)
     {
@@ -1020,18 +1020,18 @@ namespace dtracker
         const auto& dims = rawPtrs[i]->getDims();
         minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
       }
-      SetDt(minVoxelSideLength);
+      SetGlobalOpacity(minVoxelSideLength);
     }
     else
       exit(1);
     
   }
 
-  void Renderer::SetDt(float newDt)
+  void Renderer::SetGlobalOpacity(float newDt)
   {
-    dt = max(newDt, 1e-4f);
-    printf("Set dt to : %f\n", dt);
-    owlParamsSet1f(lp, "volume.dt", dt);
+    globalOpacity = max(newDt, 1e-4f);
+    printf("Set globalOpacity to : %f\n", globalOpacity);
+    owlParamsSet1f(lp, "volume.globalOpacity", globalOpacity);
     ResetAccumulation();
   }
 
