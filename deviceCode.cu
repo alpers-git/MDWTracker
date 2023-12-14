@@ -305,6 +305,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
         while (true)
         {
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
+            //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
+            // more/less probable by altering the length of the woodcock step size
             t = t - (log(1.0f - prd.rng()) / majorant) * unit;
 
             // A cell boundary has been hit
