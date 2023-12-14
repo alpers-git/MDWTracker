@@ -286,7 +286,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     dir = normalize(dir);
 
     //VolumeEvent event = NULL_COLLISION;
-    float4 sample = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
