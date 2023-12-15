@@ -43,7 +43,7 @@ private:
     const float degrees_per_drag_fraction = 250;
     const float pixels_per_move = 90.f;
     bool camGivenAsParam = false;
-    short heatMapMode = 0;
+    int heatMapMode = 0;
     float globalOpacity = -1.f;
     unsigned int offlineFrames = 100;
     unsigned int wuFrames = 0;
@@ -414,8 +414,7 @@ void Viewer::Run()
         globalOpacity = renderer->globalOpacity;
         if(ImGui::DragFloat("glob. Opacity", &globalOpacity, 0.005f, 0.0f, 1e20f, "%.5f"))
             renderer->SetGlobalOpacity(globalOpacity);
-        ImGui::SameLine();
-        if(ImGui::Button("Reset Dt"))
+        if(ImGui::Button("Reset G.O."))
             renderer->ResetGlobalOpacity();
         //render radio button group for heatmap mode
         ImGui::Text("Heatmap Mode");
@@ -429,6 +428,7 @@ void Viewer::Run()
         if(ImGui::RadioButton("rejects", (int*)&heatMapMode, 2))
             renderer->ResetAccumulation();
         ImGui::EndGroup();
+
         if(ImGui::Checkbox("Accumulation", &(renderer->enableAccumulation)))
             renderer->ResetAccumulation();
         ImGui::End();

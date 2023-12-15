@@ -117,6 +117,7 @@ void _recalculateDensityRanges(
     if (nodeID >= numPrims) return;
 
     float maxDensity = 0.f;
+    maxima[nodeID] = 0.f;
     for (size_t tfID = 0; tfID < numMeshes; tfID++)
     {
       float mn = macrocells[nodeID * numMeshes + tfID].x;
@@ -133,12 +134,12 @@ void _recalculateDensityRanges(
       float remappedMin = (remappedMin1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
       float remappedMax1 = (mx - tf[tfID].volDomain.lo) / (tf[tfID].volDomain.hi - tf[tfID].volDomain.lo);
       float remappedMax = (remappedMax1 - tf[tfID].xfDomain.lo) / (tf[tfID].xfDomain.hi - tf[tfID].xfDomain.lo);
-      float addr1 = remappedMin * (tf[tfID].numTexels-1);
-      float addr2 = remappedMax * (tf[tfID].numTexels-1);
+      float addr1 = remappedMin * (tf[tfID].numTexels);
+      float addr2 = remappedMax * (tf[tfID].numTexels);
 
 
-      int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), tf[tfID].numTexels-1);
-      int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), tf[tfID].numTexels-1);
+      int addrMin = min(max(int(min((addr1), (addr2))), 0), tf[tfID].numTexels);
+      int addrMax = min(max(int(max((addr1), (addr2))), 0), tf[tfID].numTexels);
 
       float maxDensityForVolume = 0.f;
       for (int i = addrMin; i <= addrMax; ++i) {
@@ -146,6 +147,10 @@ void _recalculateDensityRanges(
         if (i == addrMin) maxDensityForVolume = density;
         else maxDensityForVolume = max(maxDensityForVolume, density);
       }
+      float density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr1)+0.5f)/tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+      maxDensityForVolume = max(maxDensityForVolume, density);
+      density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr2)+0.5f)/tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+      maxDensityForVolume = max(maxDensityForVolume, density);
       maxDensity += maxDensityForVolume;
     }
     maxima[nodeID] = maxDensity;
@@ -803,6 +808,11 @@ namespace dtracker {
 
     primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
     primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
+
+    if(primIdx == 269279)
+      printf("primIdx: %d, primBounds4: %f %f %f %f %f %f %f %f\n", primIdx, primBounds4.lower.x,
+        primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
+        primBounds4.upper.z, primBounds4.upper.w);
 
     for (int iz=-1;iz<=1;iz++)
       for (int iy=-1;iy<=1;iy++)
