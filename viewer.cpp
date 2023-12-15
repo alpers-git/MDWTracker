@@ -47,6 +47,7 @@ private:
     float globalOpacity = -1.f;
     unsigned int offlineFrames = 100;
     unsigned int wuFrames = 0;
+    std::string outputFileName = "out";
 
     friend class dtracker::Renderer;
 };
@@ -104,6 +105,8 @@ Viewer::Viewer(int argc, char *argv[])
         .help("number of frames to render before measuring")
         .default_value(0)
         .scan<'u', unsigned int>();
+    program.add_argument("-o", "--output")
+        .help("output file name");
 #endif
 
     try
@@ -137,6 +140,9 @@ Viewer::Viewer(int argc, char *argv[])
         auto res = program.get<std::vector<unsigned int>>("-r");
         renderer->fbSize = vec2i(res[0], res[1]);
     }
+    
+    if(program.is_used("-o"))
+        outputFileName = program.get<std::string>("-o");
 
     if (program.is_used("-c"))
     {
@@ -542,7 +548,7 @@ void Viewer::Run()
     printf("avg. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->avgTime, renderer->avgTime);
     printf("best. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->minTime, renderer->minTime);
 //write the frame as number of frames taken
-    TakeSnapshot("out_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+    TakeSnapshot(outputFileName + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
 #endif
     renderer->Terminate();
 #if !OFFLINE_VIEWER
