@@ -191,13 +191,13 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if(lp.heatMapMode == 1)
     {
         //heatmap
-        int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 50);
+        int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numMeshes);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 250.f, samples / 250.f, samples / 250.f, 1.f));
     }
     else if(lp.heatMapMode == 2)
     {
         //heatmap
-        int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 50);
+        int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numMeshes);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / 250.f, rejections / 250.f, rejections / 250.f, 1.f));
     }
     else
