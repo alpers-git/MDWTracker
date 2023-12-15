@@ -794,12 +794,12 @@ namespace dtracker {
     vec3f boxLenghts = (worldBounds.size()) / vec3f(gridDims);
     
     //3D index of the voxel in the grid
-    vec3i vxlIdx = vec3i(primIdx % gridDims.x, 
+    vec3i primIdx3D = vec3i(primIdx % gridDims.x, 
                         (primIdx / gridDims.x) % gridDims.y,
                          primIdx / (gridDims.x * gridDims.y));
 
     //World space coordinates of the voxel corners
-    vec3f vxlLower = worldBounds.lower + vec3f(vxlIdx) * boxLenghts;
+    vec3f vxlLower = worldBounds.lower + vec3f(primIdx3D) * boxLenghts;
 
     primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
     primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
@@ -808,12 +808,12 @@ namespace dtracker {
       for (int iy=-1;iy<=1;iy++)
         for (int ix=-1;ix<=1;ix++) {
           const uint32_t neighborIdx 
-            = (vxlIdx.x + ix)
-            + (vxlIdx.y + iy) * gridDims.x
-            + (vxlIdx.z + iz) * gridDims.x * gridDims.y;
-            if(vxlIdx.x + ix < 0 || vxlIdx.x + ix >= gridDims.x) continue;
-            if(vxlIdx.y + iy < 0 || vxlIdx.y + iy >= gridDims.y) continue;
-            if(vxlIdx.z + iz < 0 || vxlIdx.z + iz >= gridDims.z) continue;
+            = (primIdx3D.x + ix)
+            + (primIdx3D.y + iy) * gridDims.x
+            + (primIdx3D.z + iz) * gridDims.x * gridDims.y;
+            if(primIdx3D.x + ix < 0 || primIdx3D.x + ix >= gridDims.x) continue;
+            if(primIdx3D.y + iy < 0 || primIdx3D.y + iy >= gridDims.y) continue;
+            if(primIdx3D.z + iz < 0 || primIdx3D.z + iz >= gridDims.z) continue;
             
           primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
         }

@@ -275,11 +275,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
 
     org = org - worlddim.lower;
 
-    const vec3f unitToWorld = worlddim.upper - worlddim.lower;
-    const vec3f worldToUnit = 1.f / unitToWorld;
+    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
     const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    const vec3f gridToUnit = 1.f / unitToGrid;
-
+    
     org = unitToGrid *worldToUnit * org;
     vec3f dir = worldToUnit * unitToGrid * worldDir;
     const float gridToWorldT = 1.f / length(dir);
@@ -298,7 +296,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             return true;
 
         float t = t0;
-        //const float gridToWorldT = 1.f / length(xfmVector(unitToGrid, xfmVector(worldToUnit, worldDir)));
 
         // Sample free-flight distance
         while (true)
