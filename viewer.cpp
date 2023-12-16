@@ -47,6 +47,7 @@ private:
     float globalOpacity = -1.f;
     unsigned int offlineFrames = 100;
     unsigned int wuFrames = 0;
+    unsigned int nthFrame = 0;
     std::string outputFileName = "out";
 
     friend class dtracker::Renderer;
@@ -105,6 +106,9 @@ Viewer::Viewer(int argc, char *argv[])
         .help("number of frames to render before measuring")
         .default_value(0)
         .scan<'u', unsigned int>();
+    program.add_argument("-nt", "--nth-frame")
+        .help("dump every Nth frame")
+        .scan<'u', unsigned int>();
     program.add_argument("-o", "--output")
         .help("output file name");
 #endif
@@ -134,6 +138,9 @@ Viewer::Viewer(int argc, char *argv[])
         offlineFrames = program.get<unsigned int>("-n");
     if(program.is_used("-wu"))
         wuFrames = program.get<unsigned int>("-wu");
+    printf("used %d value %u\n", program.is_used("-nt"), nthFrame);
+    if(program.is_used("-nt"))
+        nthFrame = program.get<unsigned int>("-nt");
 #endif
     if (program.is_used("-r"))
     {
@@ -527,7 +534,11 @@ void Viewer::Run()
         if(renderer->frameID < wuFrames)
             printf("Remaining warm-up ");
         else
+        {
             printf("Rendered ");
+            if( nthFrame != 0 && (renderer->frameID - wuFrames) % nthFrame == 0 )
+                TakeSnapshot(outputFileName + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+        }
         printf("frame(s) %u\n", owl::abs(renderer->frameID - (int)wuFrames));
 #endif
     }
