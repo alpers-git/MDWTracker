@@ -165,13 +165,14 @@ namespace dtracker
   {
   }
 
-  void Renderer::Init(bool autoSetCamera)
+  void Renderer::Init(bool multiMajorant, bool autoSetCamera)
   {
     if(umeshPtrs.size() == 0 && rawPtrs.size() == 0)
     {
       LOG_ERROR("No data source specified!");
       return;
     }
+    this->multiMajorant = multiMajorant;
     // Init owl
     LOG("Initializing owl...");
     context = owlContextCreate(nullptr, 1);
@@ -328,8 +329,9 @@ namespace dtracker
       auto bb = umeshPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
+      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * (multiMajorant ? rawPtrs.size() : 1);
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
-          macrocellDims.x*macrocellDims.y*macrocellDims.z, nullptr);
+          gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
       owlParamsSetBuffer(lp, "volume.majorants", gridMaximaBuffer);
 
@@ -506,7 +508,10 @@ namespace dtracker
       owlGeomTypeSetBoundsProg(macrocellType, module, "macrocellBounds");
 
       owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
-      owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveDTCH");
+      if(multiMajorant)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveMMDTCH");
+      else
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveDTCH");
       
       owlBuildPrograms(context);
       LOG("Setting buffers ...");
@@ -527,10 +532,12 @@ namespace dtracker
       for (size_t i = 0; i < rawPtrs.size(); i++)
         bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
 
+      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * (multiMajorant ? rawPtrs.size() : 1);
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
-              macrocellDims.x*macrocellDims.y*macrocellDims.z, nullptr);
+          gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
       owlParamsSetBuffer(lp, "volume.majorants", gridMaximaBuffer);
+
 
       rootMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numMacrocells, nullptr);
       rootBBoxBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numMacrocells, nullptr);

@@ -87,7 +87,6 @@ public:
     OWLBuffer rootBBoxBuffer;   // used for RootMacrocellTLAS
     OWLBuffer rootMaximaBuffer; // used for RootMacrocellTLAS
     OWLBuffer gridMaximaBuffer; //Unsure?
-    OWLBuffer clusterMaximaBuffer;//Unused?
 
     /* frame */
     OWLBuffer accumBuffer{0};
@@ -116,9 +115,10 @@ public:
     /* density majorants */
     uint32_t numClusters = 1;
     vec3ui macrocellDims = {0,0,0}; // 4096 exceeds the size of a uint32_t when squared...
+    bool multiMajorant = false;
 
     /*! initializes renderer */
-    void Init(bool autoSetCamera = true);
+    void Init(bool multiMajorant = false, bool autoSetCamera = true);
     /*! renders the scene, visualizes heatmaps if param is true*/
     void Render(short heatMapMode= 0);
     /*! updates the launch params on device */

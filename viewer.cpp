@@ -43,6 +43,7 @@ private:
     const float degrees_per_drag_fraction = 250;
     const float pixels_per_move = 90.f;
     bool camGivenAsParam = false;
+    bool multiMajorant = false;
     int heatMapMode = 0;
     float globalOpacity = -1.f;
     unsigned int offlineFrames = 100;
@@ -96,6 +97,11 @@ Viewer::Viewer(int argc, char *argv[])
         .help("enable shadows. Takes light direction<x,y,z>, light intensity, ambient intensity")
         .scan<'g', float>()
         .nargs(3,5);
+    program.add_argument("-mm", "--multi-majorant")
+        .help("enables multi-majorant mode")
+        .default_value(false)
+        .implicit_value(true);
+    
 
 #if OFFLINE_VIEWER
     program.add_argument("-n", "--num-frame")
@@ -141,6 +147,8 @@ Viewer::Viewer(int argc, char *argv[])
     printf("used %d value %u\n", program.is_used("-nt"), nthFrame);
     if(program.is_used("-nt"))
         nthFrame = program.get<unsigned int>("-nt");
+    if(program.is_used("-o"))
+        outputFileName = program.get<std::string>("-o");
 #endif
     if (program.is_used("-r"))
     {
@@ -148,8 +156,6 @@ Viewer::Viewer(int argc, char *argv[])
         renderer->fbSize = vec2i(res[0], res[1]);
     }
     
-    if(program.is_used("-o"))
-        outputFileName = program.get<std::string>("-o");
 
     if (program.is_used("-c"))
     {
@@ -185,6 +191,10 @@ Viewer::Viewer(int argc, char *argv[])
     {
         auto bg = program.get<std::vector<float>>("-bg");
         renderer->bgColor = vec3f(bg[0], bg[1], bg[2]);
+    }
+    if(program.is_used("-mm"))
+    {
+        multiMajorant = program.get<bool>("-mm");
     }
     if(program.is_used("-sh"))
     {
@@ -334,7 +344,7 @@ void Viewer::Run()
 #if !OFFLINE_VIEWER
     GLFWHandler *glfw = GLFWHandler::getInstance();
 #endif 
-    renderer->Init(!camGivenAsParam);
+    renderer->Init(multiMajorant,!camGivenAsParam);
     if(globalOpacity > 0.f)
         renderer->SetGlobalOpacity(globalOpacity);
     renderer->UpdateCamera();
@@ -366,7 +376,7 @@ void Viewer::Run()
 
         glfw->mouseState.imGuiPolling = ImGui::GetIO().WantCaptureMouse;
 #else   
-        if(renderer->frameID == wuFrames)
+        if(renderer->frameID <= wuFrames)
             renderer->ResetAccumulation();
 #endif  
 
@@ -537,7 +547,7 @@ void Viewer::Run()
         {
             printf("Rendered ");
             if( nthFrame != 0 && (renderer->frameID - wuFrames) % nthFrame == 0 )
-                TakeSnapshot(outputFileName + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+                TakeSnapshot(outputFileName + "multi_maj_" + (multiMajorant ? "on" : "off") + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
         }
         printf("frame(s) %u\n", owl::abs(renderer->frameID - (int)wuFrames));
 #endif
@@ -548,6 +558,7 @@ void Viewer::Run()
     printf("Number of frames: %u\n", renderer->frameID - wuFrames);
     printf("Shadowing: %s\n", renderer->enableShadows ? "on" : "off");
     printf("Macrocell dimesions: %u, %u, %u\n", renderer->macrocellDims.x, renderer->macrocellDims.y, renderer->macrocellDims.z);
+    printf("Using multiple majorant buffers: %s\n", multiMajorant ? "yes" : "no");
     for(int i = 0; i < numFiles; i++)
     {
         printf("Volume #%d size: %ux%ux%u (%u MiB)\n", 
@@ -559,7 +570,7 @@ void Viewer::Run()
     printf("avg. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->avgTime, renderer->avgTime);
     printf("best. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->minTime, renderer->minTime);
 //write the frame as number of frames taken
-    TakeSnapshot(outputFileName + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+    TakeSnapshot(outputFileName + "_multi_maj_" + (multiMajorant ? "on" : "off") + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
 #endif
     renderer->Terminate();
 #if !OFFLINE_VIEWER
