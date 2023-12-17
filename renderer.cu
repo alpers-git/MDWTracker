@@ -164,9 +164,9 @@ void _recalculateDensityRangesMM(
     int nodeID = (blockIdx.x * blockDim.x + threadIdx.x);
     if (nodeID >= numPrims) return;
 
-    maxima[nodeID] = 0.f;
     for (size_t tfID = 0; tfID < numMeshes; tfID++)
     {
+      maxima[nodeID * numMeshes + tfID] = 0.f;
       float mn = macrocells[nodeID * numMeshes + tfID].x;
       float mx = macrocells[nodeID * numMeshes + tfID].y;
 
