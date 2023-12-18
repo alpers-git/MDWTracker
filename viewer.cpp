@@ -547,7 +547,7 @@ void Viewer::Run()
         {
             printf("Rendered ");
             if( nthFrame != 0 && (renderer->frameID - wuFrames) % nthFrame == 0 )
-                TakeSnapshot(outputFileName + "multi_maj_" + (multiMajorant ? "on" : "off") + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+                TakeSnapshot(outputFileName + "_multi_maj_" + (multiMajorant ? "on" : "off") + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
         }
         printf("frame(s) %u\n", owl::abs(renderer->frameID - (int)wuFrames));
 #endif

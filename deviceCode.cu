@@ -387,14 +387,15 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
     const float gridToWorldT = 1.f / length(dir);
     dir = normalize(dir);
 
+    float majorants[MAX_MESHES];
+    float ts[MAX_MESHES];
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
-        float majorants[MAX_MESHES];
+
         float majorantSum = 0.0f;
 
-        float ts[MAX_MESHES];
         for (int i = 0; i < lp.volume.numMeshes; i++)
         {
             majorants[i] = lp.volume.majorants[cellID * lp.volume.numMeshes + i];
@@ -402,8 +403,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
             ts[i] = t0;
         }
 
-        /*if(prd.debug)
-            printf("cellID = %d, majorant = %f\n", cellID, majorants[0]);*/
+        if(prd.debug)
+            for (int i = 0; i < lp.volume.numMeshes; i++)
+                printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
 
         if (majorantSum == 0.00f)
             return true;
