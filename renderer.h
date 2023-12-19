@@ -21,6 +21,13 @@ enum MeshType
   RAW = 2
 };
 
+enum Mode
+{
+  CUMMULATIVE = 0,
+  MULTI = 1,
+  BASELINE = 2
+};
+
 /* transfer function */
 struct TFData
 {
@@ -115,10 +122,10 @@ public:
     /* density majorants */
     uint32_t numClusters = 1;
     vec3ui macrocellDims = {0,0,0}; // 4096 exceeds the size of a uint32_t when squared...
-    bool multiMajorant = false;
+    Mode mode = Mode::CUMMULATIVE;
 
     /*! initializes renderer */
-    void Init(bool multiMajorant = false, bool autoSetCamera = true);
+    void Init(const unsigned int mode = 0, bool autoSetCamera = true);
     /*! renders the scene, visualizes heatmaps if param is true*/
     void Render(short heatMapMode= 0);
     /*! updates the launch params on device */

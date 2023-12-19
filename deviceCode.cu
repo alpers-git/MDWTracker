@@ -480,6 +480,120 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
     dda::dda3(org,dir,1e20f,mcDim,lambda,false);
 }
 
+OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
+()
+{
+    RayPayload &prd = owl::getPRD<RayPayload>();
+    auto &lp = optixLaunchParams;
+    const MacrocellData &self = owl::getProgramData<MacrocellData>();
+    prd.missed = true;
+    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+
+    float unit = lp.volume.globalOpacity;
+
+    vec3f worldOrg = optixGetWorldRayOrigin();
+    vec3f org = optixGetWorldRayOrigin();
+    vec3f worldDir = optixGetWorldRayDirection();
+
+    // assuming ray is already in voxel space
+    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+    vec3ui mcDim = lp.volume.macrocellDims;
+
+    org = org - worlddim.lower;
+
+    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
+    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
+    
+    org = unitToGrid *worldToUnit * org;
+    vec3f dir = worldToUnit * unitToGrid * worldDir;
+    const float gridToWorldT = 1.f / length(dir);
+    //const float worldToUnitT = owl::length(mcDim) / length(worlddim.upper - worlddim.lower);
+    dir = normalize(dir);
+
+    float majorants[MAX_MESHES];
+    float ts[MAX_MESHES];
+    int curMesh = 0;
+    float tMax = 1e20f;
+    
+    //VolumeEvent event = NULL_COLLISION;
+    auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
+    {
+        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        float majorant = lp.volume.majorants[cellID * lp.volume.numMeshes + curMesh];
+
+        if(prd.debug)
+            printf("cellID = %d, majorant = %f\n", cellID, majorant);
+
+        if (majorant == 0.00f)
+            return true;
+
+        float t = t0;
+
+        // Sample free-flight distance
+        while (true)
+        {
+            //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
+            //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
+            // more/less probable by altering the length of the woodcock step size
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit;
+
+            // A cell boundary has been hit
+            if (t >= t1){
+                //event = NULL_COLLISION;
+                break; // go to next cell
+            }
+
+            if(tMax < t)
+                return false;
+
+            // Update current position
+            const float tWorld = t * gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+            // A world boundary has been hit
+            if (tWorld >= prd.t1)
+            {
+                //event = NULL_COLLISION;
+                prd.rejections++;
+                return false; // terminate traversal
+            }
+            
+            //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
+            //get values from all meshes and decide which one the sample is gonna come from
+            float meshSelector = prd.rng() * majorant;
+            const float value = sampleVolumeTexture(xTexture, curMesh);
+            prd.samples++;
+            if(isnan(value)) // miss: this shouldnt happen in structured volumes
+            {
+                //event = NULL_COLLISION;
+                continue;
+            }
+            const float4 curSample = transferFunction(value, curMesh);
+            //sample a mesh based on its opacity
+            if(curSample.w > 0.0f && meshSelector < curSample.w)
+            {
+                //event = ABSORPTION;
+                prd.tHit = tWorld;
+                prd.rgba = curSample;
+                prd.rgba.w = 1.0f;
+                prd.missed = false;
+                tMax = min(tMax, t);
+                return false;
+            }
+            //if the process survies all meshes, it is a null collision, keep going
+            //event = NULL_COLLISION;
+            prd.rejections++;
+        }
+
+        return true;
+    };
+    for (int i = 0; i < lp.volume.numMeshes; i++)
+    {
+        curMesh = i;
+        dda::dda3(org,dir,1e20,mcDim,lambda,false);
+    }
+}
+
 OPTIX_MISS_PROGRAM(miss)
 ()
 {
