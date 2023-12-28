@@ -25,7 +25,8 @@ enum Mode
 {
   CUMMULATIVE = 0,
   MULTI = 1,
-  BASELINE = 2
+  BASELINE = 2,
+  MARCHER = 3
 };
 
 /* transfer function */

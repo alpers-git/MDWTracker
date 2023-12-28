@@ -594,6 +594,76 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
     }
 }
 
+OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
+()
+{
+    RayPayload &prd = owl::getPRD<RayPayload>();
+    auto &lp = optixLaunchParams;
+    const MacrocellData &self = owl::getProgramData<MacrocellData>();
+    prd.missed = true;
+    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+
+
+    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
+
+    float dt = lp.volume.globalOpacity;
+
+    //implement a ray marcher that leaps dt step at a time
+    // and takes samples at given points until opacity reaches 1.0
+    vec3f pos = optixGetWorldRayOrigin();
+    vec3f dir = optixGetWorldRayDirection();
+    dir = normalize(dir);
+
+    float t = -1e20;//optixGetRayTmin();
+    float t1 = 1e20;//optixGetRayTmin();
+    for (int i = 0; i < 3; ++i)
+    {
+        float invDir = 1.f / dir[i];
+        float tNear = (worlddim.lower[i] - pos[i]) * invDir;
+        float tFar = (worlddim.upper[i] - pos[i]) * invDir;
+        if (tNear > tFar)
+        {
+            const float tmp = tNear;
+            tNear = tFar;
+            tFar = tmp;
+        }
+
+        t = tNear > t ? tNear : t;
+        t1 = tFar < t1 ? tFar : t1;
+        if (t > t1)
+            return;
+    }
+
+    while(true)
+    {
+        // A world boundary has been hit
+        if(t > t1)
+            return;
+
+        const vec3f posTex = pos * worldToUnit;
+        const float value = sampleVolumeTexture(posTex, 0);//!!!
+        prd.samples++;
+        if(isnan(value)) // miss: this shouldnt happen in structured volumes
+        {
+            //event = NULL_COLLISION;
+            continue;
+        }
+        float4 curSample = transferFunction(value, 0);//!!!
+        
+        curSample.w = 1.f - powf(1.f - curSample.w,dt);
+        prd.rgba = prd.rgba + (1.f - prd.rgba.w) * curSample.w * vec4f(vec3f(curSample), 1.f);
+        prd.missed = false;
+
+        if(prd.rgba.w > 0.99f)
+            return;
+
+        t += dt;
+        pos += dir * t;//take a step
+    }
+}
+
 OPTIX_MISS_PROGRAM(miss)
 ()
 {
