@@ -9,7 +9,7 @@ using namespace dtracker;
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
-#define DEBUG 1
+#define DEBUG 0
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
@@ -163,6 +163,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     if(!volumePrd.missed)
     {
         vec3f albedo = vec3f(volumePrd.rgba);
+        float transparency = volumePrd.rgba.w;
         if(lp.enableShadows)
         {
             // trace shadow rays
@@ -179,13 +180,13 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
             traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
             vec3f shadow((1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w)  + lp.ambient);
-            color = vec4f(albedo * shadow * lp.lightIntensity, 1.0f);
+            color = vec4f(albedo * shadow * lp.lightIntensity, transparency);
 
             volumePrd.samples += shadowbyVolPrd.samples;// for heatmap
             volumePrd.rejections += shadowbyVolPrd.rejections;// for heatmap
         }
         else
-            color = vec4f(albedo * lp.lightIntensity, 1.0f);
+            color = vec4f(albedo * lp.lightIntensity, transparency);
     }
 
     if(lp.heatMapMode == 1)
@@ -203,6 +204,8 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     else
     {
         finalColor = over(color, finalColor);
+        if(dbg())
+            printf("col: %f %f %f %f\n", color.x,color.y,color.z, color.w);
         if(lp.enableAccumulation)
         {
             const vec4f accumColor = lp.accumBuffer[fbOfs];
@@ -511,8 +514,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
     //const float worldToUnitT = owl::length(mcDim) / length(worlddim.upper - worlddim.lower);
     dir = normalize(dir);
 
-    float majorants[MAX_MESHES];
-    float ts[MAX_MESHES];
     int curMesh = 0;
     float tMax = 1e20f;
     
@@ -635,12 +636,16 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
         if (t > t1)
             return;
     }
+    float alpha = 0.0f;
+    vec3f color(0.0f,0.0f,0.0f);
 
     while(true)
     {
         // A world boundary has been hit
         if(t > t1)
-            return;
+        {
+            break;
+        }
 
         const vec3f posTex = pos * worldToUnit;
         const float value = sampleVolumeTexture(posTex, 0);//!!!
@@ -651,17 +656,27 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
             continue;
         }
         float4 curSample = transferFunction(value, 0);//!!!
-        
-        curSample.w = 1.f - powf(1.f - curSample.w,dt);
-        prd.rgba = prd.rgba + (1.f - prd.rgba.w) * curSample.w * vec4f(vec3f(curSample), 1.f);
-        prd.missed = false;
+        if(curSample.w > 0.0f)
+        {
+            color = over(color, vec3f(curSample), alpha, curSample.w);
+            alpha = over(alpha, curSample.w); 
+            prd.missed = false;
+        }
 
-        if(prd.rgba.w > 0.99f)
-            return;
+        if(prd.debug)
+            printf("rgba %f %f %f %f pos %f %f %f\n", 
+            color.x, color.y, color.z, 
+            alpha, pos.x, pos.y, pos.z);
+
+        if(alpha > 0.99f)
+        {
+            break;
+        }
 
         t += dt;
         pos += dir * t;//take a step
     }
+    prd.rgba = vec4f(color,alpha);
 }
 
 OPTIX_MISS_PROGRAM(miss)
