@@ -32,6 +32,7 @@ OWLVarDecl launchParamVars[] = {
     {"heatMapMode", OWL_SHORT, OWL_OFFSETOF(LaunchParams, heatMapMode)},
     {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
     {"bgColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, bgColor)},
+    {"mode",    OWL_INT,    OWL_OFFSETOF(LaunchParams, mode)},
     // light variables
     {"lightDir", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, lightDir)},
     {"lightIntensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, lightIntensity)},
@@ -673,6 +674,8 @@ namespace dtracker
     for(size_t i = 0; i < tfdatas.size(); ++i)
       owlParamsSet2f(lp, std::string("transferFunction[" + std::to_string(i) + "].volumeDomain").c_str(),
           owl2f{tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper});
+
+    owlParamsSet1i(lp, "mode", this->mode);
 
     ResetGlobalOpacity();
 

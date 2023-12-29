@@ -9,7 +9,7 @@ using namespace dtracker;
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
-#define DEBUG 0
+#define DEBUG 1
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
@@ -164,7 +164,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     {
         vec3f albedo = vec3f(volumePrd.rgba);
         float transparency = volumePrd.rgba.w;
-        if(lp.enableShadows)
+        if(lp.enableShadows && lp.mode < 3)
         {
             // trace shadow rays
             RayPayload shadowbyVolPrd;
@@ -601,7 +601,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
     const MacrocellData &self = owl::getProgramData<MacrocellData>();
-    prd.missed = true;
+    prd.missed = false;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
 
@@ -613,40 +613,18 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
 
     //implement a ray marcher that leaps dt step at a time
     // and takes samples at given points until opacity reaches 1.0
-    vec3f pos = optixGetWorldRayOrigin();
+    vec3f org = optixGetWorldRayOrigin();
     vec3f dir = optixGetWorldRayDirection();
+    vec3f pos = org;
     dir = normalize(dir);
 
-    float t = -1e20;//optixGetRayTmin();
-    float t1 = 1e20;//optixGetRayTmin();
-    for (int i = 0; i < 3; ++i)
-    {
-        float invDir = 1.f / dir[i];
-        float tNear = (worlddim.lower[i] - pos[i]) * invDir;
-        float tFar = (worlddim.upper[i] - pos[i]) * invDir;
-        if (tNear > tFar)
-        {
-            const float tmp = tNear;
-            tNear = tFar;
-            tFar = tmp;
-        }
+    const float gridToWorldT = 1.f / length(dir);
 
-        t = tNear > t ? tNear : t;
-        t1 = tFar < t1 ? tFar : t1;
-        if (t > t1)
-            return;
-    }
     float alpha = 0.0f;
     vec3f color(0.0f,0.0f,0.0f);
 
-    while(true)
+    for(float t = prd.t0; (t < prd.t1) && (alpha < 0.99f); t += dt)
     {
-        // A world boundary has been hit
-        if(t > t1)
-        {
-            break;
-        }
-
         const vec3f posTex = pos * worldToUnit;
         const float value = sampleVolumeTexture(posTex, 0);//!!!
         prd.samples++;
@@ -656,25 +634,37 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
             continue;
         }
         float4 curSample = transferFunction(value, 0);//!!!
-        if(curSample.w > 0.0f)
+        vec3f shadow = 1.0f;
+        if(!prd.shadowRay && lp.enableShadows)
         {
-            color = over(color, vec3f(curSample), alpha, curSample.w);
-            alpha = over(alpha, curSample.w); 
-            prd.missed = false;
+            RayPayload shadowPrd;
+            shadowPrd.t0 = 0.f;
+            shadowPrd.t1 = 1e20f;
+            shadowPrd.rgba = vec4f(0.f);
+            shadowPrd.debug = prd.debug;  
+            shadowPrd.shadowRay = true;
+            Ray ray;
+            ray.origin = pos;
+            ray.direction = normalize(-lp.lightDir);
+            ray.tmin =0.f;
+            ray.tmax = 1e20f;
+            owl::traceRay(
+                lp.volume.rootMacrocellTLAS,
+                ray, shadowPrd,
+                OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+            
+            shadow = vec3f((1.f - lp.ambient) * (1.f - shadowPrd.rgba.w)  + lp.ambient);
         }
+        color = over(color, vec3f(curSample) * shadow, alpha, curSample.w);
+        alpha = over(alpha, curSample.w);
+        //Create a shadow ray
 
         if(prd.debug)
             printf("rgba %f %f %f %f pos %f %f %f\n", 
-            color.x, color.y, color.z, 
-            alpha, pos.x, pos.y, pos.z);
+                color.x, color.y, color.z, 
+                alpha, posTex.x, posTex.y, posTex.z);
 
-        if(alpha > 0.99f)
-        {
-            break;
-        }
-
-        t += dt;
-        pos += dir * t;//take a step
+        pos = org + dir * t;//take a step
     }
     prd.rgba = vec4f(color,alpha);
 }

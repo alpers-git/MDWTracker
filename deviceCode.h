@@ -58,6 +58,7 @@ struct LaunchParams
   uint32_t accumID;
 
   OptixTraversableHandle triangleTLAS;
+  int mode = 0;
   bool enableShadows;
   short heatMapMode = 0;
   bool enableAccumulation;
