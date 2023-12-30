@@ -265,7 +265,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     prd.missed = true;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
-    float unit = lp.volume.globalOpacity;
+    float unit = lp.volume.dt;
 
     vec3f worldOrg = optixGetWorldRayOrigin();
     vec3f org = optixGetWorldRayOrigin();
@@ -369,7 +369,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
     prd.missed = true;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
-    float unit = lp.volume.globalOpacity;
+    float unit = lp.volume.dt;
 
     vec3f worldOrg = optixGetWorldRayOrigin();
     vec3f org = optixGetWorldRayOrigin();
@@ -492,7 +492,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
     prd.missed = true;
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
-    float unit = lp.volume.globalOpacity;
+    float unit = lp.volume.dt;
 
     vec3f worldOrg = optixGetWorldRayOrigin();
     vec3f org = optixGetWorldRayOrigin();
@@ -609,7 +609,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
                       {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
     const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
 
-    float dt = lp.volume.globalOpacity;
+    float dt = lp.volume.dt;
 
     //implement a ray marcher that leaps dt step at a time
     // and takes samples at given points until opacity reaches 1.0

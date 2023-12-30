@@ -45,7 +45,7 @@ private:
     bool camGivenAsParam = false;
     unsigned int rendererMode = 0;
     int heatMapMode = 0;
-    float globalOpacity = -1.f;
+    float dt = -1.f;
     unsigned int offlineFrames = 100;
     unsigned int wuFrames = 0;
     unsigned int nthFrame = 0;
@@ -272,7 +272,7 @@ Viewer::Viewer(int argc, char *argv[])
     }
     if(program.is_used("-dt"))
     {
-        globalOpacity = program.get<float>("-dt");
+        dt = program.get<float>("-dt");
     }
 
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
@@ -359,8 +359,8 @@ void Viewer::Run()
     GLFWHandler *glfw = GLFWHandler::getInstance();
 #endif 
     renderer->Init(rendererMode,!camGivenAsParam);
-    if(globalOpacity > 0.f)
-        renderer->SetGlobalOpacity(globalOpacity);
+    if(dt > 0.f)
+        renderer->Setdt(dt);
     renderer->UpdateCamera();
     //loop over all transfer functions and set them
     for (int i = 0; i < numFiles; i++)
@@ -448,11 +448,11 @@ void Viewer::Run()
                     renderer->SetLightDirection(lightDir);
             }
         }
-        globalOpacity = renderer->globalOpacity;
-        if(ImGui::DragFloat("glob. Opacity", &globalOpacity, 0.005f, 0.0f, 1e20f, "%.5f"))
-            renderer->SetGlobalOpacity(globalOpacity);
-        if(ImGui::Button("Reset G.O."))
-            renderer->ResetGlobalOpacity();
+        dt = renderer->dt;
+        if(ImGui::DragFloat("dt/G.O.", &dt, 0.005f, 0.0f, 1e20f, "%.5f"))
+            renderer->Setdt(dt);
+        if(ImGui::Button("Reset dt/G.O."))
+            renderer->Resetdt();
         //render radio button group for heatmap mode
         ImGui::Text("Heatmap Mode");
         ImGui::BeginGroup();
@@ -501,17 +501,17 @@ void Viewer::Run()
 
         if (glfw->key.isPressed(GLFW_KEY_EQUAL) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"+"
-            renderer->SetGlobalOpacity(renderer->globalOpacity + 0.01f );
+            renderer->Setdt(renderer->dt + 0.01f );
         else if (glfw->key.isPressed(GLFW_KEY_MINUS) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"-"
-            renderer->SetGlobalOpacity(renderer->globalOpacity - 0.01f);
+            renderer->Setdt(renderer->dt - 0.01f);
 
         else if (glfw->key.isRepeated(GLFW_KEY_EQUAL) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"+"
-            renderer->SetGlobalOpacity(renderer->globalOpacity + 0.04f);
+            renderer->Setdt(renderer->dt + 0.04f);
         else if (glfw->key.isRepeated(GLFW_KEY_MINUS) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"-"
-            renderer->SetGlobalOpacity(renderer->globalOpacity - 0.04f);
+            renderer->Setdt(renderer->dt - 0.04f);
 
         if(glfw->key.isPressed(GLFW_KEY_T) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
