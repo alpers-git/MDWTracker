@@ -595,7 +595,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
     }
 }
 
-OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
+OPTIX_CLOSEST_HIT_PROGRAM(wARayMarcherCH)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
@@ -625,39 +625,70 @@ OPTIX_CLOSEST_HIT_PROGRAM(detRayMarcherCH)
 
     for(float t = prd.t0; (t < prd.t1) && (alpha < 0.99f); t += dt)
     {
-        const vec3f posTex = pos * worldToUnit;
-        const float value = sampleVolumeTexture(posTex, 0);//!!!
-        prd.samples++;
-        if(isnan(value)) // miss: this shouldnt happen in structured volumes
-        {
-            //event = NULL_COLLISION;
-            continue;
-        }
-        float4 curSample = transferFunction(value, 0);//!!!
         vec3f shadow = 1.0f;
-        if(!prd.shadowRay && lp.enableShadows)
+        if(lp.enableShadows)
         {
-            RayPayload shadowPrd;
-            shadowPrd.t0 = 0.f;
-            shadowPrd.t1 = 1e20f;
-            shadowPrd.rgba = vec4f(0.f);
-            shadowPrd.debug = prd.debug;  
-            shadowPrd.shadowRay = true;
-            Ray ray;
-            ray.origin = pos;
-            ray.direction = normalize(-lp.lightDir);
-            ray.tmin =0.f;
-            ray.tmax = 1e20f;
-            owl::traceRay(
-                lp.volume.rootMacrocellTLAS,
-                ray, shadowPrd,
-                OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-            
-            shadow = vec3f((1.f - lp.ambient) * (1.f - shadowPrd.rgba.w)  + lp.ambient);
+            const vec3f orgSh = pos;
+            vec3f dirSh = -lp.lightDir;
+            float alphaSh = 0.f;
+            vec3f posSh = orgSh;
+
+            // typical ray AABB intersection test
+            vec3f dirfrac = 1.f/dirSh;
+
+            // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+            // origin is origin of ray
+            const float t1 = (worlddim.lower.x - orgSh.x)*dirfrac.x;
+            const float t2 = (worlddim.upper.x - orgSh.x)*dirfrac.x;
+            const float t3 = (worlddim.lower.y - orgSh.y)*dirfrac.y;
+            const float t4 = (worlddim.upper.y - orgSh.y)*dirfrac.y;
+            const float t5 = (worlddim.lower.z - orgSh.z)*dirfrac.z;
+            const float t6 = (worlddim.upper.z - orgSh.z)*dirfrac.z;
+
+            float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+            const float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+            if( (thit1 >= 0) && ((thit0 < thit1)) )
+            {
+                thit0 = max(thit0, 0.00001f);
+                //dirSh = normalize(dirSh);
+                if(length(dirSh) < 1e-5f)
+                    thit0 = thit1;
+                for(float tSh = thit0; (tSh < thit1) && (alphaSh < 0.99f); tSh += dt){
+                    const vec3f posTexSh = posSh * worldToUnit;
+                    vec3f wAcolor = vec3f(0.0f,0.0f,0.0f);
+                    float opacitySum = 0.f;
+                    for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
+                    {
+                        prd.samples++;
+                        const float value = sampleVolumeTexture(posTexSh, meshID);
+                        const float4 curSample = transferFunction(value, meshID);
+                        wAcolor += vec3f(curSample) * curSample.w;
+                        opacitySum += curSample.w;
+                    }
+                    opacitySum /= (float)lp.volume.numMeshes;
+                    alphaSh = over(alphaSh, opacitySum);
+                    posSh = orgSh + dirSh * tSh;//take a step
+                }
+            }
+            shadow = vec3f((1.f - lp.ambient) * (1.f - alphaSh)  + lp.ambient);
         }
-        color = over(color, vec3f(curSample) * shadow, alpha, curSample.w);
-        alpha = over(alpha, curSample.w);
-        //Create a shadow ray
+        const vec3f posTex = pos * worldToUnit;
+        vec3f wAcolor = vec3f(0.0f,0.0f,0.0f);
+        float opacitySum = 0.f;
+        for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
+        {
+            prd.samples++;
+            const float value = sampleVolumeTexture(posTex, meshID);
+            const float4 curSample = transferFunction(value, meshID);
+            wAcolor += vec3f(curSample) * curSample.w;
+            opacitySum += curSample.w;
+        }
+        if(opacitySum > 0.0f)
+            wAcolor /= opacitySum;
+        opacitySum /= (float)lp.volume.numMeshes;
+        color = over(color, wAcolor * shadow, alpha, opacitySum);
+        alpha = over(alpha, opacitySum);
 
         if(prd.debug)
             printf("rgba %f %f %f %f pos %f %f %f\n", 
