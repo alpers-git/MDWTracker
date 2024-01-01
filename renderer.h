@@ -26,7 +26,8 @@ enum Mode
   CUMMULATIVE = 0,
   MULTI = 1,
   BASELINE = 2,
-  MARCHER = 3
+  WA_MARCHER = 3,
+  WP_MARCHER = 4,
 };
 
 /* transfer function */

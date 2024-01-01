@@ -99,7 +99,7 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'g', float>()
         .nargs(3,5);
     program.add_argument("-m", "--mode")
-        .help("sets rendering mode. 0 = single DDA traversal using a cummulative majorant buffer, 1 = single DDA traversal using multiple majorant buffers, 2 = multiple DDA traversals using multiple majorant buffers, 3 = Ray Marcher")
+        .help("sets rendering mode. 0 = single DDA traversal using a cummulative majorant buffer, 1 = single DDA traversal using multiple majorant buffers, 2 = multiple DDA traversals using multiple majorant buffers, 3 = Weighted average based Ray Marcher, 4 = Weighted probablity based Ray Marcher" )
         .scan<'u', unsigned int>()
         .default_value(0);
 
@@ -208,7 +208,11 @@ Viewer::Viewer(int argc, char *argv[])
         modeString = "BLN";
         break;
     case 3:
-        modeString = "RM";
+        modeString = "WAM";
+        break;
+    case 4:
+        modeString = "WPM";
+        break;
     }
     if(program.is_used("-sh"))
     {
