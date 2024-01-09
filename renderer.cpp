@@ -513,10 +513,8 @@ namespace dtracker
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveDTCH");
       else if(mode == Mode::MULTI)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveMMDTCH");
-      else if(mode == Mode::WA_MARCHER)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "wARayMarcherCH");
-      else if(mode == Mode::WP_MARCHER)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "wPRayMarcherCH");
+      else if(mode == Mode::MARCHER_MAX || mode == Mode::MARCHER_MIX)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "rayMarcherCH");
       else
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveBaseLineDTCH");
       
