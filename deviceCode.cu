@@ -129,39 +129,41 @@ float sampleVolume(const vec3f& pos, const int meshID = 0)
     }
 }
 
-//max opacity blending func
+//mix with equal weights blending func
 __forceinline__ __device__
-    static vec4f maxOpacity(vec3f texSpacePos)
+    static vec4f mix(vec3f texSpacePos)
 {
     vec3f color = vec3f(0.0f,0.0f,0.0f);
+    float opacitySum = 0.0f;
     vec4f samples[MAX_MESHES];
-    float maxOpacity = 0.0f;    
     for(int meshID = 0; meshID < optixLaunchParams.volume.numMeshes; meshID++)
     {
         samples[meshID] = transferFunction(
             sampleVolumeTexture(texSpacePos, meshID), meshID);
-        maxOpacity = max(maxOpacity, samples[meshID].w);
+        opacitySum += samples[meshID].w;
     }
+    const float invOpacitySum = 1.0f / opacitySum;
     for(int meshID = 0; meshID < optixLaunchParams.volume.numMeshes; meshID++)
     {
-        if(maxOpacity > 0.0f)
-            color += vec3f(samples[meshID]) * (samples[meshID].w/maxOpacity);
+        if(opacitySum > 0.0f)
+            color += vec3f(samples[meshID]) * samples[meshID].w * invOpacitySum;
     }
-    return vec4f(color, maxOpacity);
+    return vec4f(color, opacitySum/float(optixLaunchParams.volume.numMeshes));
 }
-//mix with equal weights blending func
+//max opacity blending func
 __forceinline__ __device__
-static vec4f mix(vec3f texSpacePos)
+static vec4f maxOpacity(vec3f texSpacePos)
 {
-    vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
-    const float invNumMeshes = 1.f / (float)optixLaunchParams.volume.numMeshes;
+    //find the mesh with the highest opacity
+    vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
     for(int meshID = 0; meshID < optixLaunchParams.volume.numMeshes; meshID++)
     {
-        const vec4f sample = transferFunction(
+        vec4f sample = transferFunction(
             sampleVolumeTexture(texSpacePos, meshID), meshID);
-        color += sample * invNumMeshes;
+        if(sample.w > maxOpacitySample.w)
+            maxOpacitySample = sample;
     }
-    return color;
+    return maxOpacitySample;
 }
 __device__ 
 vec4f blendChannels(const vec3f texSpacePos)
