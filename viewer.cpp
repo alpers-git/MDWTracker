@@ -588,7 +588,7 @@ void Viewer::Run()
     printf("Number of frames: %u\n", renderer->frameID - wuFrames);
     printf("Shadowing: %s\n", renderer->enableShadows ? "on" : "off");
     printf("Macrocell dimesions: %u, %u, %u\n", renderer->macrocellDims.x, renderer->macrocellDims.y, renderer->macrocellDims.z);
-    printf("Mode: %s\n", modeString);
+    printf("Mode: %s\n", modeString.c_str());
     for(int i = 0; i < numFiles; i++)
     {
         printf("Volume #%d size: %ux%ux%u (%u MiB)\n", 
