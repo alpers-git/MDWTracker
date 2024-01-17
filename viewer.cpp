@@ -577,7 +577,10 @@ void Viewer::Run()
         {
             printf("Rendered ");
             if( nthFrame != 0 && (renderer->frameID - wuFrames) % nthFrame == 0 )
-                TakeSnapshot(outputFileName + "_" + modeString + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+                TakeSnapshot(outputFileName + "_" + modeString + "_w_" 
+                    + std::to_string(renderer->frameID - wuFrames) + 
+                    + "_shadows_" + (renderer->enableShadows ? "on" : "off") +
+                    "_frames.png");
         }
         printf("frame(s) %u\n", owl::abs(renderer->frameID - (int)wuFrames));
 #endif
@@ -600,7 +603,10 @@ void Viewer::Run()
     printf("avg. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->avgTime, renderer->avgTime);
     printf("best. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->minTime, renderer->minTime);
 //write the frame as number of frames taken
-    TakeSnapshot(outputFileName + "_" + modeString + "_w_" + std::to_string(renderer->frameID - wuFrames) + "_frames.png");
+    TakeSnapshot(outputFileName + "_" + modeString + "_w_" 
+    + std::to_string(renderer->frameID - wuFrames) + 
+    + "_shadows_" + (renderer->enableShadows ? "on" : "off") +
+    "_frames.png");
 #endif
     renderer->Terminate();
 #if !OFFLINE_VIEWER
