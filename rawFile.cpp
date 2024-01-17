@@ -224,6 +224,17 @@ namespace raw
         bounds_.upper.z = bounds_.upper.z * dims_.z;
     }
 
+     void RawR::reshapeBounds(const owl::vec3f remap_dims)
+    {
+        //rescale the bounds to match the dimension resolution
+        bounds_.lower.x = bounds_.lower.x * remap_dims.x;
+        bounds_.lower.y = bounds_.lower.y * remap_dims.y;
+        bounds_.lower.z = bounds_.lower.z * remap_dims.z;
+        bounds_.upper.x = bounds_.upper.x * remap_dims.x;
+        bounds_.upper.y = bounds_.upper.y * remap_dims.y;
+        bounds_.upper.z = bounds_.upper.z * remap_dims.z;
+    }
+
 } // raw
 
 //

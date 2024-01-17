@@ -149,6 +149,7 @@ namespace raw
         * @brief Reshape the geometric bounds proportionally to the grid dimensions
         */
         void reshapeBounds();
+        void reshapeBounds(const owl::vec3f remap_dims);
 
     private:
         char const* fileName_ = 0;

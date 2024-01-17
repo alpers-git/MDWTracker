@@ -88,8 +88,8 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'g', float>();
     program.add_argument("-cb", "--correct-bounds")
         .help("correct the bounds of the raw file to the grid dimensions")
-        .default_value(false)
-        .implicit_value(true);
+        .nargs(0,3)
+        .scan<'g', float>();
     program.add_argument("-r", "--resolution")
         .help("resolution of the framebuffer")
         .nargs(2)
@@ -246,8 +246,20 @@ Viewer::Viewer(int argc, char *argv[])
         {
             auto start = std::chrono::high_resolution_clock::now();
             auto rawFile = std::make_shared<raw::RawR>(path.c_str(), "rb");
-            if (program.get<bool>("-cb"))
-                rawFile->reshapeBounds();
+            if (program.is_used("-cb"))
+            {
+                auto bounds = program.get<std::vector<float>>("-cb");
+                if(bounds.size() == 3)
+                    rawFile->reshapeBounds(vec3f(bounds[0], bounds[1], bounds[2]));
+                else if(bounds.size() == 0)
+                    rawFile->reshapeBounds();
+                else
+                {
+                    std::cerr << "Bounds must be given as 3 floats or not at all" << std::endl;
+                    std::exit(1);
+                }
+
+            }
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
