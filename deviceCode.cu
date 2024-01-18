@@ -334,7 +334,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
     
     org = unitToGrid *worldToUnit * org;
     vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float gridToWorldT = 1.f / length(dir);
+    const float worldToGridT = length(dir);
+    const float gridToWorldT = 1.f / worldToGridT;
     dir = normalize(dir);
 
     //VolumeEvent event = NULL_COLLISION;
@@ -357,7 +358,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
             // more/less probable by altering the length of the woodcock step size
-            t = t - (log(1.0f - prd.rng()) / majorant) * unit;
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
 
             // A cell boundary has been hit
             if (t >= t1){
@@ -438,7 +439,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
     
     org = unitToGrid *worldToUnit * org;
     vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float gridToWorldT = 1.f / length(dir);
+    const float worldToGridT = length(dir);
+    const float gridToWorldT = 1.f / worldToGridT;
     dir = normalize(dir);
 
     float majorants[MAX_MESHES];
@@ -465,7 +467,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
             return true;
 
         for (int i = 0; i < lp.volume.numMeshes; i++)
-            ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit;
+            ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
 
         // Sample free-flight distance
         while (true)
@@ -526,7 +528,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveMMDTCH)
             //if the process survies all meshes, it is a null collision, keep going
             //event = NULL_COLLISION;
             prd.rejections++;
-            ts[selectedChannel] = ts[selectedChannel] - (log(1.0f - rand) / majorants[selectedChannel]) * unit;
+            ts[selectedChannel] = ts[selectedChannel] - (log(1.0f - rand) / majorants[selectedChannel]) * unit * worldToGridT;
         }
 
         return true;
@@ -561,7 +563,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
     
     org = unitToGrid *worldToUnit * org;
     vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float gridToWorldT = 1.f / length(dir);
+    const float worldToGridT = length(dir);
+    const float gridToWorldT = 1.f / worldToGridT;
     //const float worldToUnitT = owl::length(mcDim) / length(worlddim.upper - worlddim.lower);
     dir = normalize(dir);
 
@@ -588,7 +591,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
             // more/less probable by altering the length of the woodcock step size
-            t = t - (log(1.0f - prd.rng()) / majorant) * unit;
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
 
             // A cell boundary has been hit
             if (t >= t1){
