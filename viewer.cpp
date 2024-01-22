@@ -131,6 +131,12 @@ Viewer::Viewer(int argc, char *argv[])
     }
 
     renderer = std::make_shared<dtracker::Renderer>();
+
+    if (program.is_used("-r"))
+    {
+        auto res = program.get<std::vector<unsigned int>>("-r");
+        renderer->fbSize = vec2i(res[0], res[1]);
+    }
 #if !OFFLINE_VIEWER
     GLFWHandler::getInstance()->initWindow(renderer->fbSize.x, renderer->fbSize.y, "DTracker Viewer");
     // init imgui
@@ -150,12 +156,6 @@ Viewer::Viewer(int argc, char *argv[])
     if(program.is_used("-o"))
         outputFileName = program.get<std::string>("-o");
 #endif
-    if (program.is_used("-r"))
-    {
-        auto res = program.get<std::vector<unsigned int>>("-r");
-        renderer->fbSize = vec2i(res[0], res[1]);
-    }
-    
 
     if (program.is_used("-c"))
     {
