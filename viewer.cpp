@@ -480,7 +480,13 @@ void Viewer::Run()
         ImGui::SameLine();
         if(ImGui::RadioButton("rejects", (int*)&heatMapMode, 2))
             renderer->ResetAccumulation();
+        ImGui::SameLine();
+        if(ImGui::RadioButton("timing", (int*)&heatMapMode, 3))
+            renderer->ResetAccumulation();
         ImGui::EndGroup();
+
+        if(heatMapMode > 0 && ImGui::DragFloat("HeatMap Scale", &(renderer->heatMapScale), 0.01f, 0.0f))
+            renderer->ResetAccumulation();
 
         if(ImGui::Checkbox("Accumulation", &(renderer->enableAccumulation)))
             renderer->ResetAccumulation();
@@ -558,7 +564,7 @@ void Viewer::Run()
         }
         if(glfw->key.isPressed(GLFW_KEY_H)) //"h"
         {
-            heatMapMode = ++heatMapMode % 3;
+            heatMapMode = ++heatMapMode % 4;
             renderer->ResetAccumulation();
         }
         // Camera movement

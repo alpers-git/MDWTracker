@@ -107,6 +107,7 @@ public:
     float avgTime = 0.0f;
     float minTime = std::numeric_limits<float>::max();
     float totalTime = 0.0f;
+    float heatMapScale = 1.0f;
 
     /* scene */
     float dt = 0.05f;

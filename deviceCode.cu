@@ -206,6 +206,11 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     const float tMax = surfPrd.missed ? 1e20 : surfPrd.tHit;
 
     //test for root macrocell intersection
+    //===== TIMING =====
+    uint64_t start, end;
+    if( lp.heatMapMode == 3)
+        start = clock();
+    //==================
     RayPayload volumePrd;
     volumePrd.debug = dbg();
     volumePrd.t0 = 0.f;
@@ -239,18 +244,34 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
         else
             color = vec4f(albedo * lp.lightIntensity, transparency);
     }
-
-    if(lp.heatMapMode == 1)
+    //===== TIMING=====
+    if( lp.heatMapMode == 3)
+        end = clock();
+    //==================
+    if(lp.heatMapMode == 1) //samples heatmap
     {
-        //heatmap
         int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numMeshes);
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / 250.f, samples / 250.f, samples / 250.f, 1.f));
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / lp.heatMapScale, samples / lp.heatMapScale, samples / lp.heatMapScale, 1.f));
     }
-    else if(lp.heatMapMode == 2)
+    else if(lp.heatMapMode == 2) //rejections heatmap
     {
-        //heatmap
         int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numMeshes);
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / 250.f, rejections / 250.f, rejections / 250.f, 1.f));
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / lp.heatMapScale, rejections / lp.heatMapScale, rejections / lp.heatMapScale, 1.f));
+    }
+    else if( lp.heatMapMode == 3) // timers heatmap
+    {
+        float time = (end - start)/lp.heatMapScale;
+        const vec4f heatColor = vec4f(time, time, time, 1.f);
+        if(lp.enableAccumulation)
+        {
+            const vec4f accumColor = lp.accumBuffer[fbOfs];
+            vec4f heatColor = vec4f(time, time, time, 1.f);
+            heatColor = (heatColor + float(lp.accumID) * accumColor) / float(lp.accumID + 1);
+            lp.fbPtr[fbOfs] = make_rgba(heatColor);
+            lp.accumBuffer[fbOfs] = vec4f(heatColor);
+        }
+        else
+            lp.fbPtr[fbOfs] = make_rgba(heatColor);
     }
     else
     {

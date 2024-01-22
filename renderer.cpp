@@ -30,6 +30,7 @@ OWLVarDecl launchParamVars[] = {
     // renderer variables
     {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
     {"heatMapMode", OWL_SHORT, OWL_OFFSETOF(LaunchParams, heatMapMode)},
+    {"heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, heatMapScale)},
     {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
     {"bgColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, bgColor)},
     {"mode",    OWL_INT,    OWL_OFFSETOF(LaunchParams, mode)},
@@ -703,6 +704,7 @@ namespace dtracker
     owlParamsSet1i(lp, "accumID", accumID++);
     owlParamsSet1i(lp, "frameID", frameID++);
     owlParamsSet1s(lp, "heatMapMode", heatMapMode);
+    owlParamsSet1f(lp, "heatMapScale", heatMapScale);
   }
 
   void Renderer::Update()

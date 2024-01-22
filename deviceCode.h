@@ -61,6 +61,7 @@ struct LaunchParams
   int mode = 0;
   bool enableShadows;
   short heatMapMode = 0;
+  float heatMapScale = 1.0f;
   bool enableAccumulation;
   vec3f lightDir;
   float lightIntensity;
