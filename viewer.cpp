@@ -222,7 +222,7 @@ Viewer::Viewer(int argc, char *argv[])
         modeString = "MIX_RM";
         break;
     case 5:
-        modeString = "MAX_CMB";
+        modeString = "MM_RM";
         break;
     }
     if(program.is_used("-sh"))

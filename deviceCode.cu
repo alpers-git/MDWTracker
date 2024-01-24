@@ -10,7 +10,6 @@ using namespace dtracker;
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
 #define DEBUG 1
-#define SELECT_MAX_OPACITY 0
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
@@ -166,6 +165,36 @@ static vec4f maxOpacity(vec3f texSpacePos)
     }
     return maxOpacitySample;
 }
+//majorant based blending func
+__forceinline__ __device__
+static vec4f majorantBlend(vec3f texSpacePos)
+{
+    LaunchParams &lp = optixLaunchParams;
+    vec3ui mcDim = lp.volume.macrocellDims;
+    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
+    vec3f gridSpacePos = texSpacePos * unitToGrid;
+    //from the grid space position, find the macrocell index
+    vec3i cellIdx = vec3i(gridSpacePos.x, gridSpacePos.y, gridSpacePos.z);
+    const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+    //get majorants for each mesh
+    float majorants[MAX_MESHES];
+    float majorantSum = 0.0f;
+    for (int i = 0; i < lp.volume.numMeshes; i++)
+    {
+        majorants[i] = lp.volume.majorants[cellID * lp.volume.numMeshes + i];
+        majorantSum += majorants[i];
+    }
+    //weighted average of samples from each mesh using majorants as weights
+    vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
+    float opacitySum = 0.0f;
+    for (int i = 0; i < lp.volume.numMeshes && majorantSum > 0.0f; i++)
+    {
+        vec4f sample = transferFunction(
+            sampleVolumeTexture(texSpacePos, i), i);
+        color += sample * majorants[i] / majorantSum;
+    }
+    return color;
+}
 __device__ 
 vec4f blendChannels(const vec3f texSpacePos)
 {
@@ -175,6 +204,8 @@ vec4f blendChannels(const vec3f texSpacePos)
         return maxOpacity(texSpacePos);
     case 4: // mix blending with equal weights
         return mix(texSpacePos);
+    case 5: // majorant based blending
+        return majorantBlend(texSpacePos);
         break;
     default:
         break;
@@ -221,7 +252,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     {
         vec3f albedo = vec3f(volumePrd.rgba);
         float transparency = volumePrd.rgba.w;
-        if(lp.enableShadows && (lp.mode < 3 || lp.mode == 5))
+        if(lp.enableShadows && (lp.mode < 3))
         {
             // trace shadow rays
             RayPayload shadowbyVolPrd;
@@ -416,41 +447,17 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
                     continue;
                 }
                 const float4 curSample = transferFunction(value, meshID);
-#if SELECT_MAX_OPACITY
-                if(lp.mode == 5)
+                if(curSample.w > 0.0f && meshSelector < curSample.w)
                 {
-                    if(curSample.w > maxOpacitySample.w)
-                        maxOpacitySample = curSample;
+                    //event = ABSORPTION;
+                    prd.tHit = tWorld;
+                    prd.rgba = curSample;
+                    prd.rgba.w = 1.0f;
+                    prd.missed = false;
+                    return false;
                 }
-                //sample a mesh based on its opacity
-                else
-                {
-#endif
-                    if(curSample.w > 0.0f && meshSelector < curSample.w)
-                    {
-                        //event = ABSORPTION;
-                        prd.tHit = tWorld;
-                        prd.rgba = curSample;
-                        prd.rgba.w = 1.0f;
-                        prd.missed = false;
-                        return false;
-                    }
-                    meshSelector -= curSample.w;
-#if SELECT_MAX_OPACITY
-                }
-#endif
+                meshSelector -= curSample.w;
             }
-#if SELECT_MAX_OPACITY
-            if(lp.mode == 5 && maxOpacitySample.w > 0.0f)
-            {
-                //event = ABSORPTION;
-                prd.tHit = tWorld;
-                prd.rgba = maxOpacitySample;
-                prd.rgba.w = 1.0f;
-                prd.missed = false;
-                return false;
-            }
-#endif
             //if the process survies all meshes, it is a null collision, keep going
             //event = NULL_COLLISION;
             prd.rejections++;
@@ -698,7 +705,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveBaseLineDTCH)
     }
 }
 
-OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH) //
+OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
@@ -734,7 +741,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH) //
             const vec3f orgSh = pos;
             vec3f dirSh = -lp.lightDir;
             float alphaSh = 0.f;
-            vec3f posSh = orgSh;
+            vec3f posSh = orgSh + dirSh * dt;
 
             // typical ray AABB intersection test
             vec3f dirfrac = 1.f/dirSh;
@@ -754,7 +761,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH) //
             if( (thit1 >= 0) && ((thit0 < thit1)) )
             {
                 thit0 = max(thit0, 0.00001f);
-                //dirSh = normalize(dirSh);
                 if(length(dirSh) < 1e-5f)
                     thit0 = thit1;
                 for(float tSh = thit0; (tSh < thit1) && (alphaSh < 0.99f); tSh += dt){
@@ -763,6 +769,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH) //
                     alphaSh = over(alphaSh, opacitySh);
                     posSh = orgSh + dirSh * tSh;//take a step
                 }
+                prd.samples += lp.volume.numMeshes;
             }
             shadow = vec3f((1.f - lp.ambient) * (1.f - alphaSh)  + lp.ambient);
         }
