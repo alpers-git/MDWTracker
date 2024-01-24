@@ -117,6 +117,9 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'u', unsigned int>();
     program.add_argument("-o", "--output")
         .help("output file name");
+    program.add_argument("-hm", "--heatmap")
+        .help("enable timing heatmap. Set scale factor as argument")
+        .scan<'g', float>();
 #endif
 
     try
@@ -155,6 +158,11 @@ Viewer::Viewer(int argc, char *argv[])
         nthFrame = program.get<unsigned int>("-nt");
     if(program.is_used("-o"))
         outputFileName = program.get<std::string>("-o");
+    if(program.is_used("-hm"))
+    {
+        heatMapMode = 3;
+        renderer->heatMapScale = program.get<float>("-hm");
+    }
 #endif
 
     if (program.is_used("-c"))
@@ -213,6 +221,9 @@ Viewer::Viewer(int argc, char *argv[])
     case 4:
         modeString = "MIX_RM";
         break;
+    case 5:
+        modeString = "MAX_CMB";
+        break;
     }
     if(program.is_used("-sh"))
     {
@@ -224,6 +235,7 @@ Viewer::Viewer(int argc, char *argv[])
         if (sh.size() > 4)
             renderer->ambient = sh[4];
     }
+
     if(program.is_used("-fu"))
     {
         auto start = std::chrono::high_resolution_clock::now();

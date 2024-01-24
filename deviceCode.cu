@@ -10,6 +10,7 @@ using namespace dtracker;
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
 #define DEBUG 1
+#define SELECT_MAX_OPACITY 0
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
@@ -220,7 +221,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     {
         vec3f albedo = vec3f(volumePrd.rgba);
         float transparency = volumePrd.rgba.w;
-        if(lp.enableShadows && lp.mode < 3)
+        if(lp.enableShadows && (lp.mode < 3 || lp.mode == 5))
         {
             // trace shadow rays
             RayPayload shadowbyVolPrd;
@@ -401,6 +402,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
             float meshSelector = prd.rng() * majorant;
+
+            float opacitySum = 0.0f;
+            vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
+            
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
                 const float value = sampleVolumeTexture(xTexture, meshID);
@@ -411,18 +416,41 @@ OPTIX_CLOSEST_HIT_PROGRAM(adaptiveDTCH)
                     continue;
                 }
                 const float4 curSample = transferFunction(value, meshID);
-                //sample a mesh based on its opacity
-                if(curSample.w > 0.0f && meshSelector < curSample.w)
+#if SELECT_MAX_OPACITY
+                if(lp.mode == 5)
                 {
-                    //event = ABSORPTION;
-                    prd.tHit = tWorld;
-                    prd.rgba = curSample;
-                    prd.rgba.w = 1.0f;
-                    prd.missed = false;
-                    return false;
+                    if(curSample.w > maxOpacitySample.w)
+                        maxOpacitySample = curSample;
                 }
-                meshSelector -= curSample.w;
+                //sample a mesh based on its opacity
+                else
+                {
+#endif
+                    if(curSample.w > 0.0f && meshSelector < curSample.w)
+                    {
+                        //event = ABSORPTION;
+                        prd.tHit = tWorld;
+                        prd.rgba = curSample;
+                        prd.rgba.w = 1.0f;
+                        prd.missed = false;
+                        return false;
+                    }
+                    meshSelector -= curSample.w;
+#if SELECT_MAX_OPACITY
+                }
+#endif
             }
+#if SELECT_MAX_OPACITY
+            if(lp.mode == 5 && maxOpacitySample.w > 0.0f)
+            {
+                //event = ABSORPTION;
+                prd.tHit = tWorld;
+                prd.rgba = maxOpacitySample;
+                prd.rgba.w = 1.0f;
+                prd.missed = false;
+                return false;
+            }
+#endif
             //if the process survies all meshes, it is a null collision, keep going
             //event = NULL_COLLISION;
             prd.rejections++;

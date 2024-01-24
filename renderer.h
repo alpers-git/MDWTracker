@@ -28,6 +28,7 @@ enum Mode
   BASELINE = 2,
   MARCHER_MAX = 3,
   MARCHER_MIX = 4,
+  CUMMULATIVE_MAX = 5
 };
 
 /* transfer function */

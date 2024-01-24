@@ -248,7 +248,7 @@ namespace dtracker {
       majorantBuffer = (float*)owlBufferGetPointer(gridMaximaBuffer, 0);
       
       //Calculate majorants
-      if(mode > 0)
+      if(mode > 0 && mode != 5)
         _recalculateDensityRangesMM<<<gridSize,blockSize>>>(
           numThreads, macrocells, d_tfdatas, numMeshes,
           majorantBuffer);
