@@ -26,9 +26,11 @@ enum Mode
   CUMMULATIVE = 0,
   MULTI = 1,
   BASELINE = 2,
-  MARCHER_MAX = 3,
-  MARCHER_MIX = 4,
-  MARCHER_MULTI = 5
+  MAX = 3,
+  MIX = 4,
+  MARCHER_MULTI = 5,
+  MARCHER_MAX = 6,
+  MARCHER_MIX = 7,
 };
 
 /* transfer function */

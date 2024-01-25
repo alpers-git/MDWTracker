@@ -98,8 +98,15 @@ Viewer::Viewer(int argc, char *argv[])
         .help("enable shadows. Takes light direction<x,y,z>, light intensity, ambient intensity")
         .scan<'g', float>()
         .nargs(3,5);
+    std::string modeHelpText(
+        "sets rendering mode. 0 = single DDA traversal using a cummulative majorant buffer,"
+        "1 = single DDA traversal using multiple majorant buffers," 
+        "2 = multiple DDA traversals using multiple majorant buffers,"
+        "3 = MAX blending based Woodcock tracking, 4 = MIX blending based Woodcock tracking,"
+        "5 = majorant weighted blending for Ray Marcher,"
+        "6 = MAX blending based Ray Marcher, 7 = MIX blending based Ray Marcher"); 
     program.add_argument("-m", "--mode")
-        .help("sets rendering mode. 0 = single DDA traversal using a cummulative majorant buffer, 1 = single DDA traversal using multiple majorant buffers, 2 = multiple DDA traversals using multiple majorant buffers, 3 = MAX blending based Ray Marcher, 4 = MIX blending based Ray Marcher" )
+        .help(modeHelpText)
         .scan<'u', unsigned int>()
         .default_value(0);
 
@@ -207,22 +214,28 @@ Viewer::Viewer(int argc, char *argv[])
     switch (rendererMode)
     {
     case 0:
-        modeString = "CMB";
+        modeString = "CMB"; //cummulative Majorant Buffer
         break;
     case 1:
-        modeString = "MMB";
+        modeString = "MMB"; //multiple Majorant Buffers
         break;
     case 2:
-        modeString = "BLN";
+        modeString = "BLN"; //baseline (multiple DDA traversals)
         break;
     case 3:
-        modeString = "MAX_RM";
+        modeString = "MAX"; //MAX blending for Woodcock tracking
         break;
     case 4:
-        modeString = "MIX_RM";
+        modeString = "MIX"; //MIX blending for Woodcock tracking
         break;
     case 5:
-        modeString = "MM_RM";
+        modeString = "MM_RM"; //multiple Majorant Buffer for Ray Marcher
+        break;
+    case 6:
+        modeString = "MAX_RM"; //MAX blending for Ray Marcher
+        break;
+    case 7:
+        modeString = "MIX_RM"; //MIX blending for Ray Marcher
         break;
     }
     if(program.is_used("-sh"))

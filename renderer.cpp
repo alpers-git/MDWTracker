@@ -331,7 +331,7 @@ namespace dtracker
       auto bb = umeshPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
-      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * ( mode > 0 ? rawPtrs.size() : 1);
+      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * ( mode == 0 ? 1 : ( mode < 6 ? rawPtrs.size() : 0 ));
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
@@ -345,7 +345,8 @@ namespace dtracker
           {umeshPtrs[0]->bounds.lower.x, umeshPtrs[0]->bounds.lower.y, umeshPtrs[0]->bounds.lower.z},
           {umeshPtrs[0]->bounds.upper.x, umeshPtrs[0]->bounds.upper.y, umeshPtrs[0]->bounds.upper.z}
         };
-      macrocellsBuffer = buildSpatialMacrocells({int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)}, bounds);
+      if(mode < 6)
+        macrocellsBuffer = buildSpatialMacrocells({int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)}, bounds);
       owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
       //const uint3 macrocellDims = {macrocellDims, macrocellDims, macrocellDims};
 
@@ -511,13 +512,17 @@ namespace dtracker
 
       owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
       if(mode == Mode::CUMMULATIVE)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "cummilativeDTCH");
       else if(mode == Mode::MULTI)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveMMDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "multiMajDTCH");
+      else if(mode == Mode::MAX)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "maxDTCH");
+      else if(mode == Mode::MIX)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "mixDTCH");
       else if(mode == Mode::MARCHER_MAX || mode == Mode::MARCHER_MIX || mode == Mode::MARCHER_MULTI)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "rayMarcherCH");
       else
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "adaptiveBaseLineDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "baseLineDTCH");
       
       owlBuildPrograms(context);
       LOG("Setting buffers ...");
@@ -538,7 +543,7 @@ namespace dtracker
       for (size_t i = 0; i < rawPtrs.size(); i++)
         bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
 
-      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * ( mode > 0 ? rawPtrs.size() : 1);
+      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * ( mode == 0 ? 1 : ( mode < 6 ? rawPtrs.size() : 0 ));
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
@@ -555,16 +560,17 @@ namespace dtracker
         };
 
       printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
-      macrocellsBuffer = buildSpatialMacrocells(
-          {int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)},
-          bounds);
-    
-      //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
-      owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
-      //const uint3 macrocellDims = {macrocellDims, macrocellDims, macrocellDims};
+      if(mode < 6)
+      {
+        macrocellsBuffer = buildSpatialMacrocells(
+            {int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)},
+            bounds);
+        //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
+        owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
+        //const uint3 macrocellDims = {macrocellDims, macrocellDims, macrocellDims};
 
-      owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
-
+        owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
+      }
       //delete scalar buffers since we don't need them anymore
       for (size_t i = 0; i < rawPtrs.size(); i++)
         owlBufferDestroy(scalarData[i]);
@@ -685,7 +691,6 @@ namespace dtracker
     LOG("Building programs...");
     owlBuildPipeline(context);
     owlBuildSBT(context);
-    //RecalculateDensityRanges();
   }
 
   void Renderer::Render(short heatMapMode)
@@ -873,7 +878,8 @@ namespace dtracker
       std::string("transferFunction[" + std::to_string(tfID) + "].xf").c_str(),
       &tfdatas[tfID].colorMapTexture);
     ResetAccumulation();
-    RecalculateDensityRanges();
+    if(mode < 6)
+      RecalculateDensityRanges();
   }
 
   void Renderer::SetXFOpacityScale(float newOpacityScale, size_t tfID)
@@ -886,7 +892,8 @@ namespace dtracker
       tfdatas[tfID].opacityScale);
     ResetAccumulation();
 
-    RecalculateDensityRanges();
+    if(mode < 6)
+      RecalculateDensityRanges();
   }
 
 
@@ -899,7 +906,8 @@ namespace dtracker
       std::string("transferFunction[" + std::to_string(tfID) + "].xfDomain").c_str(),
       (const owl2f &)tfdatas[tfID].xfDomain);
     ResetAccumulation();
-    RecalculateDensityRanges();
+    if(mode < 6)
+      RecalculateDensityRanges();
   }
 
   vec3ui Renderer::CalculateMCGridDims(int estimatedElementPerMc)

@@ -248,14 +248,15 @@ namespace dtracker {
       majorantBuffer = (float*)owlBufferGetPointer(gridMaximaBuffer, 0);
       
       //Calculate majorants
-      if(mode > 0)
+      if(mode == 0)
+        _recalculateDensityRanges<<<gridSize,blockSize>>>(
+            numThreads, macrocells, d_tfdatas, numMeshes,
+            majorantBuffer);
+      else if( mode < 6)
         _recalculateDensityRangesMM<<<gridSize,blockSize>>>(
           numThreads, macrocells, d_tfdatas, numMeshes,
           majorantBuffer);
-      else
-        _recalculateDensityRanges<<<gridSize,blockSize>>>(
-          numThreads, macrocells, d_tfdatas, numMeshes,
-          majorantBuffer);
+        
     }
     // {
     //   bboxes = (owl::box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
