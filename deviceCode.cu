@@ -535,7 +535,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
         }
         
         // Sample free-flight distance
-        int loop = 0;
         while (true)
         {
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
@@ -558,10 +557,6 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
                 //event = NULL_COLLISION;
                 break; // go to next cell
             }
-
-            if(++loop > 1000)
-                printf("majorant %d, minT %f ts: %f %f %f selectC: %d \n",
-                    majorants[selectedChannel], minT, ts[0], ts[1], ts[2]);
 
             // Update current position
             const float tWorld = minT * gridToWorldT;
