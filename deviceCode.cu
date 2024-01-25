@@ -527,9 +527,15 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             return true;
 
         for (int i = 0; i < lp.volume.numMeshes; i++)
-            ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
+        {
+            if(majorants[i] > 0.0f)
+                ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
+            else
+                ts[i] = 1e20f;
+        }
         
         // Sample free-flight distance
+        int loop = 0;
         while (true)
         {
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
@@ -540,7 +546,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             auto rand = prd.rng();
             for (int i = 1; i < lp.volume.numMeshes; i++)
             {
-                if(ts[i] < minT)
+                if(ts[i] < minT && majorants[i] > 0.f)
                 {
                     selectedChannel = i;
                     minT = ts[i];
@@ -552,6 +558,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
                 //event = NULL_COLLISION;
                 break; // go to next cell
             }
+
+            if(++loop > 1000)
+                printf("majorant %d, minT %f ts: %f %f %f selectC: %d \n",
+                    majorants[selectedChannel], minT, ts[0], ts[1], ts[2]);
 
             // Update current position
             const float tWorld = minT * gridToWorldT;
