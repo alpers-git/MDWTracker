@@ -136,12 +136,12 @@ __forceinline__ __device__
     static vec4f mix(vec3f texSpacePos)
 {
     vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
-    vec4f samples[MAX_MESHES];
+
     for(int meshID = 0; meshID < optixLaunchParams.volume.numMeshes; meshID++)
     {
         color += vec4f(transferFunction(
             sampleVolumeTexture(texSpacePos, meshID), meshID))
-            /float(optixLaunchParams.volume.numMeshes);
+            /(float(optixLaunchParams.volume.numMeshes));
     }
     return color;
 }
@@ -207,10 +207,10 @@ vec4f blendChannels(const vec3f texSpacePos)
     {
     case 5: // majorant based blending
         return majorantBlend(texSpacePos);
-    case 6: // mix blending with equal weights
-        return mix(texSpacePos);
-    case 7: // max opacity blending
+    case 6: // max opacity blending
         return maxOpacity(texSpacePos);
+    case 7: // mix blending with equal weights
+        return mix(texSpacePos);
     default:
         break;
     }
@@ -256,7 +256,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     {
         vec3f albedo = vec3f(volumePrd.rgba);
         float transparency = volumePrd.rgba.w;
-        if(lp.enableShadows && (lp.mode < 3))
+        if(lp.enableShadows && (lp.mode < 5))
         {
             // trace shadow rays
             RayPayload shadowbyVolPrd;
@@ -904,6 +904,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(mixDTCH)
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
             vec4f mixSample = vec4f(0.0f,0.0f,0.0f,0.0f);
+            float opacitySum = 0.0f;
+            vec4f samples[MAX_MESHES];
             for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
             {
                 const float value = sampleVolumeTexture(xTexture, meshID);
@@ -913,8 +915,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(mixDTCH)
                     //event = NULL_COLLISION;
                     continue;
                 }
-                const float4 curSample = transferFunction(value, meshID);
-                mixSample += vec4f(curSample)/float(lp.volume.numMeshes);
+                const vec4f curSample = transferFunction(value, meshID);
+                mixSample += curSample/float(lp.volume.numMeshes);
             }
             if(mixSample.w > 0.0f)
             {
