@@ -165,34 +165,19 @@ __forceinline__ __device__
 static vec4f majorantBlend(vec3f texSpacePos)
 {
     LaunchParams &lp = optixLaunchParams;
-    vec3ui mcDim = lp.volume.macrocellDims;
-    //print if texSpacePos is out of bounds
-    if(texSpacePos.x < 0.0f || texSpacePos.x > 1.0f || texSpacePos.y < 0.0f || texSpacePos.y > 1.0f || texSpacePos.z < 0.0f || texSpacePos.z > 1.0f)
-        printf("texSpacePos = %f %f %f\n", texSpacePos.x, texSpacePos.y, texSpacePos.z);
-    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    vec3f gridSpacePos = texSpacePos * unitToGrid;
-    //from the grid space position, find the macrocell index
-    vec3i cellIdx = vec3i(roundf(gridSpacePos.x), roundf(gridSpacePos.y), roundf(gridSpacePos.z));
-    //print if any of the indices are out of bounds
-    // if(cellIdx.x < 0 || cellIdx.x >= mcDim.x || cellIdx.y < 0 || cellIdx.y >= mcDim.y || cellIdx.z < 0 || cellIdx.z >= mcDim.z)
-    //     printf("cellIdx = %d %d %d\n", cellIdx.x, cellIdx.y, cellIdx.z);
-    const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
-    //get majorants for each mesh
-    float majorants[MAX_CHANNELS];
-    float majorantSum = 0.0f;
-    for (int i = 0; i < lp.volume.numChannels; i++)
-    {
-        majorants[i] = lp.volume.majorants[cellID * lp.volume.numChannels + i];
-        majorantSum += majorants[i];
-    }
+    float densitySum = 0.0f;
     //weighted average of samples from each mesh using majorants as weights
     vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
-    for (int i = 0; i < lp.volume.numChannels && majorantSum > 0.0f; i++)
+    for (int i = 0; i < lp.volume.numChannels; i++)
     {
         vec4f sample = transferFunction(
             sampleVolumeTexture(texSpacePos, i), i);
-        color += sample * majorants[i] / majorantSum;
+        color += sample * sample.w;
+        densitySum += sample.w;
     }
+    if(densitySum <= 0.0f)
+        return vec4f(0.0f,0.0f,0.0f,0.0f);
+    color /= densitySum;
     return color;
 }
 __device__ 
