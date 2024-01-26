@@ -23,7 +23,7 @@
 __global__
 void _recalculateDensityRanges(
   int numPrims, bool is_background, owl::box4f *bboxes,//const uint8_t* nvdbData, 
-  dtracker::TFData* tf, size_t numMeshes,
+  dtracker::TFData* tf, size_t numChannels,
   float* maxima)
 {
     int primID = (blockIdx.x * blockDim.x + threadIdx.x);
@@ -39,7 +39,7 @@ void _recalculateDensityRanges(
       mx = bboxes[primID].upper.w;
     }
     float maxDensity = 0.f;
-    for(size_t tfID=0; tfID < numMeshes; tfID++)
+    for(size_t tfID=0; tfID < numChannels; tfID++)
     {
       // empty box
       if (mx < mn) {
@@ -65,7 +65,7 @@ void _recalculateDensityRanges(
       }
       maxDensity += maxDensityForVolume;
     }
-    maxima[primID] = maxDensity/(float)numMeshes;
+    maxima[primID] = maxDensity/(float)numChannels;
 }
 
 __global__
@@ -111,17 +111,17 @@ void _recalculateDensityRanges(
 __global__
 void _recalculateDensityRanges(
   int numPrims, const float2 *macrocells,//const uint8_t* nvdbData,
-  const dtracker::TFData* tf, size_t numMeshes, float* maxima)
+  const dtracker::TFData* tf, size_t numChannels, float* maxima)
 {
     int nodeID = (blockIdx.x * blockDim.x + threadIdx.x);
     if (nodeID >= numPrims) return;
 
     float maxDensity = 0.f;
     maxima[nodeID] = 0.f;
-    for (size_t tfID = 0; tfID < numMeshes; tfID++)
+    for (size_t tfID = 0; tfID < numChannels; tfID++)
     {
-      float mn = macrocells[nodeID * numMeshes + tfID].x;
-      float mx = macrocells[nodeID * numMeshes + tfID].y;
+      float mn = macrocells[nodeID * numChannels + tfID].x;
+      float mx = macrocells[nodeID * numChannels + tfID].y;
 
       // empty box
       if (mx < mn) {
@@ -159,16 +159,16 @@ void _recalculateDensityRanges(
 __global__
 void _recalculateDensityRangesMM(
   int numPrims, const float2 *macrocells,
-  const dtracker::TFData* tf, size_t numMeshes, float* maxima)
+  const dtracker::TFData* tf, size_t numChannels, float* maxima)
 {
     int nodeID = (blockIdx.x * blockDim.x + threadIdx.x);
     if (nodeID >= numPrims) return;
 
-    for (size_t tfID = 0; tfID < numMeshes; tfID++)
+    for (size_t tfID = 0; tfID < numChannels; tfID++)
     {
-      maxima[nodeID * numMeshes + tfID] = 0.f;
-      float mn = macrocells[nodeID * numMeshes + tfID].x;
-      float mx = macrocells[nodeID * numMeshes + tfID].y;
+      maxima[nodeID * numChannels + tfID] = 0.f;
+      float mn = macrocells[nodeID * numChannels + tfID].x;
+      float mx = macrocells[nodeID * numChannels + tfID].y;
 
       // empty box
       if (mx < mn) {
@@ -198,20 +198,20 @@ void _recalculateDensityRangesMM(
       maxDensityForVolume = max(maxDensityForVolume, density);
       density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr2)+0.5f)/tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
       maxDensityForVolume = max(maxDensityForVolume, density);
-      maxima[nodeID * numMeshes + tfID] = maxDensityForVolume;
+      maxima[nodeID * numChannels + tfID] = maxDensityForVolume;
     }
 }
 
 namespace dtracker {
   void Renderer::RecalculateDensityRanges()
   {
-    size_t numMeshes = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
-    if(numMeshes == 0) throw std::runtime_error("No mesh data found");
+    size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
+    if(numChannels == 0) throw std::runtime_error("No mesh data found");
 
     //Create a dvice buffer of TFData
     OWLBuffer tfdataBuffer = owlDeviceBufferCreate(context, 
       OWL_USER_TYPE(dtracker::TFData),
-      numMeshes,  tfdatas.data());
+      numChannels,  tfdatas.data());
     dtracker::TFData* d_tfdatas = (dtracker::TFData*)owlBufferGetPointer(tfdataBuffer, 0);
 
     float2 volumeDomain = {tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper};
@@ -234,7 +234,7 @@ namespace dtracker {
       majorantBuffer = (float*)owlBufferGetPointer(rootMaximaBuffer, 0);
       _recalculateDensityRanges<<<gridSize,blockSize>>>(
         numThreads, isBackground, bboxes, 
-        d_tfdatas, numMeshes, majorantBuffer);
+        d_tfdatas, numChannels, majorantBuffer);
       
       CUDA_SYNC_CHECK();
       
@@ -250,11 +250,11 @@ namespace dtracker {
       //Calculate majorants
       if(mode == 0)
         _recalculateDensityRanges<<<gridSize,blockSize>>>(
-            numThreads, macrocells, d_tfdatas, numMeshes,
+            numThreads, macrocells, d_tfdatas, numChannels,
             majorantBuffer);
       else if( mode < 6)
         _recalculateDensityRangesMM<<<gridSize,blockSize>>>(
-          numThreads, macrocells, d_tfdatas, numMeshes,
+          numThreads, macrocells, d_tfdatas, numChannels,
           majorantBuffer);
         
     }
@@ -327,7 +327,7 @@ namespace dtracker {
     d_mcGrid[cellID].upper.z = ((worldBounds.upper.z - worldBounds.lower.z) * ((cellIdx.z + 1.f) / float(dims.z)) + worldBounds.lower.z);
   }
 
-  __global__ void sizeMCs(float2 *d_mcGrid, const vec3i dims, const box3f worldBounds, const size_t numMeshes=1)
+  __global__ void sizeMCs(float2 *d_mcGrid, const vec3i dims, const box3f worldBounds, const size_t numChannels=1)
   {
     const vec3i cellIdx
       = vec3i(threadIdx)
@@ -339,9 +339,9 @@ namespace dtracker {
     const uint32_t cellID
       = (cellIdx.x
       + cellIdx.y * dims.x
-      + cellIdx.z * dims.x * dims.y) * numMeshes;
+      + cellIdx.z * dims.x * dims.y) * numChannels;
 
-    for (size_t meshIndex=0; meshIndex < numMeshes; meshIndex++) {
+    for (size_t meshIndex=0; meshIndex < numChannels; meshIndex++) {
       d_mcGrid[cellID + meshIndex] = make_float2(1e20, -1e20);
     }
   }
@@ -490,7 +490,7 @@ namespace dtracker {
                  const box3f worldBounds,
                  const box4f primBounds4,
                  const size_t meshIndex=0,
-                 const size_t numMeshes=1,
+                 const size_t numChannels=1,
                  bool dbg=false)
   {
     box3f pb = box3f(vec3f(primBounds4.lower),
@@ -508,7 +508,7 @@ namespace dtracker {
           const uint32_t cellID
             = (ix
             + iy * dims.x
-            + iz * dims.x * dims.y) * numMeshes +  meshIndex;
+            + iz * dims.x * dims.y) * numChannels +  meshIndex;
             
           atomicMin(&d_mcGrid[cellID].x,primBounds4.lower.w);
           atomicMax(&d_mcGrid[cellID].y,primBounds4.upper.w);
@@ -835,7 +835,7 @@ namespace dtracker {
                              const float *scalars,
                              const vec3i gridDims,
                              const size_t meshIndex=0,
-                             size_t numMeshes=1
+                             size_t numChannels=1
                              )
   {
     const uint64_t blockID
@@ -879,7 +879,7 @@ namespace dtracker {
           primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
         }
 
-    rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numMeshes);
+    rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numChannels);
   }
 
   __global__ void rasterElements(box4f *d_mcGrid,
@@ -1105,16 +1105,16 @@ namespace dtracker {
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds) {
     uint32_t numMacrocells = dims.x * dims.y * dims.z;
-    size_t numMeshes = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
-    if(numMeshes == 0) throw std::runtime_error("No mesh data found");
+    size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
+    if(numChannels == 0) throw std::runtime_error("No mesh data found");
 
     OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), 
-            numMacrocells*numMeshes, nullptr);
+            numMacrocells*numChannels, nullptr);
     float2 *d_mcGrid = (float2*)owlBufferGetPointer(MacrocellBuffer, 0);
 
     const vec3i blockSize = vec3i(4);
     sizeMCs<<<to_dims(divRoundUp(dims,blockSize)),to_dims(blockSize)>>>
-      (d_mcGrid,dims,bounds,numMeshes);
+      (d_mcGrid,dims,bounds,numChannels);
     CUDA_SYNC_CHECK();
 
     printf("Building Spatial Macrocells\n");
@@ -1137,11 +1137,11 @@ namespace dtracker {
       rasterElements<<<to_dims(grid),blockSize>>>
         (d_mcGrid,dims,bounds, d_vertices, d_scalars, d_tetrahedra, d_pyramids, d_wedges, d_hexahedra, 
           umeshPtrs[0]->tets.size(), umeshPtrs[0]->pyrs.size(), umeshPtrs[0]->wedges.size(), umeshPtrs[0]->hexes.size(),
-          umeshPtrs[0]->vertices.size(), numMeshes);
+          umeshPtrs[0]->vertices.size(), numChannels);
     }
     else if (meshType == MeshType::RAW)
     {
-      for (size_t i = 0; i < numMeshes; i++)
+      for (size_t i = 0; i < numChannels; i++)
       {
         const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[i],0);
         const int blockSize = 32;
@@ -1153,7 +1153,7 @@ namespace dtracker {
                     1);
 
         rasterElements<<<to_dims(grid),blockSize>>>
-          (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numMeshes);
+          (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numChannels);
         CUDA_SYNC_CHECK();
       }
       

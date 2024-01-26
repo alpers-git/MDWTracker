@@ -49,7 +49,7 @@ OWLVarDecl launchParamVars[] = {
     {"camera.horiz", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, camera.horizontal)},
     {"camera.vert", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, camera.vertical)},
     // Volume data
-    {"volume.numMeshes",   OWL_INT,   OWL_OFFSETOF(LaunchParams, volume.numMeshes)},
+    {"volume.numChannels",   OWL_INT,   OWL_OFFSETOF(LaunchParams, volume.numChannels)},
     {"volume.elementTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.elementTLAS)},
     {"volume.macrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.macrocellTLAS)},
     {"volume.rootMacrocellTLAS", OWL_GROUP, OWL_OFFSETOF(LaunchParams, volume.rootMacrocellTLAS)},
@@ -71,7 +71,21 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[3].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].dims)},
     {"volume.sGrid[4].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex)},
     {"volume.sGrid[4].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].dims)},
-    // transfer functions
+    {"volume.sGrid[5].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[5].scalarTex)},
+    {"volume.sGrid[5].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].dims)},
+    {"volume.sGrid[6].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[6].scalarTex)},
+    {"volume.sGrid[6].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].dims)},
+    {"volume.sGrid[7].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[7].scalarTex)},
+    {"volume.sGrid[7].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].dims)},
+    {"volume.sGrid[8].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[8].scalarTex)},
+    {"volume.sGrid[8].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].dims)},
+    {"volume.sGrid[9].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[9].scalarTex)},
+    {"volume.sGrid[9].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].dims)},
+    {"volume.sGrid[10].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[10].scalarTex)},
+    {"volume.sGrid[10].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].dims)},
+    {"volume.sGrid[11].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[11].scalarTex)},
+    {"volume.sGrid[11].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].dims)},
+    // transfer functions (IM SORRY)
     {"transferFunction[0].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[0].xf)},
     {"transferFunction[0].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[0].volumeDomain)},
     {"transferFunction[0].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[0].opacityScale)},
@@ -92,6 +106,34 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction[4].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[4].volumeDomain)},
     {"transferFunction[4].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[4].opacityScale)},
     {"transferFunction[4].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[4].xfDomain)},
+    {"transferFunction[5].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[5].xf)},
+    {"transferFunction[5].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[5].volumeDomain)},
+    {"transferFunction[5].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[5].opacityScale)},
+    {"transferFunction[5].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[5].xfDomain)},
+    {"transferFunction[6].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[6].xf)},
+    {"transferFunction[6].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[6].volumeDomain)},
+    {"transferFunction[6].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[6].opacityScale)},
+    {"transferFunction[6].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[6].xfDomain)},
+    {"transferFunction[7].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[7].xf)},
+    {"transferFunction[7].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[7].volumeDomain)},
+    {"transferFunction[7].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[7].opacityScale)},
+    {"transferFunction[7].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[7].xfDomain)},
+    {"transferFunction[8].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[8].xf)},
+    {"transferFunction[8].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[8].volumeDomain)},
+    {"transferFunction[8].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[8].opacityScale)},
+    {"transferFunction[8].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[8].xfDomain)},
+    {"transferFunction[9].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[9].xf)},
+    {"transferFunction[9].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[9].volumeDomain)},
+    {"transferFunction[9].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[9].opacityScale)},
+    {"transferFunction[9].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[9].xfDomain)},
+    {"transferFunction[10].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[10].xf)},
+    {"transferFunction[10].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[10].volumeDomain)},
+    {"transferFunction[10].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[10].opacityScale)},
+    {"transferFunction[10].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[10].xfDomain)},
+    {"transferFunction[11].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[11].xf)},
+    {"transferFunction[11].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].volumeDomain)},
+    {"transferFunction[11].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[11].opacityScale)},
+    {"transferFunction[11].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].xfDomain)},
     {/* sentinel to mark end of list */}};
 
     cudaTextureObject_t create3DTexture(float* data, vec3i dims)
@@ -686,7 +728,7 @@ namespace dtracker
 
     Resetdt();
 
-    owlParamsSet1i(lp, "volume.numMeshes", meshType == MeshType::UMESH ? umeshPtrs.size() : rawPtrs.size());
+    owlParamsSet1i(lp, "volume.numChannels", meshType == MeshType::UMESH ? umeshPtrs.size() : rawPtrs.size());
 
     LOG("Building programs...");
     owlBuildPipeline(context);
@@ -733,7 +775,7 @@ namespace dtracker
 
   bool Renderer::PushMesh(std::shared_ptr<umesh::UMesh> mesh)
   {
-    if(umeshPtrs.size() <= MAX_MESHES)
+    if(umeshPtrs.size() <= MAX_CHANNELS)
     {
       LOG("Pushing mesh...\n");
       umeshPtrs.push_back(mesh);
@@ -748,7 +790,7 @@ namespace dtracker
 
   bool Renderer::PushMesh(std::shared_ptr<raw::RawR> mesh)
   {
-    if(rawPtrs.size() <= MAX_MESHES)
+    if(rawPtrs.size() <= MAX_CHANNELS)
     {
       LOG("Pushing mesh...\n");
       rawPtrs.push_back(mesh);

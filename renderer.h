@@ -89,7 +89,7 @@ public:
     OWLBuffer hexahedraData;  //Unstructured mesh elements
     OWLBuffer wedgesData;     //Unstructured mesh elements
     OWLBuffer verticesData;   //Unstructured mesh vertices
-    OWLBuffer scalarData[MAX_MESHES];
+    OWLBuffer scalarData[MAX_CHANNELS];
     OWLBuffer gridBuffer;     //TODO Unsure if we need N grid buffers for N meshes
     OWLBuffer majorantBuffer; //this will account for all macrocell grids
     OWLBuffer vertexBuffer;   //triangle vertices

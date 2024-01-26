@@ -137,11 +137,11 @@ __forceinline__ __device__
 {
     vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
 
-    for(int meshID = 0; meshID < optixLaunchParams.volume.numMeshes; meshID++)
+    for(int meshID = 0; meshID < optixLaunchParams.volume.numChannels; meshID++)
     {
         color += vec4f(transferFunction(
             sampleVolumeTexture(texSpacePos, meshID), meshID))
-            /(float(optixLaunchParams.volume.numMeshes));
+            /(float(optixLaunchParams.volume.numChannels));
     }
     return color;
 }
@@ -151,7 +151,7 @@ static vec4f maxOpacity(vec3f texSpacePos)
 {
     //find the mesh with the highest opacity
     vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
-    for(int meshID = 0; meshID < optixLaunchParams.volume.numMeshes; meshID++)
+    for(int meshID = 0; meshID < optixLaunchParams.volume.numChannels; meshID++)
     {
         vec4f sample = transferFunction(
             sampleVolumeTexture(texSpacePos, meshID), meshID);
@@ -178,17 +178,16 @@ static vec4f majorantBlend(vec3f texSpacePos)
     //     printf("cellIdx = %d %d %d\n", cellIdx.x, cellIdx.y, cellIdx.z);
     const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
     //get majorants for each mesh
-    float majorants[MAX_MESHES];
+    float majorants[MAX_CHANNELS];
     float majorantSum = 0.0f;
-    for (int i = 0; i < lp.volume.numMeshes; i++)
+    for (int i = 0; i < lp.volume.numChannels; i++)
     {
-        majorants[i] = lp.volume.majorants[cellID * lp.volume.numMeshes + i];
+        majorants[i] = lp.volume.majorants[cellID * lp.volume.numChannels + i];
         majorantSum += majorants[i];
     }
     //weighted average of samples from each mesh using majorants as weights
     vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
-    float opacitySum = 0.0f;
-    for (int i = 0; i < lp.volume.numMeshes && majorantSum > 0.0f; i++)
+    for (int i = 0; i < lp.volume.numChannels && majorantSum > 0.0f; i++)
     {
         vec4f sample = transferFunction(
             sampleVolumeTexture(texSpacePos, i), i);
@@ -286,12 +285,12 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     //==================
     if(lp.heatMapMode == 1) //samples heatmap
     {
-        int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numMeshes);
+        int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / lp.heatMapScale, samples / lp.heatMapScale, samples / lp.heatMapScale, 1.f));
     }
     else if(lp.heatMapMode == 2) //rejections heatmap
     {
-        int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numMeshes);
+        int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / lp.heatMapScale, rejections / lp.heatMapScale, rejections / lp.heatMapScale, 1.f));
     }
     else if( lp.heatMapMode == 3) // timers heatmap
@@ -441,7 +440,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
             float opacitySum = 0.0f;
             vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
             
-            for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
+            for(int meshID = 0; meshID < lp.volume.numChannels; meshID++)
             {
                 const float value = sampleVolumeTexture(xTexture, meshID);
                 prd.samples++;
@@ -503,8 +502,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
     const float gridToWorldT = 1.f / worldToGridT;
     dir = normalize(dir);
 
-    float majorants[MAX_MESHES];
-    float ts[MAX_MESHES];
+    float majorants[MAX_CHANNELS];
+    float ts[MAX_CHANNELS];
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
@@ -512,21 +511,21 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
 
         float majorantSum = 0.0f;
 
-        for (int i = 0; i < lp.volume.numMeshes; i++)
+        for (int i = 0; i < lp.volume.numChannels; i++)
         {
-            majorants[i] = lp.volume.majorants[cellID * lp.volume.numMeshes + i];
+            majorants[i] = lp.volume.majorants[cellID * lp.volume.numChannels + i];
             majorantSum += majorants[i];
             ts[i] = t0;
         }
 
         if(prd.debug)
-            for (int i = 0; i < lp.volume.numMeshes; i++)
+            for (int i = 0; i < lp.volume.numChannels; i++)
                 printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
 
         if (majorantSum <= 0.0000001f)
             return true;
 
-        for (int i = 0; i < lp.volume.numMeshes; i++)
+        for (int i = 0; i < lp.volume.numChannels; i++)
         {
             if(majorants[i] > 0.0f)
                 ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
@@ -543,7 +542,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             float minT = ts[0];
             int selectedChannel = 0;
             auto rand = prd.rng();
-            for (int i = 1; i < lp.volume.numMeshes; i++)
+            for (int i = 1; i < lp.volume.numChannels; i++)
             {
                 if(ts[i] < minT && majorants[i] > 0.f)
                 {
@@ -638,7 +637,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
-        float majorant = lp.volume.majorants[cellID * lp.volume.numMeshes + curMesh];
+        float majorant = lp.volume.majorants[cellID * lp.volume.numChannels + curMesh];
 
         if(prd.debug)
             printf("cellID = %d, majorant = %f\n", cellID, majorant);
@@ -705,7 +704,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
 
         return true;
     };
-    for (int i = 0; i < lp.volume.numMeshes; i++)
+    for (int i = 0; i < lp.volume.numChannels; i++)
     {
         curMesh = i;
         dda::dda3(org,dir,1e20,mcDim,lambda,false);
@@ -751,7 +750,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(maxDTCH)
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
-        float majorant = lp.volume.majorants[cellID * lp.volume.numMeshes + curMesh];
+        float majorant = lp.volume.majorants[cellID * lp.volume.numChannels + curMesh];
 
         if(prd.debug)
             printf("cellID = %d, majorant = %f\n", cellID, majorant);
@@ -792,7 +791,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(maxDTCH)
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
             vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
-            for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
+            for(int meshID = 0; meshID < lp.volume.numChannels; meshID++)
             {
                 const float value = sampleVolumeTexture(xTexture, meshID);
                 prd.samples++;
@@ -805,7 +804,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(maxDTCH)
                 if(curSample.w > maxOpacitySample.w)
                     maxOpacitySample = curSample;
             }
-            if(maxOpacitySample.w > 0.0f)
+            if(maxOpacitySample.w > 0.0f && prd.rng() < maxOpacitySample.w)
             {
                 //event = ABSORPTION;
                 prd.tHit = tWorld;
@@ -822,7 +821,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(maxDTCH)
 
         return true;
     };
-    for (int i = 0; i < lp.volume.numMeshes; i++)
+    for (int i = 0; i < lp.volume.numChannels; i++)
     {
         curMesh = i;
         dda::dda3(org,dir,1e20,mcDim,lambda,false);
@@ -868,7 +867,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(mixDTCH)
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
-        float majorant = lp.volume.majorants[cellID * lp.volume.numMeshes + curMesh];
+        float majorant = lp.volume.majorants[cellID * lp.volume.numChannels + curMesh];
 
         if(prd.debug)
             printf("cellID = %d, majorant = %f\n", cellID, majorant);
@@ -910,8 +909,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(mixDTCH)
             //get values from all meshes and decide which one the sample is gonna come from
             vec4f mixSample = vec4f(0.0f,0.0f,0.0f,0.0f);
             float opacitySum = 0.0f;
-            vec4f samples[MAX_MESHES];
-            for(int meshID = 0; meshID < lp.volume.numMeshes; meshID++)
+            vec4f samples[MAX_CHANNELS];
+            for(int meshID = 0; meshID < lp.volume.numChannels; meshID++)
             {
                 const float value = sampleVolumeTexture(xTexture, meshID);
                 prd.samples++;
@@ -921,9 +920,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(mixDTCH)
                     continue;
                 }
                 const vec4f curSample = transferFunction(value, meshID);
-                mixSample += curSample/float(lp.volume.numMeshes);
+                mixSample += curSample/float(lp.volume.numChannels);
             }
-            if(mixSample.w > 0.0f)
+            if(mixSample.w > 0.0f && prd.rng() < mixSample.w)
             {
                 //event = ABSORPTION;
                 prd.tHit = tWorld;
@@ -940,7 +939,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(mixDTCH)
 
         return true;
     };
-    for (int i = 0; i < lp.volume.numMeshes; i++)
+    for (int i = 0; i < lp.volume.numChannels; i++)
     {
         curMesh = i;
         dda::dda3(org,dir,1e20,mcDim,lambda,false);
@@ -1011,13 +1010,13 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
                     alphaSh = over(alphaSh, opacitySh);
                     posSh = orgSh + dirSh * tSh;//take a step
                 }
-                prd.samples += lp.volume.numMeshes;
+                prd.samples += lp.volume.numChannels;
             }
             shadow = vec3f((1.f - lp.ambient) * (1.f - alphaSh)  + lp.ambient);
         }
         const vec3f posTex = pos * worldToUnit;
         vec4f blendedColor = blendChannels(posTex);
-        prd.samples += lp.volume.numMeshes;
+        prd.samples += lp.volume.numChannels;
 
         color = over(color, vec3f(blendedColor) * shadow, alpha, blendedColor.w);
         alpha = over(alpha, blendedColor.w);

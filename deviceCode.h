@@ -10,7 +10,7 @@
 using namespace owl;
 
 #define NUM_BINS 32
-#define MAX_MESHES 5
+#define MAX_CHANNELS 12
 
 /* variables for the triangle mesh geometry */
 struct TriangleData
@@ -71,7 +71,7 @@ struct LaunchParams
 
   struct
   {
-    int numMeshes = 1;
+    int numChannels = 1;
     //interval<float> domain;
     OptixTraversableHandle rootMacrocellTLAS;
     OptixTraversableHandle macrocellTLAS;
@@ -94,7 +94,7 @@ struct LaunchParams
     {
       vec3ui dims;
       cudaTextureObject_t scalarTex;
-    } sGrid[MAX_MESHES];
+    } sGrid[MAX_CHANNELS];
 
     //=== Unstructured Grid ===//
     OptixTraversableHandle elementTLAS;
@@ -108,7 +108,7 @@ struct LaunchParams
     float2 volumeDomain;
     float2 xfDomain;
     float opacityScale;
-  } transferFunction[MAX_MESHES];
+  } transferFunction[MAX_CHANNELS];
 
   struct
   {
@@ -132,7 +132,6 @@ struct RayPayload
   float tHit;
   int samples = 0;
   int rejections = 0;
-  float maxima[NUM_BINS];
   bool shadowRay;
   bool missed;
   bool debug;
