@@ -99,9 +99,9 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'g', float>()
         .nargs(3,5);
     std::string modeHelpText(
-        "sets rendering mode. 0 = single DDA traversal using a cummulative majorant buffer,"
+        "sets rendering mode. 0 = multiple DDA traversals using multiple majorant buffers,"
         "1 = single DDA traversal using multiple majorant buffers," 
-        "2 = multiple DDA traversals using multiple majorant buffers,"
+        "2 = single DDA traversal using a cummulative majorant buffer,"
         "3 = MAX blending based Woodcock tracking, 4 = MIX blending based Woodcock tracking,"
         "5 = majorant weighted blending for Ray Marcher,"
         "6 = MAX blending based Ray Marcher, 7 = MIX blending based Ray Marcher"); 
@@ -214,13 +214,13 @@ Viewer::Viewer(int argc, char *argv[])
     switch (rendererMode)
     {
     case 0:
-        modeString = "CMB"; //cummulative Majorant Buffer
+        modeString = "BLN"; //baseline (multiple DDA traversals)
         break;
     case 1:
         modeString = "MMB"; //multiple Majorant Buffers
         break;
     case 2:
-        modeString = "BLN"; //baseline (multiple DDA traversals)
+        modeString = "CMB"; //cummulative Majorant Buffer
         break;
     case 3:
         modeString = "MAX"; //MAX blending for Woodcock tracking

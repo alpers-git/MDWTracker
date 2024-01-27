@@ -23,9 +23,9 @@ enum MeshType
 
 enum Mode
 {
-  CUMMULATIVE = 0,
+  BASELINE = 0,
   MULTI = 1,
-  BASELINE = 2,
+  CUMMULATIVE = 2,
   MAX = 3,
   MIX = 4,
   MARCHER_MULTI = 5,

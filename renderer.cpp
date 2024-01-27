@@ -373,7 +373,8 @@ namespace dtracker
       auto bb = umeshPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
-      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * ( mode == 0 ? 1 : ( mode < Mode::MARCHER_MULTI ? rawPtrs.size() : 0 ));
+      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
+          ( mode <= Mode::MULTI ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
@@ -555,14 +556,12 @@ namespace dtracker
       owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
       if(mode == Mode::BASELINE)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "baseLineDTCH");
-      else if(mode == Mode::CUMMULATIVE)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "cummilativeDTCH");
       else if(mode == Mode::MULTI)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "multiMajDTCH");
-      else if(mode == Mode::MAX)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "maxDTCH");
-      else if(mode == Mode::MIX)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "mixDTCH");
+      else if(mode == Mode::CUMMULATIVE)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "cummilativeDTCH");
+      else if(mode <= Mode::MIX)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "blendDTCH");
       else
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "rayMarcherCH");
       
@@ -585,7 +584,8 @@ namespace dtracker
       for (size_t i = 0; i < rawPtrs.size(); i++)
         bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
 
-      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * ( mode == 0 ? 1 : ( mode < Mode::MARCHER_MULTI ? rawPtrs.size() : 0 ));
+      size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
+          ( mode <= Mode::MULTI ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
