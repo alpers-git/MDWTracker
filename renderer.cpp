@@ -743,10 +743,10 @@ namespace dtracker
     owlLaunch2D(rayGen, fbSize.x, fbSize.y, lp);
     auto end = std::chrono::system_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() * 1e-6f;
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() * 1000.0;
     totalTime += duration;
     avgTime = totalTime / (accumID + 1);
-    minTime = std::min(minTime, (float)duration);
+    minTime = std::min(minTime, duration);
 
     owlParamsSet1i(lp, "accumID", accumID++);
     owlParamsSet1i(lp, "frameID", frameID++);
@@ -1126,7 +1126,7 @@ namespace dtracker
     accumID = 0;
     owlParamsSet1i(lp, "accumID", accumID);
     totalTime = 0;
-    minTime = std::numeric_limits<float>::max();
+    minTime = std::numeric_limits<double>::max();
     avgTime = 0;
   }
 
