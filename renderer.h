@@ -107,9 +107,9 @@ public:
     int frameID{0};
 
     /* timing */
-    double avgTime = 0.0f;
-    double minTime = std::numeric_limits<double>::max();
-    double totalTime = 0.0f;
+    float avgTime = 0.0f;
+    float minTime = std::numeric_limits<float>::max();
+    float totalTime = 0.0f;
     float heatMapScale = 1.0f;
 
     /* scene */
