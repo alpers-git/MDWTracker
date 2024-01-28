@@ -867,7 +867,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
         const vec3f posTex = pos * worldToUnit;
         vec4f blendedColor = blendChannels(posTex);
         prd.samples += lp.volume.numChannels;
-
+        // blendedColor.w = 1.f - pow(1.f-blendedColor.w,dt);
         color = over(color, vec3f(blendedColor) * shadow, alpha, blendedColor.w);
         alpha = over(alpha, blendedColor.w);
 
