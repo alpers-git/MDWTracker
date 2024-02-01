@@ -428,7 +428,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
-            float meshSelector = prd.rng() * majorant;
+            float nullColThreshold = prd.rng() * majorant;
 
             for(int channelID = 0; channelID < lp.volume.numChannels; channelID++)
             {
@@ -440,7 +440,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
                     continue;
                 }
                 const float4 curSample = transferFunction(value, channelID);
-                if(curSample.w > 0.0f && meshSelector < curSample.w)
+                if(curSample.w > 0.0f && nullColThreshold < curSample.w)
                 {
                     //event = ABSORPTION;
                     prd.tHit = tWorld;
@@ -449,7 +449,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
                     prd.missed = false;
                     return false;
                 }
-                meshSelector -= curSample.w;
+                nullColThreshold -= curSample.w;
             }
             //if the process survies all meshes, it is a null collision, keep going
             //event = NULL_COLLISION;
@@ -560,14 +560,14 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
-            float meshSelector = prd.rng() * (majorants[selectedChannel]);
+            float nullColThreshold = prd.rng() * (majorants[selectedChannel]);
             const float value = sampleVolumeTexture(xTexture, selectedChannel);
             prd.samples++;
             if(!isnan(value))//event = NULL_COLLISION
             {
                 const float4 curSample = transferFunction(value, selectedChannel);
                 //sample a mesh based on its opacity
-                if(curSample.w > 0.0f && meshSelector < curSample.w)
+                if(curSample.w > 0.0f && nullColThreshold < curSample.w)
                 {
                     //event = ABSORPTION;
                     prd.tHit = tWorld;
@@ -619,98 +619,81 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
     const float gridToWorldT = 1.f / worldToGridT;
     dir = normalize(dir);
 
-    float majorants[MAX_CHANNELS];
-    float ts[MAX_CHANNELS];
+    float majorant;
+    float t;
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
         const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        float minT = t1; // distance to the closest cell boundary
 
-        float majorantSum = 0.0f;
-
-        for (int i = 0; i < lp.volume.numChannels; i++)
+        for (int channelID = 0; channelID < lp.volume.numChannels; channelID++)
         {
-            majorants[i] = lp.volume.majorants[cellID * lp.volume.numChannels + i];
-            majorantSum += majorants[i];
-            ts[i] = t0;
-        }
+            majorant = lp.volume.majorants[cellID * lp.volume.numChannels + channelID];
+            t = t0;
 
-        if(prd.debug)
-            for (int i = 0; i < lp.volume.numChannels; i++)
-                printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
+            if(prd.debug)
+                    printf("cellID = %d, channel: %d majorant = %f\n", cellID, channelID, majorant);
 
-        if (majorantSum <= 0.0000001f)
-            return true;
-
-        for (int i = 0; i < lp.volume.numChannels; i++)
-        {
-            if(majorants[i] > 0.0f)
-                ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
-            else
-                ts[i] = 1e20f;
-        }
-        
-        // Sample free-flight distance
-        while (true)
-        {
-            //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
-            //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
-            // more/less probable by altering the length of the woodcock step size
-            float minT = ts[0];
-            int selectedChannel = 0;
-            auto rand = prd.rng();
-            for (int i = 1; i < lp.volume.numChannels; i++)
+            if (majorant == 0.0f)
             {
-                if(ts[i] < minT && majorants[i] > 0.f)
+                continue;
+            }
+
+            // Sample free-flight distance
+            while (true)
+            {
+                //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
+                //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
+                // more/less probable by altering the length of the woodcock step size
+                t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
+
+                if(t >= minT)
+                    break; //this channel is not the closest sample
+
+                // Update current position
+                const float tWorld = t * gridToWorldT;
+                const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+                // A world boundary has been hit
+                if (tWorld >= prd.t1)
                 {
-                    selectedChannel = i;
-                    minT = ts[i];
+                    //event = NULL_COLLISION;
+                    prd.rejections++;
+                    if(channelID == lp.volume.numChannels -1)
+                        return false; // terminate traversal
+                    else
+                        break;
                 }
-            }
 
-            // A cell boundary has been hit
-            if (minT >= t1){
-                //event = NULL_COLLISION;
-                break; // go to next cell
-            }
-
-            // Update current position
-            const float tWorld = minT * gridToWorldT;
-            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
-            // A world boundary has been hit
-            if (tWorld >= prd.t1)
-            {
+                
+                //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
+                //get values from all meshes and decide which one the sample is gonna come from
+                float nullColThreshold = prd.rng() * majorant;
+                const float value = sampleVolumeTexture(xTexture, channelID);
+                prd.samples++;
+                if(!isnan(value))//event = NULL_COLLISION
+                {
+                    const float4 curSample = transferFunction(value, channelID);
+                    //sample a mesh based on its opacity
+                    if(curSample.w > 0.0f && nullColThreshold < curSample.w)
+                    {
+                        //event = ABSORPTION;
+                        prd.tHit = tWorld;
+                        prd.rgba = curSample;
+                        prd.rgba.w = 1.0f;
+                        prd.missed = false;
+                        minT = min(t, minT);
+                    }
+                }
+                //if the process survies all meshes, it is a null collision, keep going
                 //event = NULL_COLLISION;
                 prd.rejections++;
-                return false; // terminate traversal
             }
-            
-            //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
-            //get values from all meshes and decide which one the sample is gonna come from
-            float meshSelector = prd.rng() * (majorants[selectedChannel]);
-            const float value = sampleVolumeTexture(xTexture, selectedChannel);
-            prd.samples++;
-            if(!isnan(value))//event = NULL_COLLISION
-            {
-                const float4 curSample = transferFunction(value, selectedChannel);
-                //sample a mesh based on its opacity
-                if(curSample.w > 0.0f && meshSelector < curSample.w)
-                {
-                    //event = ABSORPTION;
-                    prd.tHit = tWorld;
-                    prd.rgba = curSample;
-                    prd.rgba.w = 1.0f;
-                    prd.missed = false;
-                    return false;
-                }
-            }
-            //if the process survies all meshes, it is a null collision, keep going
-            //event = NULL_COLLISION;
-            prd.rejections++;
-            ts[selectedChannel] = ts[selectedChannel] - (log(1.0f - rand) / majorants[selectedChannel]) * unit * worldToGridT;
         }
-
-        return true;
+        if (prd.missed) // no hits within the cell
+            return true; // go to next cell
+        else
+            return false; // terminate traversal
     };
     dda::dda3(org,dir,1e20f,mcDim,lambda,false);
 }
@@ -794,7 +777,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
-            float meshSelector = prd.rng() * majorant;
+            float nullColThreshold = prd.rng() * majorant;
             const float value = sampleVolumeTexture(xTexture, curMesh);
             prd.samples++;
             if(isnan(value)) // miss: this shouldnt happen in structured volumes
@@ -804,7 +787,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
             }
             const float4 curSample = transferFunction(value, curMesh);
             //sample a mesh based on its opacity
-            if(curSample.w > 0.0f && meshSelector < curSample.w)
+            if(curSample.w > 0.0f && nullColThreshold < curSample.w)
             {
                 //event = ABSORPTION;
                 prd.tHit = tWorld;
