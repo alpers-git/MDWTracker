@@ -374,7 +374,7 @@ namespace dtracker
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
       size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
-          ( mode <= Mode::MULTI ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
+          ( mode <= Mode::MULTI_ALT ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
@@ -558,6 +558,8 @@ namespace dtracker
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "baseLineDTCH");
       else if(mode == Mode::MULTI)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "multiMajDTCH");
+      else if(mode == Mode::MULTI_ALT)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "altMultiMajDTCH");
       else if(mode == Mode::CUMMULATIVE)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "cummilativeDTCH");
       else if(mode <= Mode::MIX)
@@ -585,7 +587,7 @@ namespace dtracker
         bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
 
       size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
-          ( mode <= Mode::MULTI ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
+          ( mode <= Mode::MULTI_ALT ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);

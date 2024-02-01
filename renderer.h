@@ -25,12 +25,13 @@ enum Mode
 {
   BASELINE = 0,
   MULTI = 1,
-  CUMMULATIVE = 2,
-  MAX = 3,
-  MIX = 4,
-  MARCHER_MULTI = 5,
-  MARCHER_MAX = 6,
-  MARCHER_MIX = 7,
+  MULTI_ALT = 2,
+  CUMMULATIVE = 3,
+  MAX = 4,
+  MIX = 5,
+  MARCHER_MULTI = 6,
+  MARCHER_MAX = 7,
+  MARCHER_MIX = 8,
 };
 
 /* transfer function */

@@ -87,12 +87,12 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
 }
 
 inline __device__
-float sampleVolumeTexture(const vec3f& normalizedPos, const int meshID = 0)
+float sampleVolumeTexture(const vec3f& normalizedPos, const int channelID = 0)
 {
     if (normalizedPos.x < 0.0f || normalizedPos.x > 1.0f || normalizedPos.y < 0.0f || normalizedPos.y > 1.0f || normalizedPos.z < 0.0f || normalizedPos.z > 1.0f)
         return NAN;
     auto &lp = optixLaunchParams;
-    float value = tex3D<float>(lp.volume.sGrid[meshID].scalarTex, 
+    float value = tex3D<float>(lp.volume.sGrid[channelID].scalarTex, 
             normalizedPos.x, normalizedPos.y,normalizedPos.z);
                     
     // Sample scalar field
@@ -100,7 +100,7 @@ float sampleVolumeTexture(const vec3f& normalizedPos, const int meshID = 0)
 }
 
 inline __device__
-float sampleVolume(const vec3f& pos, const int meshID = 0)
+float sampleVolume(const vec3f& pos, const int channelID = 0)
 {
     auto &lp = optixLaunchParams;
     if(lp.volume.meshType == 1)//Query unstructred mesh
@@ -127,19 +127,19 @@ float sampleVolume(const vec3f& pos, const int meshID = 0)
         vec3f normalizedPos = (pos - vec3f(lp.volume.globalBoundsLo)) / 
             (vec3f(lp.volume.globalBoundsHi) - vec3f(lp.volume.globalBoundsLo)); 
         // Sample scalar field
-        return sampleVolumeTexture(normalizedPos, meshID);
+        return sampleVolumeTexture(normalizedPos, channelID);
     }
 }
 //max opacity blending func
 __forceinline__ __device__
-static vec4f maxOpacity(vec3f texSpacePos)
+static vec4f maxOpacityBlend(vec3f texSpacePos)
 {
     //find the mesh with the highest opacity
     vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
-    for(int meshID = 0; meshID < optixLaunchParams.volume.numChannels; meshID++)
+    for(int channelID = 0; channelID < optixLaunchParams.volume.numChannels; channelID++)
     {
         vec4f sample = transferFunction(
-            sampleVolumeTexture(texSpacePos, meshID), meshID);
+            sampleVolumeTexture(texSpacePos, channelID), channelID);
         if(sample.w > maxOpacitySample.w)
             maxOpacitySample = sample;
     }
@@ -148,14 +148,14 @@ static vec4f maxOpacity(vec3f texSpacePos)
 
 //mix with equal weights blending func
 __forceinline__ __device__
-    static vec4f mix(vec3f texSpacePos)
+    static vec4f mixBlend(vec3f texSpacePos)
 {
     vec3f color = vec3f(0.0f,0.0f,0.0f);
     float maxOpacity = 0.0f;
-    for(int meshID = 0; meshID < optixLaunchParams.volume.numChannels; meshID++)
+    for(int channelID = 0; channelID < optixLaunchParams.volume.numChannels; channelID++)
     {
         vec4f curColor = transferFunction(
-            sampleVolumeTexture(texSpacePos, meshID), meshID);
+            sampleVolumeTexture(texSpacePos, channelID), channelID);
         color += vec3f(curColor) * curColor.w;
         if(curColor.w > maxOpacity)
             maxOpacity = curColor.w;
@@ -168,7 +168,7 @@ __forceinline__ __device__
 
 //majorant based blending func
 __forceinline__ __device__
-static vec4f majorantBlend(vec3f texSpacePos)
+static vec4f densityBlend(vec3f texSpacePos)
 {
     LaunchParams &lp = optixLaunchParams;
     float densitySum = 0.0f;
@@ -195,14 +195,14 @@ vec4f blendChannels(const vec3f texSpacePos)
         return vec4f(0.0f,0.0f,0.0f,0.0f);// empty sample for boundary condition
     switch (optixLaunchParams.mode)
     {
-    case 5: // majorant based blending
-        return majorantBlend(texSpacePos);
-    case 3:
-    case 6: // max opacity blending
-        return maxOpacity(texSpacePos);
-    case 4:
-    case 7: // mix blending with equal weights
-        return mix(texSpacePos);
+    case Mode::MARCHER_MULTI: // majorant based blending
+        return densityBlend(texSpacePos);
+    case Mode::MAX:
+    case Mode::MARCHER_MAX: // max opacity blending
+        return maxOpacityBlend(texSpacePos);
+    case Mode::MIX:
+    case Mode::MARCHER_MIX: // mix blending with equal weights
+        return mixBlend(texSpacePos);
     default:
         break;
     }
@@ -430,16 +430,16 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
             //get values from all meshes and decide which one the sample is gonna come from
             float meshSelector = prd.rng() * majorant;
 
-            for(int meshID = 0; meshID < lp.volume.numChannels; meshID++)
+            for(int channelID = 0; channelID < lp.volume.numChannels; channelID++)
             {
-                const float value = sampleVolumeTexture(xTexture, meshID);
+                const float value = sampleVolumeTexture(xTexture, channelID);
                 prd.samples++;
                 if(isnan(value)) // miss: this shouldnt happen in structured volumes
                 {
                     //event = NULL_COLLISION;
                     continue;
                 }
-                const float4 curSample = transferFunction(value, meshID);
+                const float4 curSample = transferFunction(value, channelID);
                 if(curSample.w > 0.0f && meshSelector < curSample.w)
                 {
                     //event = ABSORPTION;
@@ -462,6 +462,133 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
+()
+{
+    RayPayload &prd = owl::getPRD<RayPayload>();
+    auto &lp = optixLaunchParams;
+    const MacrocellData &self = owl::getProgramData<MacrocellData>();
+    prd.missed = true;
+    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+
+    float unit = lp.volume.dt;
+
+    vec3f worldOrg = optixGetWorldRayOrigin();
+    vec3f org = optixGetWorldRayOrigin();
+    vec3f worldDir = optixGetWorldRayDirection();
+
+    // assuming ray is already in voxel space
+    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+    vec3ui mcDim = lp.volume.macrocellDims;
+
+    org = org - worlddim.lower;
+
+    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
+    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
+    
+    org = unitToGrid *worldToUnit * org;
+    vec3f dir = worldToUnit * unitToGrid * worldDir;
+    const float worldToGridT = length(dir);
+    const float gridToWorldT = 1.f / worldToGridT;
+    dir = normalize(dir);
+
+    float majorants[MAX_CHANNELS];
+    float ts[MAX_CHANNELS];
+    //VolumeEvent event = NULL_COLLISION;
+    auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
+    {
+        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+
+        float majorantSum = 0.0f;
+
+        for (int i = 0; i < lp.volume.numChannels; i++)
+        {
+            majorants[i] = lp.volume.majorants[cellID * lp.volume.numChannels + i];
+            majorantSum += majorants[i];
+            ts[i] = t0;
+        }
+
+        if(prd.debug)
+            for (int i = 0; i < lp.volume.numChannels; i++)
+                printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
+
+        if (majorantSum <= 0.0000001f)
+            return true;
+
+        for (int i = 0; i < lp.volume.numChannels; i++)
+        {
+            if(majorants[i] > 0.0f)
+                ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
+            else
+                ts[i] = 1e20f;
+        }
+        
+        // Sample free-flight distance
+        while (true)
+        {
+            //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
+            //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
+            // more/less probable by altering the length of the woodcock step size
+            float minT = ts[0];
+            int selectedChannel = 0;
+            auto rand = prd.rng();
+            for (int i = 1; i < lp.volume.numChannels; i++)
+            {
+                if(ts[i] < minT && majorants[i] > 0.f)
+                {
+                    selectedChannel = i;
+                    minT = ts[i];
+                }
+            }
+
+            // A cell boundary has been hit
+            if (minT >= t1){
+                //event = NULL_COLLISION;
+                break; // go to next cell
+            }
+
+            // Update current position
+            const float tWorld = minT * gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+            // A world boundary has been hit
+            if (tWorld >= prd.t1)
+            {
+                //event = NULL_COLLISION;
+                prd.rejections++;
+                return false; // terminate traversal
+            }
+            
+            //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
+            //get values from all meshes and decide which one the sample is gonna come from
+            float meshSelector = prd.rng() * (majorants[selectedChannel]);
+            const float value = sampleVolumeTexture(xTexture, selectedChannel);
+            prd.samples++;
+            if(!isnan(value))//event = NULL_COLLISION
+            {
+                const float4 curSample = transferFunction(value, selectedChannel);
+                //sample a mesh based on its opacity
+                if(curSample.w > 0.0f && meshSelector < curSample.w)
+                {
+                    //event = ABSORPTION;
+                    prd.tHit = tWorld;
+                    prd.rgba = curSample;
+                    prd.rgba.w = 1.0f;
+                    prd.missed = false;
+                    return false;
+                }
+            }
+            //if the process survies all meshes, it is a null collision, keep going
+            //event = NULL_COLLISION;
+            prd.rejections++;
+            ts[selectedChannel] = ts[selectedChannel] - (log(1.0f - rand) / majorants[selectedChannel]) * unit * worldToGridT;
+        }
+
+        return true;
+    };
+    dda::dda3(org,dir,1e20f,mcDim,lambda,false);
+}
+
+OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
 ()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();

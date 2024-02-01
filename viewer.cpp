@@ -99,12 +99,13 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'g', float>()
         .nargs(3,5);
     std::string modeHelpText(
-        "sets rendering mode. 0 = multiple DDA traversals using multiple majorant buffers,"
-        "1 = single DDA traversal using multiple majorant buffers," 
-        "2 = single DDA traversal using a cummulative majorant buffer,"
-        "3 = MAX blending based Woodcock tracking, 4 = MIX blending based Woodcock tracking,"
-        "5 = majorant weighted blending for Ray Marcher,"
-        "6 = MAX blending based Ray Marcher, 7 = MIX blending based Ray Marcher"); 
+        "sets rendering mode. 0 = multiple DDA traversals using multiple majorant buffers,\n"
+        "1 = single DDA traversal using multiple majorant buffers,\n" 
+        "2 = alt. imp. single DDA traversal using multiple majorant buffer,\n"
+        "3 = single DDA traversal using a cummulative majorant buffer,\n"
+        "4 = MAX blending based Woodcock tracking, 5 = MIX blending based Woodcock tracking,\n"
+        "6 = majorant weighted blending for Ray Marcher,\n"
+        "7 = MAX blending based Ray Marcher, 8 = MIX blending based Ray Marcher"); 
     program.add_argument("-m", "--mode")
         .help(modeHelpText)
         .scan<'u', unsigned int>()
@@ -220,21 +221,24 @@ Viewer::Viewer(int argc, char *argv[])
         modeString = "MMB"; //multiple Majorant Buffers
         break;
     case 2:
-        modeString = "CMB"; //cummulative Majorant Buffer
+        modeString = "AMMB"; //alternative multiple Majorant Buffer
         break;
     case 3:
-        modeString = "MAX"; //MAX blending for Woodcock tracking
+        modeString = "CMB"; //cummulative Majorant Buffer
         break;
     case 4:
-        modeString = "MIX"; //MIX blending for Woodcock tracking
+        modeString = "MAX"; //MAX blending for Woodcock tracking
         break;
     case 5:
-        modeString = "MM_RM"; //multiple Majorant Buffer for Ray Marcher
+        modeString = "MIX"; //MIX blending for Woodcock tracking
         break;
     case 6:
-        modeString = "MAX_RM"; //MAX blending for Ray Marcher
+        modeString = "MM_RM"; //multiple Majorant Buffer for Ray Marcher
         break;
     case 7:
+        modeString = "MAX_RM"; //MAX blending for Ray Marcher
+        break;
+    case 8:
         modeString = "MIX_RM"; //MIX blending for Ray Marcher
         break;
     }
@@ -444,6 +448,8 @@ void Viewer::Run()
 
         RequestImGuiFrame();
         ImGui::Begin("Renderer Controls");
+        ImGui::Text("Mode: %s", modeString.c_str());
+        ImGui::SeparatorText("Stats");
         // write the fps metrics as a colored text in imgui
         ImGui::Text("avg. fps:");
         ImGui::SameLine();
