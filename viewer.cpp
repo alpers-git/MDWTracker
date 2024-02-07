@@ -105,7 +105,8 @@ Viewer::Viewer(int argc, char *argv[])
         "3 = single DDA traversal using a cummulative majorant buffer,\n"
         "4 = MAX blending based Woodcock tracking, 5 = MIX blending based Woodcock tracking,\n"
         "6 = majorant weighted blending for Ray Marcher,\n"
-        "7 = MAX blending based Ray Marcher, 8 = MIX blending based Ray Marcher"); 
+        "7 = MAX blending based Ray Marcher, 8 = MIX blending based Ray Marcher\n"
+        "9 = composite"); 
     program.add_argument("-m", "--mode")
         .help(modeHelpText)
         .scan<'u', unsigned int>()
@@ -240,6 +241,9 @@ Viewer::Viewer(int argc, char *argv[])
         break;
     case 8:
         modeString = "MIX_RM"; //MIX blending for Ray Marcher
+        break;
+    case 9:
+        modeString = "COMP"; //composite
         break;
     }
     if(program.is_used("-sh"))

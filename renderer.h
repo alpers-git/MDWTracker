@@ -32,6 +32,7 @@ enum Mode
   MARCHER_MULTI = 6,
   MARCHER_MAX = 7,
   MARCHER_MIX = 8,
+  MARCHER_COMP = 9,
 };
 
 /* transfer function */

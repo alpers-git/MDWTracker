@@ -248,7 +248,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     {
         vec3f albedo = vec3f(volumePrd.rgba);
         float transparency = volumePrd.rgba.w;
-        if(lp.enableShadows && (lp.mode < 5))
+        if(lp.enableShadows && (lp.mode < Mode::MARCHER_MULTI))
         {
             // trace shadow rays
             RayPayload shadowbyVolPrd;
@@ -929,57 +929,26 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
     vec3f pos = org;
     dir = normalize(dir);
 
-    const float gridToWorldT = 1.f / length(dir);
-
     float alpha = 0.0f;
     vec3f color(0.0f,0.0f,0.0f);
+    float highestContribution = 0.0f;
+    float highestContribDistance = 0.0f;
 
     for(float t = prd.t0; (t < prd.t1) && (alpha < 0.99f); t += dt)
     {
-        vec3f shadow = 1.0f;
-        if(lp.enableShadows)
-        {
-            const vec3f orgSh = pos;
-            vec3f dirSh = -lp.lightDir;
-            float alphaSh = 0.f;
-            vec3f posSh = orgSh + dirSh * dt;
-
-            // typical ray AABB intersection test
-            vec3f dirfrac = 1.f/dirSh;
-
-            // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
-            // origin is origin of ray
-            const float t1 = (worlddim.lower.x - orgSh.x)*dirfrac.x;
-            const float t2 = (worlddim.upper.x - orgSh.x)*dirfrac.x;
-            const float t3 = (worlddim.lower.y - orgSh.y)*dirfrac.y;
-            const float t4 = (worlddim.upper.y - orgSh.y)*dirfrac.y;
-            const float t5 = (worlddim.lower.z - orgSh.z)*dirfrac.z;
-            const float t6 = (worlddim.upper.z - orgSh.z)*dirfrac.z;
-
-            float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-            const float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
-
-            if( (thit1 >= 0) && ((thit0 < thit1)) )
-            {
-                thit0 = max(thit0, 0.00001f);
-                if(length(dirSh) < 1e-5f)
-                    thit0 = thit1;
-                for(float tSh = thit0; (tSh < thit1) && (alphaSh < 0.99f); tSh += dt){
-                    const vec3f posTexSh = posSh * worldToUnit;
-                    float opacitySh = blendChannels(posTexSh).w;
-                    alphaSh = over(alphaSh, opacitySh);
-                    posSh = orgSh + dirSh * tSh;//take a step
-                }
-                prd.samples += lp.volume.numChannels;
-            }
-            shadow = vec3f((1.f - lp.ambient) * (1.f - alphaSh)  + lp.ambient);
-        }
+        //vec3f shadow = 1.0f;
         const vec3f posTex = pos * worldToUnit;
         vec4f blendedColor = blendChannels(posTex);
         prd.samples += lp.volume.numChannels;
         // blendedColor.w = 1.f - pow(1.f-blendedColor.w,dt);
-        color = over(color, vec3f(blendedColor) * shadow, alpha, blendedColor.w);
+        color = over(color, vec3f(blendedColor) /** shadow*/, alpha, blendedColor.w);
         alpha = over(alpha, blendedColor.w);
+
+        if(lp.enableShadows && highestContribution < blendedColor.w)
+        {
+            highestContribution = blendedColor.w;
+            highestContribDistance = t;
+        }
 
         if(prd.debug)
             printf("rgba %f %f %f %f pos %f %f %f\n", 
@@ -988,7 +957,164 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
 
         pos = org + dir * t;//take a step
     }
-    prd.rgba = vec4f(color,alpha);
+    vec3f shadow = 1.0f;
+    if(lp.enableShadows && highestContribution > 0.0f)
+    {
+        const vec3f orgSh = org + dir * highestContribDistance;
+        vec3f dirSh = -lp.lightDir;
+        float alphaSh = 0.f;
+        vec3f posSh = orgSh + dirSh;
+
+        // typical ray AABB intersection test
+        vec3f dirfrac = 1.f/dirSh;
+
+        // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+        // origin is origin of ray
+        const float t1 = (worlddim.lower.x - orgSh.x)*dirfrac.x;
+        const float t2 = (worlddim.upper.x - orgSh.x)*dirfrac.x;
+        const float t3 = (worlddim.lower.y - orgSh.y)*dirfrac.y;
+        const float t4 = (worlddim.upper.y - orgSh.y)*dirfrac.y;
+        const float t5 = (worlddim.lower.z - orgSh.z)*dirfrac.z;
+        const float t6 = (worlddim.upper.z - orgSh.z)*dirfrac.z;
+
+        float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+        const float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+        if( (thit1 >= 0) && ((thit0 < thit1)) )
+        {
+            thit0 = max(thit0, 0.00001f);
+            if(length(dirSh) < 1e-5f)
+                thit0 = thit1;
+            for(float tSh = thit0; (tSh < thit1) && (alphaSh < 0.99f); tSh += dt){
+                const vec3f posTexSh = posSh * worldToUnit;
+                float opacitySh = blendChannels(posTexSh).w;
+                alphaSh = over(alphaSh, opacitySh);
+                posSh = orgSh + dirSh * tSh;//take a step
+            }
+            prd.samples += lp.volume.numChannels;
+        }
+        shadow = vec3f((1.f - lp.ambient) * (1.f - alphaSh)  + lp.ambient);
+    }
+    prd.rgba = vec4f(color * shadow,alpha);
+}
+
+OPTIX_CLOSEST_HIT_PROGRAM(compRayMarcherCH)
+()
+{
+    RayPayload &prd = owl::getPRD<RayPayload>();
+    auto &lp = optixLaunchParams;
+    const MacrocellData &self = owl::getProgramData<MacrocellData>();
+    prd.missed = false;
+    prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+
+
+    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
+
+    float dt = lp.volume.dt;
+
+    //implement a ray marcher that leaps dt step at a time
+    // and takes samples at given points until opacity reaches 1.0
+    vec3f org = optixGetWorldRayOrigin();
+    vec3f dir = optixGetWorldRayDirection();
+    vec3f pos = org;
+    dir = normalize(dir);
+
+    float alphas[MAX_CHANNELS];
+    vec3f colors[MAX_CHANNELS];
+    for(int i = 0; i < lp.volume.numChannels; i++) //init
+    {
+        alphas[i] = 0.0f;
+        colors[i] = vec3f(0.0f,0.0f,0.0f);
+    }
+    for(int n = 0; n < lp.volume.numChannels; n++)
+    {
+        float highestContribution = 0.0f;
+        float highestContribDistance = 0.0f;
+
+        for(float t = prd.t0; (t < prd.t1) && (alphas[n] < 0.99f); t += dt)
+        {
+            //vec3f shadow = 1.0f;
+            const vec3f posTex = pos * worldToUnit;
+            float sample = sampleVolumeTexture(posTex, n);
+            vec4f sampleColor;
+            if (isnan(sample))
+            {
+                 sampleColor = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+            }
+            else
+            {
+                sampleColor = transferFunction(sample, n);
+                prd.samples ++;
+            }
+            colors[n] = over(colors[n], vec3f(sampleColor) /** shadow*/, alphas[n], sampleColor.w);
+            alphas[n] = over(alphas[n], sampleColor.w);
+
+            if(lp.enableShadows && highestContribution < sampleColor.w)
+            {
+                highestContribution = sampleColor.w;
+                highestContribDistance = t;
+            }
+
+            if(prd.debug)
+                printf("rgba %f %f %f %f pos %f %f %f\n", 
+                    colors[n].x, colors[n].y, colors[n].z, 
+                    alphas[n], posTex.x, posTex.y, posTex.z);
+
+            pos = org + dir * t;//take a step
+        }
+        // vec3f shadow = 1.0f;
+        // if(lp.enableShadows && highestContribution > 0.0f)
+        // {
+        //     const vec3f orgSh = org + dir * highestContribDistance;
+        //     vec3f dirSh = -lp.lightDir;
+        //     float alphaSh = 0.f;
+        //     vec3f posSh = orgSh + dirSh;
+
+        //     // typical ray AABB intersection test
+        //     vec3f dirfrac = 1.f/dirSh;
+
+        //     // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+        //     // origin is origin of ray
+        //     const float t1 = (worlddim.lower.x - orgSh.x)*dirfrac.x;
+        //     const float t2 = (worlddim.upper.x - orgSh.x)*dirfrac.x;
+        //     const float t3 = (worlddim.lower.y - orgSh.y)*dirfrac.y;
+        //     const float t4 = (worlddim.upper.y - orgSh.y)*dirfrac.y;
+        //     const float t5 = (worlddim.lower.z - orgSh.z)*dirfrac.z;
+        //     const float t6 = (worlddim.upper.z - orgSh.z)*dirfrac.z;
+
+        //     float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+        //     const float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+        //     if( (thit1 >= 0) && ((thit0 < thit1)) )
+        //     {
+        //         thit0 = max(thit0, 0.00001f);
+        //         if(length(dirSh) < 1e-5f)
+        //             thit0 = thit1;
+        //         for(float tSh = thit0; (tSh < thit1) && (alphaSh < 0.99f); tSh += dt){
+        //             const vec3f posTexSh = posSh * worldToUnit;
+        //             float opacitySh = blendChannels(posTexSh).w;
+        //             alphaSh = over(alphaSh, opacitySh);
+        //             posSh = orgSh + dirSh * tSh;//take a step
+        //         }
+        //         prd.samples += lp.volume.numChannels;
+        //     }
+        //     shadow = vec3f((1.f - lp.ambient) * (1.f - alphaSh)  + lp.ambient);
+        // }
+    }
+    //find the maximum alpha
+    float alphaSum = 0.0f;
+    for (int i = 0; i < lp.volume.numChannels; i++)
+        alphaSum += alphas[i];
+    vec3f finalColor(0.0f,0.0f,0.0f);
+    if(alphaSum > 0.0f)
+    {
+        for (int i = 0; i < lp.volume.numChannels; i++)
+            finalColor += colors[i] * alphas[i] / alphaSum;
+    }
+    prd.rgba = vec4f(finalColor,alphaSum/(float)lp.volume.numChannels);
+
 }
 
 OPTIX_MISS_PROGRAM(miss)

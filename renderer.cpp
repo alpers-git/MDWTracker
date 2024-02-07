@@ -564,6 +564,8 @@ namespace dtracker
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "cummilativeDTCH");
       else if(mode <= Mode::MIX)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "blendDTCH");
+      else if(mode <= Mode::MARCHER_COMP)
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "compRayMarcherCH");
       else
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "rayMarcherCH");
       
