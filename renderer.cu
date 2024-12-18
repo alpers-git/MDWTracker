@@ -868,7 +868,7 @@ namespace dtracker {
     for (int iz=-1;iz<=1;iz++)
       for (int iy=-1;iy<=1;iy++)
         for (int ix=-1;ix<=1;ix++) {
-          const uint32_t neighborIdx 
+          const uint64_t neighborIdx 
             = (primIdx3D.x + ix)
             + (primIdx3D.y + iy) * gridDims.x
             + (primIdx3D.z + iz) * gridDims.x * gridDims.y;
@@ -1104,7 +1104,7 @@ namespace dtracker {
   }
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds) {
-    uint32_t numMacrocells = dims.x * dims.y * dims.z;
+    uint64_t numMacrocells = dims.x * dims.y * dims.z;
     size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
     if(numChannels == 0) throw std::runtime_error("No mesh data found");
 
@@ -1144,12 +1144,12 @@ namespace dtracker {
       for (size_t i = 0; i < numChannels; i++)
       {
         const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[i],0);
-        const int blockSize = 32;
+        const uint64_t blockSize = 32;
         const vec3i vxlGridDims = rawPtrs[i]->getDims(); 
-        const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
-        const int numBlocks = divRoundUp(elementCount, blockSize);
-        vec3i grid(min(numBlocks,MAX_GRID_SIZE),
-                    divRoundUp(numBlocks,MAX_GRID_SIZE),
+        const uint64_t elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
+        const uint64_t numBlocks = divRoundUp(elementCount, blockSize);
+        vec3i grid(min(numBlocks,(uint64_t)MAX_GRID_SIZE),
+                    divRoundUp(numBlocks,(uint64_t)MAX_GRID_SIZE),
                     1);
 
         rasterElements<<<to_dims(grid),blockSize>>>

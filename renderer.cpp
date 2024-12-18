@@ -605,7 +605,9 @@ namespace dtracker
           {bboxes[0].upper.x, bboxes[0].upper.y, bboxes[0].upper.z}
         };
 
-      printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
+      printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), 
+              bounds.lower.x, bounds.lower.y, bounds.lower.z, 
+              bounds.upper.x, bounds.upper.y, bounds.upper.z);
       if(mode < Mode::MARCHER_MULTI)
       {
         macrocellsBuffer = buildSpatialMacrocells(
