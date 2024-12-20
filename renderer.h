@@ -48,6 +48,7 @@ struct TFData
   int numTexels = 0;
   float opacityScale = 1.0f;
 };
+
 class Renderer
 {
 private:

@@ -86,14 +86,46 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
     return color;
 }
 
+ //implement a sample method that will return the value at a given point
+  //choose the right texture based on the point
+  __device__ float sample(const StructuredVolumeChannel& v, const vec3f& normalizedPos)
+  {
+    //if the split axis is none, we can just sample from the first texture
+    if(v.splitAxis==3)
+    {
+      return tex3D<float>(v.scalarTex[0], 
+            normalizedPos.x, normalizedPos.y,normalizedPos.z);
+    }
+    //otherwise, we need to determine which texture to sample from
+    else
+    {
+      //calculate the fractional position along the split axis
+      float splitPosFrac = float(v.splitPos)/float(v.dims[v.splitAxis]);
+      vec3f remappedNormalizedPos = normalizedPos;
+      //if the normalized position is less than the split position, sample from the first texture
+      if(normalizedPos[v.splitAxis]<splitPosFrac)
+      {
+        remappedNormalizedPos[v.splitAxis] = normalizedPos[v.splitAxis]/splitPosFrac;
+        return tex3D<float>(v.scalarTex[0], 
+            remappedNormalizedPos.x, remappedNormalizedPos.y, remappedNormalizedPos.z);
+      }
+      //otherwise, sample from the second texture
+      else
+      {
+        remappedNormalizedPos[v.splitAxis] = (normalizedPos[v.splitAxis]-splitPosFrac)/(1.0f-splitPosFrac);
+        return tex3D<float>(v.scalarTex[1], 
+            remappedNormalizedPos.x, remappedNormalizedPos.y, remappedNormalizedPos.z);
+      }
+    }
+  }
+
 inline __device__
 float sampleVolumeTexture(const vec3f& normalizedPos, const int channelID = 0)
 {
     if (normalizedPos.x < 0.0f || normalizedPos.x > 1.0f || normalizedPos.y < 0.0f || normalizedPos.y > 1.0f || normalizedPos.z < 0.0f || normalizedPos.z > 1.0f)
         return NAN;
     auto &lp = optixLaunchParams;
-    float value = tex3D<float>(lp.volume.sGrid[channelID].scalarTex, 
-            normalizedPos.x, normalizedPos.y,normalizedPos.z);
+    float value = sample(lp.volume.sGrid[channelID], normalizedPos);
                     
     // Sample scalar field
     return value;
