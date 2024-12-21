@@ -708,9 +708,9 @@ namespace dtracker
                 for (int x = 0; x < dims.x; x++)
                 {
                   if (x < dims.x / 2)
-                    data1[z * dims.y * dims.x / 2 + y * dims.x / 2 + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                    data1[z * dims.y * (dims.x / 2) + y * (dims.x / 2) + x] = data[z * dims.y * dims.x + y * dims.x + x];
                   else
-                    data2[z * dims.y * dims.x / 2 + y * dims.x / 2 + x - dims.x / 2] = data[z * dims.y * dims.x + y * dims.x + x];
+                    data2[z * dims.y * (dims.x / 2) + y * (dims.x / 2) + (x - dims.x / 2)] = data[z * dims.y * dims.x + y * dims.x + x];
                 }
             owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.x / 2);
             volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x / 2, dims.y, dims.z));
@@ -724,10 +724,10 @@ namespace dtracker
               for (int y = 0; y < dims.y; y++)
                 for (int x = 0; x < dims.x; x++)
                 {
-                  if (y < dims.y / 2)
-                    data1[z * dims.y / 2 * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
-                  else
-                    data2[z * dims.y / 2 * dims.x + (y - dims.y / 2) * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                 if (y < dims.y / 2)
+                   data1[z * (dims.y / 2) * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                 else
+                   data2[z * (dims.y / 2) * dims.x + (y - dims.y / 2) * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
                 }
             owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.y / 2);
             volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y / 2, dims.z));
