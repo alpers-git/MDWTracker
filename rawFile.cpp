@@ -41,9 +41,9 @@ namespace raw
 
         for (auto str : strings)
         {
-            int32_t dimx = 0;
-            int32_t dimy = 0;
-            int32_t dimz = 0;
+            int64_t dimx = 0;
+            int64_t dimy = 0;
+            int64_t dimz = 0;
             size_t bpv = 0;
             int res = 0;
 
@@ -87,7 +87,7 @@ namespace raw
         this->read(buf, getBytesPerVoxel() * dims_.x * dims_.y * dims_.z);
         //go over the data and convert it to float and store it in data_
         data_ = std::vector<float>(dims_.x * dims_.y * dims_.z);
-        for (int i = 0; i < dims_.x * dims_.y * dims_.z; i++)
+        for (int64_t i = 0; i < dims_.x * dims_.y * dims_.z; i++)
         {
             switch (dataFormat_)
             {
@@ -124,6 +124,7 @@ namespace raw
             if (data_[i] < bounds_.lower.w)
                 bounds_.lower.w = data_[i];
         }
+        delete buf;
     }
 
     RawR::RawR(FILE* file)
@@ -172,12 +173,12 @@ namespace raw
         return file_ != nullptr;
     }
 
-    void RawR::setDims(Vec3i dims)
+    void RawR::setDims(Vec3l dims)
     {
         dims_ = dims;
     }
 
-    Vec3i RawR::getDims() const
+    Vec3l RawR::getDims() const
     {
         return dims_;
     }

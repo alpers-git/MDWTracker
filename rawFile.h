@@ -17,6 +17,7 @@
 namespace raw
 {
     using Vec3i = owl::vec3i;
+    using Vec3l = owl::vec3l;
     enum class DataFormat
     {
         Unspecified,
@@ -107,13 +108,13 @@ namespace raw
         /*!
          * @brief  Set structured volume dimensions
          */
-        void setDims(Vec3i dims); 
+        void setDims(Vec3l dims); 
 
         /*!
          * @brief  Structured volume dimensions parsed from file name,
          *         0 if not successful
          */
-        Vec3i getDims() const;
+        Vec3l getDims() const;
 
         /*!
          * @brief  Set structured volume data format
@@ -157,7 +158,7 @@ namespace raw
         FILE* file_ = 0;
         std::vector<float> data_;// I will assume they are all floats for now
 
-        Vec3i dims_ = { 0, 0, 0 };
+        Vec3l dims_ = { 0, 0, 0 };
         owl::box4f bounds_ = {{0,0,0,0},{1,1,1,1}};
         DataFormat dataFormat_ = DataFormat::UInt8;
 

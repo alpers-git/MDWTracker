@@ -1145,7 +1145,9 @@ namespace dtracker {
       {
         const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[i],0);
         const uint64_t blockSize = 32;
-        const vec3i vxlGridDims = rawPtrs[i]->getDims(); 
+        const vec3i vxlGridDims =  {static_cast<int>(rawPtrs[i]->getDims().x),
+                      static_cast<int>(rawPtrs[i]->getDims().y),
+                      static_cast<int>(rawPtrs[i]->getDims().z)};
         const uint64_t elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
         const uint64_t numBlocks = divRoundUp(elementCount, blockSize);
         vec3i grid(min(numBlocks,(uint64_t)MAX_GRID_SIZE),

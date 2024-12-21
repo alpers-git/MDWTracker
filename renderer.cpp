@@ -686,7 +686,7 @@ namespace dtracker
         
         //find the maximum extent of the data and split it into two halves geometrically
         //to create two separate textures
-        const owl3ul dims = {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
+        const owl3l dims = {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
                               static_cast<unsigned long>(rawPtrs[i]->getDims().y),
                               static_cast<unsigned long>(rawPtrs[i]->getDims().z)};
         //find the maximum extent
@@ -767,7 +767,9 @@ namespace dtracker
           auto data = rawPtrs[i]->getDataVector();
           // owlBufferUpload(scalarData[i], data.data());
           printf("Creating 3D texture object ...");
-          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
+          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
+                                                                            static_cast<unsigned long>(rawPtrs[i]->getDims().y),
+                                                                            static_cast<unsigned long>(rawPtrs[i]->getDims().z)});
           printf("Done \n");
 
           owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTexture);
@@ -1115,7 +1117,9 @@ namespace dtracker
       auto avgDims = vec3ui(0);
       for(auto mesh : rawPtrs)
       {
-        vec3i dims = mesh->getDims();
+        vec3ui dims = {static_cast<unsigned int>(mesh->getDims().x),
+                      static_cast<unsigned int>(mesh->getDims().y),
+                      static_cast<unsigned int>(mesh->getDims().z)};
         avgDims += dims/(float)estimatedElementPerMc;
       }
       avgDims /= (float)rawPtrs.size();
