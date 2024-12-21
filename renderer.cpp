@@ -684,25 +684,92 @@ namespace dtracker
                       owl4f{rawPtrs[i]->getBounds4f().upper.x, rawPtrs[i]->getBounds4f().upper.y,
                             rawPtrs[i]->getBounds4f().upper.z, rawPtrs[i]->getBounds4f().upper.w});
         
-        //scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
-        //get data as void pointer and create vector of floats
-        auto data = rawPtrs[i]->getDataVector();
-        //owlBufferUpload(scalarData[i], data.data());
-
-        printf("Created texture object \n");
-        cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
-
+        //find the maximum extent of the data and split it into two halves geometrically
+        //to create two separate textures
         const owl3ui dims = {static_cast<unsigned int>(rawPtrs[i]->getDims().x),
                               static_cast<unsigned int>(rawPtrs[i]->getDims().y),
                               static_cast<unsigned int>(rawPtrs[i]->getDims().z)};
-        //structured grid data
-        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), dims);
-        owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTexture);
-        if(dims.x > 1000000)//TODO
-          owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), 0);
-        else
-          owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), 3);
+        //find the maximum extent
+        const int maxAxis= dims.x > dims.y ? (dims.x > dims.z ? 0 : 2) : (dims.y > dims.z ? 1 : 2);
+        if (dims.x > 2048 || dims.y > 2048 || dims.z > 2048)
+        {
+          printf("Creating chunked two texture objects...");
+          // create two vectors to split the data into two halves
+          auto data = rawPtrs[i]->getDataVector();
+          std::vector<float> data1, data2;
+          cudaTextureObject_t volumeTextChunk1, volumeTextChunk2;
+          // split the data into two halves according to the maximum maxAxis
+          if (maxAxis == 0)
+          {
+            data1.resize(dims.x * dims.y * dims.z / 2);
+            data2.resize(dims.x * dims.y * dims.z / 2);
+            for (int z = 0; z < dims.z; z++)
+              for (int y = 0; y < dims.y; y++)
+                for (int x = 0; x < dims.x; x++)
+                {
+                  if (x < dims.x / 2)
+                    data1[z * dims.y * dims.x / 2 + y * dims.x / 2 + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                  else
+                    data2[z * dims.y * dims.x / 2 + y * dims.x / 2 + x - dims.x / 2] = data[z * dims.y * dims.x + y * dims.x + x];
+                }
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.x / 2);
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x / 2, dims.y, dims.z));
+            volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x / 2, dims.y, dims.z));
+          }
+          else if (maxAxis == 1)
+          {
+            data1.resize(dims.x * dims.y * dims.z / 2);
+            data2.resize(dims.x * dims.y * dims.z / 2);
+            for (int z = 0; z < dims.z; z++)
+              for (int y = 0; y < dims.y; y++)
+                for (int x = 0; x < dims.x; x++)
+                {
+                  if (y < dims.y / 2)
+                    data1[z * dims.y / 2 * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                  else
+                    data2[z * dims.y / 2 * dims.x + (y - dims.y / 2) * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                }
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.y / 2);
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y / 2, dims.z));
+            volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x, dims.y / 2, dims.z));
+          }
+          else
+          {
+            data1.resize(dims.x * dims.y * dims.z / 2);
+            data2.resize(dims.x * dims.y * dims.z / 2);
+            for (int z = 0; z < dims.z; z++)
+              for (int y = 0; y < dims.y; y++)
+                for (int x = 0; x < dims.x; x++)
+                {
+                  if (z < dims.z / 2)
+                    data1[z * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                  else
+                    data2[(z - dims.z / 2) * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                }
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.z / 2);
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y, dims.z / 2));
+            volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x, dims.y, dims.z / 2));
+          }
+          printf("Done \n");
 
+          owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), maxAxis);
+          owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTextChunk1);
+          owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[1]").c_str(), &volumeTextChunk2);
+        }
+        else
+        {
+          // get data as void pointer and create vector of floats
+          auto data = rawPtrs[i]->getDataVector();
+          // owlBufferUpload(scalarData[i], data.data());
+          printf("Creating 3D texture object ...");
+          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
+          printf("Done \n");
+
+          owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTexture);
+          owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), 3);
+        }
+        // structured grid data
+        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), dims);
       }
       
 
