@@ -686,9 +686,9 @@ namespace dtracker
         
         //find the maximum extent of the data and split it into two halves geometrically
         //to create two separate textures
-        const owl3ui dims = {static_cast<unsigned int>(rawPtrs[i]->getDims().x),
-                              static_cast<unsigned int>(rawPtrs[i]->getDims().y),
-                              static_cast<unsigned int>(rawPtrs[i]->getDims().z)};
+        const owl3ul dims = {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
+                              static_cast<unsigned long>(rawPtrs[i]->getDims().y),
+                              static_cast<unsigned long>(rawPtrs[i]->getDims().z)};
         //find the maximum extent
         const int maxAxis= dims.x > dims.y ? (dims.x > dims.z ? 0 : 2) : (dims.y > dims.z ? 1 : 2);
         if (dims.x > 2048 || dims.y > 2048 || dims.z > 2048)
@@ -701,53 +701,58 @@ namespace dtracker
           // split the data into two halves according to the maximum maxAxis
           if (maxAxis == 0)
           {
-            data1.resize(dims.x * dims.y * dims.z / 2);
-            data2.resize(dims.x * dims.y * dims.z / 2);
-            for (int z = 0; z < dims.z; z++)
-              for (int y = 0; y < dims.y; y++)
-                for (int x = 0; x < dims.x; x++)
+            data1.resize((dims.x+1)/2  * dims.y * dims.z);
+            data2.resize(dims.x/ 2 * dims.y * dims.z);
+            for (size_t z = 0; z < dims.z; z++)
+              for (size_t y = 0; y < dims.y; y++)
+                for (size_t x = 0; x < dims.x; x++)
                 {
                   if (x < dims.x / 2)
-                    data1[z * dims.y * (dims.x / 2) + y * (dims.x / 2) + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                    data1[z * dims.y * (dims.x+1) / 2 + y * (dims.x+1) / 2 + x] = data[z * dims.y * dims.x + y * dims.x + x];
                   else
-                    data2[z * dims.y * (dims.x / 2) + y * (dims.x / 2) + (x - dims.x / 2)] = data[z * dims.y * dims.x + y * dims.x + x];
+                    data2[z * dims.y * (dims.x / 2) + y * (dims.x / 2) + (x - (dims.x+1) / 2)] = data[z * dims.y * dims.x + y * dims.x + x];
                 }
             owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.x / 2);
-            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x / 2, dims.y, dims.z));
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i((dims.x+1) / 2, dims.y, dims.z));
             volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x / 2, dims.y, dims.z));
           }
           else if (maxAxis == 1)
           {
-            data1.resize(dims.x * dims.y * dims.z / 2);
-            data2.resize(dims.x * dims.y * dims.z / 2);
-            for (int z = 0; z < dims.z; z++)
-              for (int y = 0; y < dims.y; y++)
-                for (int x = 0; x < dims.x; x++)
+            data1.resize(dims.x * (dims.y +1) / 2 * dims.z );
+            data2.resize(dims.x * dims.y / 2 * dims.z );
+            for (size_t z = 0; z < dims.z; z++)
+              for (size_t y = 0; y < dims.y; y++)
+                for (size_t x = 0; x < dims.x; x++)
                 {
                  if (y < dims.y / 2)
-                   data1[z * (dims.y / 2) * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                   data1[z * (dims.y + 1) / 2 * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
                  else
-                   data2[z * (dims.y / 2) * dims.x + (y - dims.y / 2) * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                   data2[z * (dims.y / 2) * dims.x + (y - (dims.y+1) / 2) * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
                 }
             owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.y / 2);
-            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y / 2, dims.z));
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, (dims.y + 1) / 2, dims.z));
             volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x, dims.y / 2, dims.z));
           }
           else
           {
-            data1.resize(dims.x * dims.y * dims.z / 2);
+            data1.resize(dims.x * dims.y * (dims.z + 1) / 2);
             data2.resize(dims.x * dims.y * dims.z / 2);
-            for (int z = 0; z < dims.z; z++)
-              for (int y = 0; y < dims.y; y++)
-                for (int x = 0; x < dims.x; x++)
+            for (size_t z = 0; z < dims.z; z++)
+              for (size_t y = 0; y < dims.y; y++)
+                for (size_t x = 0; x < dims.x; x++)
                 {
                   if (z < dims.z / 2)
+                  {
                     data1[z * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                    //print if data1 size is less than z * dims.y * dims.x + y * dims.x + x
+                    if (z * dims.y * dims.x + y * dims.x + x >= data1.size())
+                      printf("z: %ld, y: %ld, x: %ld, z * dims.y * dims.x + y * dims.x + x: %ld, data1.size(): %ld\n", z, y, x, z * dims.y * dims.x + y * dims.x + x, data1.size());
+                  }
                   else
-                    data2[(z - dims.z / 2) * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                    data2[(z - (dims.z+1) / 2) * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
                 }
             owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.z / 2);
-            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y, dims.z / 2));
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y, (dims.z + 1) / 2));
             volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x, dims.y, dims.z / 2));
           }
           printf("Done \n");
@@ -769,7 +774,9 @@ namespace dtracker
           owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), 3);
         }
         // structured grid data
-        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), dims);
+        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), {static_cast<unsigned int>(dims.x),
+                                                                                      static_cast<unsigned int>(dims.y), 
+                                                                                      static_cast<unsigned int>(dims.z)});
       }
       
 
