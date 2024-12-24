@@ -1153,7 +1153,8 @@ namespace dtracker {
         vec3i grid(min(numBlocks,(uint64_t)MAX_GRID_SIZE),
                     divRoundUp(numBlocks,(uint64_t)MAX_GRID_SIZE),
                     1);
-
+        printf("Rastering channel %d with %ldx%ldx%ld blocks with %ld threads\n", 
+                                  i, grid.x, grid.y, grid.z, blockSize);
         rasterElements<<<to_dims(grid),blockSize>>>
           (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numChannels);
         CUDA_SYNC_CHECK();

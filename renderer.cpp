@@ -686,12 +686,14 @@ namespace dtracker
         
         //find the maximum extent of the data and split it into two halves geometrically
         //to create two separate textures
+        cudaDeviceProp prop;
+        cudaGetDeviceProperties(&prop, 0);
         const owl3l dims = {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
                               static_cast<unsigned long>(rawPtrs[i]->getDims().y),
                               static_cast<unsigned long>(rawPtrs[i]->getDims().z)};
         //find the maximum extent
         const int maxAxis= dims.x > dims.y ? (dims.x > dims.z ? 0 : 2) : (dims.y > dims.z ? 1 : 2);
-        if (dims.x > 2048 || dims.y > 2048 || dims.z > 2048)
+        if (dims.x > prop.maxTexture3D[0] || dims.y > prop.maxTexture3D[1] || dims.z > prop.maxTexture3D[2])
         {
           printf("Creating chunked two texture objects...");
           // create two vectors to split the data into two halves
@@ -767,9 +769,7 @@ namespace dtracker
           auto data = rawPtrs[i]->getDataVector();
           // owlBufferUpload(scalarData[i], data.data());
           printf("Creating 3D texture object ...");
-          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
-                                                                            static_cast<unsigned long>(rawPtrs[i]->getDims().y),
-                                                                            static_cast<unsigned long>(rawPtrs[i]->getDims().z)});
+          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), vec3i(dims.x, dims.y, dims.z));
           printf("Done \n");
 
           owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTexture);
