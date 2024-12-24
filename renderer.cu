@@ -502,10 +502,10 @@ namespace dtracker {
     vec3i lo = project(pb.lower,worldBounds,dims);
     vec3i hi = project(pb.upper,worldBounds,dims);
 
-    for (int iz=lo.z;iz<=hi.z;iz++)
-      for (int iy=lo.y;iy<=hi.y;iy++)
-        for (int ix=lo.x;ix<=hi.x;ix++) {
-          const uint32_t cellID
+    for (uint64_t iz=lo.z;iz<=hi.z;iz++)
+      for (uint64_t iy=lo.y;iy<=hi.y;iy++)
+        for (uint64_t ix=lo.x;ix<=hi.x;ix++) {
+          const uint64_t cellID
             = (ix
             + iy * dims.x
             + iz * dims.x * dims.y) * numChannels +  meshIndex;
@@ -860,10 +860,10 @@ namespace dtracker {
     primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
     primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
 
-    if(primIdx == 269279)
-      printf("primIdx: %d, primBounds4: %f %f %f %f %f %f %f %f\n", primIdx, primBounds4.lower.x,
-        primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
-        primBounds4.upper.z, primBounds4.upper.w);
+    // if(primIdx == 269279)
+    //   printf("primIdx: %d, primBounds4: %f %f %f %f %f %f %f %f\n", primIdx, primBounds4.lower.x,
+    //     primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
+    //     primBounds4.upper.z, primBounds4.upper.w);
 
     for (int iz=-1;iz<=1;iz++)
       for (int iy=-1;iy<=1;iy++)
