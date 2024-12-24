@@ -839,13 +839,13 @@ namespace dtracker {
                              )
   {
     const uint64_t blockID
-      = blockIdx.x
-      + blockIdx.y * MAX_GRID_SIZE;
-    uint64_t primIdx = blockID*blockDim.x + threadIdx.x;
-    const uint64_t totalElements = gridDims.x * gridDims.y * gridDims.z;
+      = uint64_t(blockIdx.x)
+      + uint64_t(blockIdx.y) * MAX_GRID_SIZE;
+    uint64_t primIdx = blockID*uint64_t(blockDim.x) + uint64_t(threadIdx.x);
+    const uint64_t totalElements = uint64_t(gridDims.x) * uint64_t(gridDims.y) * uint64_t(gridDims.z);
     if (primIdx >= totalElements) 
     {
-      printf("blockId %ld limit %ld\n", primIdx, totalElements);
+      //printf("blockId %ld limit %ld\n", primIdx, totalElements);
       return;
     }
     box4f primBounds4 = box4f();
@@ -869,21 +869,21 @@ namespace dtracker {
     //     primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
     //     primBounds4.upper.z, primBounds4.upper.w);
 
-    for (int iz=-1;iz<=1;iz++)
-      for (int iy=-1;iy<=1;iy++)
-        for (int ix=-1;ix<=1;ix++) {
+    for (uint64_t iz=-1;iz<=1;iz++)
+      for (uint64_t iy=-1;iy<=1;iy++)
+        for (uint64_t ix=-1;ix<=1;ix++) {
           if(primIdx3D.x + ix < 0 || primIdx3D.x + ix >= gridDims.x) continue;
           if(primIdx3D.y + iy < 0 || primIdx3D.y + iy >= gridDims.y) continue;
           if(primIdx3D.z + iz < 0 || primIdx3D.z + iz >= gridDims.z) continue;
 
           const uint64_t neighborIdx 
-            = (primIdx3D.x + ix)
-            + (primIdx3D.y + iy) * gridDims.x
-            + (primIdx3D.z + iz) * gridDims.x * gridDims.y;
+            = ((uint64_t)primIdx3D.x + (uint64_t)ix)
+            + ((uint64_t)primIdx3D.y + (uint64_t)iy) * (uint64_t)gridDims.x
+            + ((uint64_t)primIdx3D.z + (uint64_t)iz) * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
                       
           primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
         }
-    __syncthreads();
+    // __syncthreads();
     rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numChannels);
   }
 
@@ -1156,7 +1156,6 @@ namespace dtracker {
         const uint64_t elementCount = uint64_t(vxlGridDims.x) * uint64_t(vxlGridDims.y) * uint64_t(vxlGridDims.z);
         const uint64_t numBlocks = divRoundUp(elementCount, blockSize);
         vec3i grid(min(numBlocks, (uint64_t)MAX_GRID_SIZE), divRoundUp(numBlocks, (uint64_t)MAX_GRID_SIZE), 1);
-        printf("Rastering channel %d with %d blocks of %d threads\n", i, grid.x * grid.y * grid.z, blockSize);
 
         if (grid.x > MAX_GRID_SIZE || grid.y > MAX_GRID_SIZE || grid.z > MAX_GRID_SIZE) {
             printf("Grid size exceeds limits.\n");
