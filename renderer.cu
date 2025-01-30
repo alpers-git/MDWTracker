@@ -887,6 +887,121 @@ namespace dtracker {
     rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numChannels);
   }
 
+  __global__ void rasterElements(float2 *d_mcGrid,
+                             const vec3i mcDims,
+                             const box3f worldBounds,
+                             const float *scalars,
+                             const vec3i gridDims,
+                             const float* varyingDimSizes,
+                             const size_t varyingDimAxis=2
+                             )
+  {
+    const uint64_t blockID
+      = uint64_t(blockIdx.x)
+      + uint64_t(blockIdx.y) * MAX_GRID_SIZE;
+    uint64_t primIdx = blockID*uint64_t(blockDim.x) + uint64_t(threadIdx.x);
+    const uint64_t totalElements = uint64_t(gridDims.x) * uint64_t(gridDims.y) * uint64_t(gridDims.z);
+    if (primIdx >= totalElements) 
+    {
+      //printf("blockId %ld limit %ld\n", primIdx, totalElements);
+      return;
+    }
+    box4f primBounds4 = box4f();
+    //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
+    //length in each dimension of the voxels in world space
+    vec3f boxLenghts = (worldBounds.size()) / vec3f(gridDims);
+    
+    //3D index of the voxel in the grid
+    vec3i primIdx3D = vec3i(primIdx % gridDims.x, 
+                        (primIdx / gridDims.x) % gridDims.y,
+                         primIdx / (gridDims.x * gridDims.y));
+
+     // Length in each dimension of the voxels in world space
+    vec3f boxLengths = worldBounds.size() / vec3f(gridDims); // Default uniform lengths
+
+    // Modify the lengths for the varying axis
+    if (varyingDimAxis == 0) boxLengths.x = varyingDimSizes[primIdx3D.x];
+    else if (varyingDimAxis == 1) boxLengths.y = varyingDimSizes[primIdx3D.y];
+    else if (varyingDimAxis == 2) boxLengths.z = varyingDimSizes[primIdx3D.z];
+
+    // World space coordinates of the voxel corners
+    vec3f vxlLower = worldBounds.lower;
+
+    // Compute the lower corner considering varyingDimSizes
+    if (varyingDimAxis == 0) {
+        for (int i = 0; i < primIdx3D.x; i++) {
+            vxlLower.x += varyingDimSizes[i];
+        }
+        vxlLower.y += primIdx3D.y * boxLengths.y;
+        vxlLower.z += primIdx3D.z * boxLengths.z;
+    } else if (varyingDimAxis == 1) {
+        for (int i = 0; i < primIdx3D.y; i++) {
+            vxlLower.y += varyingDimSizes[i];
+        }
+        vxlLower.x += primIdx3D.x * boxLengths.x;
+        vxlLower.z += primIdx3D.z * boxLengths.z;
+    } else if (varyingDimAxis == 2) {
+        for (int i = 0; i < primIdx3D.z; i++) {
+            vxlLower.z += varyingDimSizes[i];
+        }
+        vxlLower.x += primIdx3D.x * boxLengths.x;
+        vxlLower.y += primIdx3D.y * boxLengths.y;
+    }
+
+    // Calculate the upper corner
+    vec3f vxlUpper = vxlLower + boxLengths;
+
+    primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
+    primBounds4.upper = vec4f(vxlUpper, scalars[primIdx]);
+
+    // Extend the bounds using neighboring voxels
+    for (int iz = -1; iz <= 1; iz++) {
+        for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+                vec3i neighborIdx3D = primIdx3D + vec3i(ix, iy, iz);
+
+                // Skip neighbors outside the grid
+                if (neighborIdx3D.x < 0 || neighborIdx3D.x >= gridDims.x) continue;
+                if (neighborIdx3D.y < 0 || neighborIdx3D.y >= gridDims.y) continue;
+                if (neighborIdx3D.z < 0 || neighborIdx3D.z >= gridDims.z) continue;
+
+                uint64_t neighborIdx = 
+                    (uint64_t)neighborIdx3D.x +
+                    (uint64_t)neighborIdx3D.y * gridDims.x +
+                    (uint64_t)neighborIdx3D.z * gridDims.x * gridDims.y;
+
+                vec3f neighborLower = worldBounds.lower;
+
+                // Compute neighbor lower corner
+                if (varyingDimAxis == 0) {
+                    for (int i = 0; i < neighborIdx3D.x; i++) {
+                        neighborLower.x += varyingDimSizes[i];
+                    }
+                    neighborLower.y += neighborIdx3D.y * boxLengths.y;
+                    neighborLower.z += neighborIdx3D.z * boxLengths.z;
+                } else if (varyingDimAxis == 1) {
+                    for (int i = 0; i < neighborIdx3D.y; i++) {
+                        neighborLower.y += varyingDimSizes[i];
+                    }
+                    neighborLower.x += neighborIdx3D.x * boxLengths.x;
+                    neighborLower.z += neighborIdx3D.z * boxLengths.z;
+                } else if (varyingDimAxis == 2) {
+                    for (int i = 0; i < neighborIdx3D.z; i++) {
+                        neighborLower.z += varyingDimSizes[i];
+                    }
+                    neighborLower.x += neighborIdx3D.x * boxLengths.x;
+                    neighborLower.y += neighborIdx3D.y * boxLengths.y;
+                }
+
+                primBounds4.extend({neighborLower.x, neighborLower.y, neighborLower.z, scalars[neighborIdx]});
+            }
+        }
+    }
+
+    // Rasterize the bounds
+    rasterBox(d_mcGrid, mcDims, worldBounds, primBounds4);
+  }
+
   __global__ void rasterElements(box4f *d_mcGrid,
                              const vec3i dims,
                              const box3f worldBounds,
@@ -1163,8 +1278,23 @@ namespace dtracker {
         }
         printf("Rastering channel %d with %ldx%ldx%ld blocks with %ld threads\n", 
                                   i, grid.x, grid.y, grid.z, blockSize);
-        rasterElements<<<to_dims(grid),blockSize>>>
-          (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numChannels);
+        if(varyingDim==-1)
+          rasterElements<<<to_dims(grid),blockSize>>>
+            (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numChannels);
+        else
+        {
+          //create a device buffer for varyingDimSizes
+          OWLBuffer varyingDimSizesBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, vxlGridDims.x, nullptr);
+          float *d_varyingDimSizes = (float*)owlBufferGetPointer(varyingDimSizesBuffer, 0);
+          cudaMemcpy(d_varyingDimSizes, varyingDims.data(),varyingDims.size()*sizeof(float), cudaMemcpyHostToDevice);
+
+          rasterElements<<<to_dims(grid),blockSize>>>
+            (d_mcGrid,dims,bounds,d_scalars,vxlGridDims, d_varyingDimSizes, varyingDim);
+          CUDA_SYNC_CHECK();
+          //destroy the buffer
+          owlBufferDestroy(varyingDimSizesBuffer);
+          break;
+        }
         CUDA_SYNC_CHECK();
       }
       

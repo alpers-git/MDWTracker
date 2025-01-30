@@ -339,7 +339,9 @@ Viewer::Viewer(int argc, char *argv[])
                 std::cerr << "Invalid dimension given: " << dims[1] << std::endl;
                 std::exit(1);
             }
+            renderer->SetVaryingDims(dimData, dimIndex);
         }
+
     }
     else
     {

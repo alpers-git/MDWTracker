@@ -52,6 +52,8 @@ struct TFData
 class Renderer
 {
 private:
+  std::vector<float> varyingDims;
+  int varyingDim = -1; //unset, 0=x, 1=y, 2=z
 public:
     Renderer();
     ~Renderer();
@@ -93,6 +95,7 @@ public:
     OWLBuffer wedgesData;     //Unstructured mesh elements
     OWLBuffer verticesData;   //Unstructured mesh vertices
     OWLBuffer scalarData[MAX_CHANNELS];
+    OWLBuffer prefixSummedVariableDims;
     OWLBuffer gridBuffer;     //TODO Unsure if we need N grid buffers for N meshes
     OWLBuffer majorantBuffer; //this will account for all macrocell grids
     OWLBuffer vertexBuffer;   //triangle vertices
@@ -172,6 +175,8 @@ public:
     void ResetAccumulation();
     /*!estimate best mcgrid sizes given the mesh*/
     vec3ui CalculateMCGridDims(int estimatedElementPerMc);
+    /*sets a list of varying dimensions for one axis as floting point numbers for structured grid*/
+    void SetVaryingDims(const std::vector<float>& varyingDim, int dimIndex);
 
     // For umeshes, use this to generate some object oriented macrocells.
     // idea, rasterize elements into a grid, expand or shrink bounding boxes to contain elements,

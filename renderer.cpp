@@ -68,7 +68,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[0].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].splitAxis)},
     {"volume.sGrid[0].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].splitPos)},
     {"volume.sGrid[0].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].varyingDims)},
-    {"volume.sGrid[0].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].varyingDim)},
+    {"volume.sGrid[0].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].varyingDim)},
     
     {"volume.sGrid[1].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex[0])},
     {"volume.sGrid[1].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex[1])},
@@ -76,7 +76,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[1].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].splitAxis)},
     {"volume.sGrid[1].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].splitPos)},
     {"volume.sGrid[1].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].varyingDims)},
-    {"volume.sGrid[1].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].varyingDim)},
+    {"volume.sGrid[1].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].varyingDim)},
 
     {"volume.sGrid[2].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex[0])},
     {"volume.sGrid[2].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex[1])},
@@ -84,7 +84,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[2].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].splitAxis)},
     {"volume.sGrid[2].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].splitPos)},
     {"volume.sGrid[2].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].varyingDims)},
-    {"volume.sGrid[2].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].varyingDim)},
+    {"volume.sGrid[2].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].varyingDim)},
 
     {"volume.sGrid[3].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex[0])},
     {"volume.sGrid[3].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex[1])},
@@ -92,7 +92,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[3].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].splitAxis)},
     {"volume.sGrid[3].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].splitPos)},
     {"volume.sGrid[3].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].varyingDims)},
-    {"volume.sGrid[3].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].varyingDim)},
+    {"volume.sGrid[3].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].varyingDim)},
 
     {"volume.sGrid[4].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex[0])},
     {"volume.sGrid[4].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex[1])},
@@ -100,7 +100,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[4].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].splitAxis)},
     {"volume.sGrid[4].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].splitPos)},
     {"volume.sGrid[4].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].varyingDims)},
-    {"volume.sGrid[4].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].varyingDim)},
+    {"volume.sGrid[4].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].varyingDim)},
 
     {"volume.sGrid[5].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[5].scalarTex[0])},
     {"volume.sGrid[5].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[5].scalarTex[1])},
@@ -108,7 +108,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[5].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].splitAxis)},
     {"volume.sGrid[5].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].splitPos)},
     {"volume.sGrid[5].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].varyingDims)},
-    {"volume.sGrid[5].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].varyingDim)},
+    {"volume.sGrid[5].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].varyingDim)},
 
     {"volume.sGrid[6].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[6].scalarTex[0])},
     {"volume.sGrid[6].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[6].scalarTex[1])},
@@ -116,7 +116,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[6].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].splitAxis)},
     {"volume.sGrid[6].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].splitPos)},
     {"volume.sGrid[6].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].varyingDims)},
-    {"volume.sGrid[6].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].varyingDim)},
+    {"volume.sGrid[6].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].varyingDim)},
 
     {"volume.sGrid[7].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[7].scalarTex[0])},
     {"volume.sGrid[7].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[7].scalarTex[1])},
@@ -124,7 +124,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[7].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].splitAxis)},
     {"volume.sGrid[7].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].splitPos)},
     {"volume.sGrid[7].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].varyingDims)},
-    {"volume.sGrid[7].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].varyingDim)},
+    {"volume.sGrid[7].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].varyingDim)},
 
     {"volume.sGrid[8].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[8].scalarTex[0])},
     {"volume.sGrid[8].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[8].scalarTex[1])},
@@ -132,7 +132,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[8].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].splitAxis)},
     {"volume.sGrid[8].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].splitPos)},
     {"volume.sGrid[8].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].varyingDims)},
-    {"volume.sGrid[8].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].varyingDim)},
+    {"volume.sGrid[8].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].varyingDim)},
 
     {"volume.sGrid[9].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[9].scalarTex[0])},
     {"volume.sGrid[9].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[9].scalarTex[1])},
@@ -140,7 +140,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[9].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].splitAxis)},
     {"volume.sGrid[9].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].splitPos)},
     {"volume.sGrid[9].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].varyingDims)},
-    {"volume.sGrid[9].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].varyingDim)},
+    {"volume.sGrid[9].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].varyingDim)},
 
     {"volume.sGrid[10].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[10].scalarTex[0])},
     {"volume.sGrid[10].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[10].scalarTex[1])},
@@ -148,7 +148,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[10].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].splitAxis)},
     {"volume.sGrid[10].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].splitPos)},
     {"volume.sGrid[10].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].varyingDims)},
-    {"volume.sGrid[10].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].varyingDim)},
+    {"volume.sGrid[10].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].varyingDim)},
 
     {"volume.sGrid[11].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[11].scalarTex[0])},
     {"volume.sGrid[11].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[11].scalarTex[1])},
@@ -156,7 +156,7 @@ OWLVarDecl launchParamVars[] = {
     {"volume.sGrid[11].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].splitAxis)},
     {"volume.sGrid[11].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].splitPos)},
     {"volume.sGrid[11].varyingDims", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].varyingDims)},
-    {"volume.sGrid[11].varyingDim", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].varyingDim)},
+    {"volume.sGrid[11].varyingDim", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].varyingDim)},
 
     // transfer functions (IM SORRY)
     {"transferFunction[0].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[0].xf)},
@@ -855,6 +855,22 @@ namespace dtracker
       owlInstanceGroupSetChild(rootMacrocellTLAS, 0, rootMacrocellBLAS); 
       owlGroupBuildAccel(rootMacrocellTLAS);
       owlParamsSetGroup(lp, "volume.rootMacrocellTLAS", rootMacrocellTLAS);
+
+      if(varyingDim!=-1)
+      {
+        std::vector<float> varyingDimsPrefixSum(varyingDims.size(), 0.0f);
+        varyingDimsPrefixSum[0] = varyingDims[0];
+        for(int i = 1; i < varyingDims.size(); i++)
+          varyingDimsPrefixSum[i] = varyingDimsPrefixSum[i-1] + varyingDims[i];
+        prefixSummedVariableDims = owlDeviceBufferCreate(context, OWL_FLOAT, varyingDimsPrefixSum.size(), varyingDimsPrefixSum.data());
+        //set buffer to the varyingDimsPrefixSum
+        owlParamsSetBuffer(lp, "volume.sGrid[0].varyingDims", prefixSummedVariableDims);
+        owlParamsSet1i(lp, "volume.sGrid[0].varyingDim", varyingDim);
+      }
+      else
+      {
+        owlParamsSet1i(lp, "volume.sGrid[0].varyingDim", -1);
+      }
     }
 
     owlParamsSet1i(lp, "volume.meshType", meshType); //mesh mode
@@ -962,6 +978,37 @@ namespace dtracker
       LOG_ERROR("Cannot push mesh\n");
       return false;
     }
+  }
+
+  void Renderer::SetVaryingDims(const std::vector<float>& _varyingDims, int dimIndex)
+  {
+    if (_varyingDims.size() <= 0 || dimIndex < 0 || meshType == MeshType::UMESH)
+      return;
+
+    varyingDim = dimIndex;
+
+    //resize varyingDims to the size of the raw data at dimIndex and set it to all 1.0f
+    int datasizeOnDim = rawPtrs[0]->getDims()[dimIndex];
+    varyingDims.resize(datasizeOnDim, 1.0f);
+    //print a warning if the size of the _varyingDims is not equal to the size varyingDims
+    if(_varyingDims.size() != varyingDims.size())
+      printf("Warning: The size of the varying dimensions is not equal to the size of the raw data at the specified dimension index\n");
+
+    //use memcpy to copy the data
+    memcpy(varyingDims.data(), _varyingDims.data(), _varyingDims.size() * sizeof(float));
+
+    if(rawPtrs.size() == 0)
+      return;
+    //adjust the global bounds to the new varying dimension it
+    vec3f extendMultiplier(1.0f);
+    float dimExtend = 0.0f;
+      for(int j =0; j < rawPtrs[0]->getDims()[dimIndex]; j++)
+        dimExtend += varyingDims[j];
+    dimExtend /= rawPtrs[0]->getDims()[dimIndex];
+    extendMultiplier[dimIndex] = dimExtend;
+    rawPtrs[0]->reshapeBounds(extendMultiplier);
+    //set the structured volume channel' new varying dimesions after creating an OWL buffer
+    //prefix sum the varyingDims to get the varyingDimsPrefixSum
   }
 
   void Renderer::Resize(const vec2i newSize)

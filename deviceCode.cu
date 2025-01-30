@@ -717,13 +717,51 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
                 //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
                 // more/less probable by altering the length of the woodcock step size
                 t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
-
+                
                 if(t >= minT)
                     break; //this channel is not the closest sample
 
                 // Update current position
                 const float tWorld = t * gridToWorldT;
-                const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+                vec3f xTexture;
+                if(lp.volume.sGrid[channelID].varyingDim != -1)
+                {
+                    // Calculate the world space position of the sampling point
+                    const vec3f xWorld = worldOrg + tWorld * worldDir;
+
+                    // Determine which axis is irregular
+                    const int varyingDim = lp.volume.sGrid[channelID].varyingDim;
+
+                    // Access the prefix sum array for the varying dimension
+                    const float* varyingDimSizes = lp.volume.sGrid[channelID].varyingDims;
+
+                    // Perform a binary search on the prefix sum to locate the voxel
+                    int voxelIdx = 0;
+                    float voxelStart = 0.0f;
+                    float voxelEnd = varyingDimSizes[1]; // Initial bounds for the first voxel
+
+                    int numVoxels = 500;//lp.volume.gridDims[varyingDim];
+                    while (voxelIdx < numVoxels - 1) {
+                        if (xWorld[varyingDim] < voxelEnd) {
+                            break;
+                        }
+                        voxelIdx++;
+                        voxelStart = voxelEnd;
+                        voxelEnd = varyingDimSizes[voxelIdx + 1];
+                    }
+
+                    // Adjust the world position along the varying dimension
+                    float adjustedWorldCoord = voxelIdx + (xWorld[varyingDim] - voxelStart) / (voxelEnd - voxelStart);
+
+                    // Replace the coordinate for the varying dimension
+                    vec3f adjustedXWorld = xWorld;
+                    adjustedXWorld[varyingDim] = adjustedWorldCoord;
+
+                    // Normalize the adjusted world position using worldToUnit
+                    xTexture = adjustedXWorld * worldToUnit;
+                }
+                else
+                    xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
                 // A world boundary has been hit
                 if (tWorld >= prd.t1)
                 {
