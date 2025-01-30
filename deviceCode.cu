@@ -9,7 +9,7 @@ using namespace dtracker;
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
-#define DEBUG 0
+#define DEBUG 1
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {

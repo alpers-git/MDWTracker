@@ -68,6 +68,9 @@ Viewer::Viewer(int argc, char *argv[])
     program.add_argument("-fr", "--raw-data")
         .help("path to the .raw data file(s)")
         .nargs(argparse::nargs_pattern::any);
+    program.add_argument("-frd", "--dim-file") 
+        .help("path to a file with varying dimensions and dimension it effects (x,y,z)")
+        .nargs(2);
     program.add_argument("-c", "--camera")
         .help("camera pos<x,y,z>, gaze<x,y,z>, up<x,y,z>, cosfovy(degrees)")
         .nargs(10)
@@ -301,6 +304,41 @@ Viewer::Viewer(int argc, char *argv[])
             std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
             renderer->PushMesh(rawFile);
             numFiles++;
+        }
+
+        if(program.is_used("-frd"))
+        {
+            auto dims = program.get<std::vector<std::string>>("-frd");
+            //read a text file from the first parameter and convert the second one into a number (x=0, y=1, z=2)
+            std::ifstream file(dims[0]);
+            std::vector<float> dimData;
+            if(file.is_open())
+            {
+                //read one float value from each line and store them in a vector
+                std::string line;
+                while(std::getline(file, line))
+                {
+                    dimData.push_back(std::stof(line));
+                }
+            }
+            else
+            {
+                std::cerr << "Could not open file: " << dims[0] << std::endl;
+                std::exit(1);
+            }
+            //read the second parameter as a string and convert it to a number(x=0, y=1, z=2)
+            int dimIndex = -1;
+            if(dims[1] == "x")
+                dimIndex = 0;
+            else if(dims[1] == "y")
+                dimIndex = 1;
+            else if(dims[1] == "z")
+                dimIndex = 2;
+            else
+            {
+                std::cerr << "Invalid dimension given: " << dims[1] << std::endl;
+                std::exit(1);
+            }
         }
     }
     else

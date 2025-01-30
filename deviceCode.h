@@ -30,6 +30,9 @@ struct StructuredVolumeChannel
   cudaTextureObject_t scalarTex[2];
   unsigned int splitAxis=3;//0=x, 1=y, 2=z, 3=none
   unsigned int splitPos=0;
+
+  float* varyingDims;
+  int varyingDim = -1;
 };
 
 struct UnstructuredElementData
