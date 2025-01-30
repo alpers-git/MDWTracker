@@ -9,7 +9,7 @@ using namespace dtracker;
 
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
-#define DEBUG 1
+#define DEBUG 0
 // create a debug function macro that gets called only for center pixel
 inline __device__ bool dbg()
 {
@@ -240,6 +240,24 @@ vec4f blendChannels(const vec3f texSpacePos)
     }
 }
 
+__device__
+vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon = 0.001f, size_t tfID = 0)
+{
+    vec3f gradient = vec3f(0.0f,0.0f,0.0f);
+    for(int i = 0; i < 3; i++)
+    {
+        vec3f pos1 = texSpacePos;
+        vec3f pos2 = texSpacePos;
+        pos1[i] -= epsilon;
+        pos2[i] += epsilon;
+        float val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
+        float val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
+        gradient[i] = (val2 - val1) / (2.0f * epsilon);
+        //handle boundary conditions if any of the coordinates are outside the volume
+        
+    }
+    return gradient;
+}
 
 OPTIX_RAYGEN_PROGRAM(mainRG)
 ()
@@ -303,6 +321,26 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
         }
         else
             color = vec4f(albedo * lp.lightIntensity, transparency);
+        if(lp.enableGradientShading && (lp.mode < Mode::MARCHER_MULTI) && length(vec3f(color))> 0.01f)
+        {
+            // assuming ray is already in voxel space
+            box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                            {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+
+            const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
+            const vec3f texSpacePos = (ray.origin + volumePrd.tHit * ray.direction) * worldToUnit;
+
+            vec3f gradient = calculateGradient(texSpacePos, lp.volume.dt * 0.01f);
+            //Shade the particle using Blinn-Phong model
+            vec3f N = normalize(gradient);
+            vec3f L = normalize(lp.lightDir);
+            vec3f V = normalize(-ray.direction);
+            vec3f H = normalize(L + V);
+            float diffuse = max(dot(L, N), 0.0f) * (1.0f - lp.ambient) * (lp.enableShadows ? 2.0f : 1.0f);
+            float specular = pow(max(dot(H, N), 0.0f), 6.f);
+            vec3f shadedColor = (diffuse + specular) * vec3f(color);
+            color = vec4f(shadedColor, color.w);
+        }
     }
     //===== TIMING=====
     if( lp.heatMapMode == 3)
@@ -540,9 +578,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             ts[i] = t0;
         }
 
-        if(prd.debug)
-            for (int i = 0; i < lp.volume.numChannels; i++)
-                printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
+        // if(prd.debug)
+        //     for (int i = 0; i < lp.volume.numChannels; i++)
+        //         printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
 
         if (majorantSum <= 0.0000001f)
             return true;
@@ -664,8 +702,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
             majorant = lp.volume.majorants[cellID * lp.volume.numChannels + channelID];
             t = t0;
 
-            if(prd.debug)
-                    printf("cellID = %d, channel: %d majorant = %f\n", cellID, channelID, majorant);
+            // if(prd.debug)
+            //         printf("cellID = %d, channel: %d majorant = %f\n", cellID, channelID, majorant);
 
             if (majorant == 0.0f)
             {

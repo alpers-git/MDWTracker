@@ -32,6 +32,7 @@ OWLVarDecl launchParamVars[] = {
     {"heatMapMode", OWL_SHORT, OWL_OFFSETOF(LaunchParams, heatMapMode)},
     {"heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, heatMapScale)},
     {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
+    {"enableGradientShading", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableGradientShading)},
     {"bgColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, bgColor)},
     {"mode",    OWL_INT,    OWL_OFFSETOF(LaunchParams, mode)},
     // light variables
@@ -900,6 +901,7 @@ namespace dtracker
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     owlParamsSet1b(lp, "enableShadows", enableShadows);
     owlParamsSet1b(lp, "enableAccumulation", enableAccumulation);
+    owlParamsSet1b(lp, "enableGradientShading", enableGradientShading);
   }
 
   void Renderer::Terminate()

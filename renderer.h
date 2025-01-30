@@ -118,6 +118,7 @@ public:
     /* scene */
     float dt = 0.05f;
     bool enableShadows = false;
+    bool enableGradientShading = false;
     bool enableAccumulation = true;
     vec3f lightDir = vec3f(0.0001f, -1.f, 0.0001f);
     float lightIntensity = 1.0f;

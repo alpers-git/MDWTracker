@@ -69,6 +69,7 @@ struct LaunchParams
   OptixTraversableHandle triangleTLAS;
   int mode = 0;
   bool enableShadows;
+  bool enableGradientShading;
   short heatMapMode = 0;
   float heatMapScale = 1.0f;
   bool enableAccumulation;
