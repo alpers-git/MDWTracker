@@ -45,6 +45,12 @@ zebrafishCustomExp.txt
 
 zebrafishCustomExp_echo.txt
 
-*.txt
-
 gpustat.h
+
+blendingExps/
+
+specialFig_echo.txt
+
+zebrafishExp.txt
+
+zebrafishMcSizeExp.txt
