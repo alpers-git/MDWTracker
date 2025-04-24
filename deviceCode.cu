@@ -216,81 +216,92 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     const vec2i pixelID = owl::getLaunchIndex();
     const int fbOfs = pixelID.x + lp.fbSize.x * pixelID.y;
 
-    //generate ray
-    int seed = owl::getLaunchDims().x * owl::getLaunchDims().y * lp.frameID;
-    owl::common::LCG<4> random(threadIdx.x + seed, threadIdx.y + seed);//jittered sampling
-    const vec2f screen = (vec2f(pixelID) + random()) / vec2f(lp.fbSize);
-    Ray ray;
-    generateRay(screen, ray);
-
-    //test surface intersections first
-    RayPayload surfPrd;
-    vec4f finalColor = vec4f(lp.bgColor,1.f);//vec4f(missCheckerBoard(), 1.0f);
-    vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
-    traceRay(lp.triangleTLAS, ray, surfPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //surface
-    if (!surfPrd.missed)
-         color = surfPrd.rgba;
-
-    const float tMax = surfPrd.missed ? 1e20 : surfPrd.tHit;
-
-    //test for root macrocell intersection
-    //===== TIMING =====
-    uint64_t start, end;
-    if( lp.heatMapMode == 3)
-        start = clock();
-    //==================
     RayPayload volumePrd;
-    volumePrd.debug = dbg();
-    volumePrd.t0 = 0.f;
-    volumePrd.t1 = tMax;
-    traceRay(lp.volume.rootMacrocellTLAS, ray, volumePrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); //root macrocell to initiate dda traversal
-    if(!volumePrd.missed)
+    uint64_t start, end;
+    vec4f finalColor = vec4f(0.f,0.f,0.f,1.f);
+    for (int sampleID = 0; sampleID < lp.spp; sampleID++)
     {
-        vec3f albedo = vec3f(volumePrd.rgba);
-        float transparency = volumePrd.rgba.w;
-        if(lp.enableShadows && (lp.mode < Mode::MARCHER_MULTI))
+        // generate ray
+        int seed = owl::getLaunchDims().x * owl::getLaunchDims().y * (lp.frameID+1) * (sampleID+1);
+        owl::common::LCG<4> random(threadIdx.x + seed, threadIdx.y + seed); // jittered sampling
+        const vec2f screen = (vec2f(pixelID) + random()) / vec2f(lp.fbSize);
+        Ray ray;
+        generateRay(screen, ray);
+
+        // test surface intersections first
+        RayPayload surfPrd;
+         // vec4f(missCheckerBoard(), 1.0f);
+        vec4f color = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+        traceRay(lp.triangleTLAS, ray, surfPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); // surface
+        if (!surfPrd.missed)
+            color = surfPrd.rgba;
+
+        const float tMax = surfPrd.missed ? 1e20 : surfPrd.tHit;
+
+        // test for root macrocell intersection
+        //===== TIMING =====
+        if (lp.heatMapMode == 3)
+            start = clock();
+        //==================
+        volumePrd.debug = dbg();
+        volumePrd.t0 = 0.f;
+        volumePrd.t1 = tMax;
+        volumePrd.rng = random;
+        traceRay(lp.volume.rootMacrocellTLAS, ray, volumePrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT); // root macrocell to initiate dda traversal
+        if (!volumePrd.missed)
         {
-            // trace shadow rays
-            RayPayload shadowbyVolPrd;
-            shadowbyVolPrd.debug = dbg();
-            shadowbyVolPrd.t0 = 0.f;
-            shadowbyVolPrd.t1 = 1e20f; //todo fix this
+            vec3f albedo = vec3f(volumePrd.rgba);
+            float transparency = volumePrd.rgba.w;
+            if (lp.enableShadows && (lp.mode < Mode::MARCHER_MULTI))
+            {
+                // trace shadow rays
+                RayPayload shadowbyVolPrd;
+                shadowbyVolPrd.debug = dbg();
+                shadowbyVolPrd.t0 = 0.f;
+                shadowbyVolPrd.t1 = 1e20f; // todo fix this
+                int seed = owl::getLaunchDims().x * owl::getLaunchDims().y * lp.frameID;
+                shadowbyVolPrd.rng = owl::common::LCG<4>(threadIdx.x + seed + 1, threadIdx.y + seed + 1);
 
-            Ray shadowRay;
-            shadowRay.origin = ray.origin + volumePrd.tHit * ray.direction;
-            shadowRay.direction = -lp.lightDir;
-            shadowRay.tmin = 0.00f;
-            shadowRay.tmax = 1e20f;
+                Ray shadowRay;
+                shadowRay.origin = ray.origin + volumePrd.tHit * ray.direction;
+                shadowRay.direction = -lp.lightDir;
+                shadowRay.tmin = 0.00f;
+                shadowRay.tmax = 1e20f;
 
-            traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-            vec3f shadow((1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w)  + lp.ambient);
-            color = vec4f(albedo * shadow * lp.lightIntensity, transparency);
+                traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+                vec3f shadow((1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w) + lp.ambient);
+                color = vec4f(albedo * shadow * lp.lightIntensity, transparency);
 
-            volumePrd.samples += shadowbyVolPrd.samples;// for heatmap
-            volumePrd.rejections += shadowbyVolPrd.rejections;// for heatmap
+                volumePrd.samples += shadowbyVolPrd.samples;       // for heatmap
+                volumePrd.rejections += shadowbyVolPrd.rejections; // for heatmap
+            }
+            else
+                color = vec4f(albedo * lp.lightIntensity, transparency);
+            if (dbg())
+                printf("col: %f %f %f %f\n", color.x, color.y, color.z, color.w);
         }
-        else
-            color = vec4f(albedo * lp.lightIntensity, transparency);
+        //===== TIMING=====
+        if (lp.heatMapMode == 3)
+            end = clock();
+        //==================
+        finalColor += over(color, vec4f(lp.bgColor,1.f));
     }
-    //===== TIMING=====
-    if( lp.heatMapMode == 3)
-        end = clock();
-    //==================
-    if(lp.heatMapMode == 1) //samples heatmap
+    finalColor /= float(lp.spp);
+    if (lp.heatMapMode == 1) // samples heatmap
     {
         int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / lp.heatMapScale, samples / lp.heatMapScale, samples / lp.heatMapScale, 1.f));
     }
-    else if(lp.heatMapMode == 2) //rejections heatmap
+    else if (lp.heatMapMode == 2) // rejections heatmap
     {
         int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
         lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / lp.heatMapScale, rejections / lp.heatMapScale, rejections / lp.heatMapScale, 1.f));
     }
-    else if( lp.heatMapMode == 3) // timers heatmap
+    else if (lp.heatMapMode == 3) // timers heatmap
     {
-        float time = (end - start)/lp.heatMapScale;
+        float time = (end - start) / lp.heatMapScale;
         const vec4f heatColor = vec4f(time, time, time, 1.f);
-        if(lp.enableAccumulation)
+        if (lp.enableAccumulation)
         {
             const vec4f accumColor = lp.accumBuffer[fbOfs];
             vec4f heatColor = vec4f(time, time, time, 1.f);
@@ -303,10 +314,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
     }
     else
     {
-        finalColor = over(color, finalColor);
-        if(dbg())
-            printf("col: %f %f %f %f\n", color.x,color.y,color.z, color.w);
-        if(lp.enableAccumulation)
+        if (lp.enableAccumulation)
         {
             const vec4f accumColor = lp.accumBuffer[fbOfs];
             finalColor = (vec4f(finalColor) + float(lp.accumID) * accumColor) / float(lp.accumID + 1);
@@ -316,10 +324,10 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
         else
             lp.fbPtr[fbOfs] = make_rgba(vec4f(finalColor));
 #ifdef ACTIVATE_CROSSHAIRS
-    if (pixelID.x == lp.fbSize.x / 2 || pixelID.y == lp.fbSize.y / 2 || 
-        pixelID.x == lp.fbSize.x / 2 + 1 || pixelID.y == lp.fbSize.y / 2 + 1 || 
-        pixelID.x == lp.fbSize.x / 2 - 1 || pixelID.y == lp.fbSize.y / 2 - 1)
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(1.0f-finalColor.x, 1.0f-finalColor.y, 1.0f-finalColor.y, 1.f));
+        if (pixelID.x == lp.fbSize.x / 2 || pixelID.y == lp.fbSize.y / 2 ||
+            pixelID.x == lp.fbSize.x / 2 + 1 || pixelID.y == lp.fbSize.y / 2 + 1 ||
+            pixelID.x == lp.fbSize.x / 2 - 1 || pixelID.y == lp.fbSize.y / 2 - 1)
+            lp.fbPtr[fbOfs] = make_rgba(vec4f(1.0f - finalColor.x, 1.0f - finalColor.y, 1.0f - finalColor.y, 1.f));
 #endif
     }
 }

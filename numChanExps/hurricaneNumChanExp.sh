@@ -58,7 +58,7 @@ for m_mode in {0..3}; do
     	    if [ "$m_mode" == 3 ]; then
 	    	macrocell_size="-mc 250 250 50"
 	    else
-	    	macrocell_size="-mc 175 175 25"
+	    	macrocell_size="-mc 125 125 25"
 	    fi
 
             # Run the command

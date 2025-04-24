@@ -111,6 +111,14 @@ Viewer::Viewer(int argc, char *argv[])
         .help(modeHelpText)
         .scan<'u', unsigned int>()
         .default_value(0);
+    program.add_argument("-spp", "--samples-per-pixel")
+        .help("number of samples per pixel")
+        .default_value(1)
+        .scan<'i', int>();
+    program.add_argument("-acc", "--accumulation")
+        .help("enable accumulation")
+        .default_value(true)
+        .scan<'i', int>();
 
 #if OFFLINE_VIEWER
     program.add_argument("-n", "--num-frame")
@@ -212,6 +220,10 @@ Viewer::Viewer(int argc, char *argv[])
     if(program.is_used("-m"))
     {
         rendererMode = program.get<unsigned int>("-m");
+    }
+    if(program.is_used("-spp"))
+    {
+        renderer->spp = program.get<int>("-spp");
     }
     switch (rendererMode)
     {
@@ -322,6 +334,10 @@ Viewer::Viewer(int argc, char *argv[])
     if(program.is_used("-dt"))
     {
         dt = program.get<float>("-dt");
+    }
+    if(program.is_used("-acc"))
+    {
+        renderer->enableAccumulation = (bool)program.get<int>("-acc");
     }
 
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
@@ -504,6 +520,11 @@ void Viewer::Run()
             renderer->Setdt(dt);
         if(ImGui::Button("Reset dt/G.O."))
             renderer->Resetdt();
+        if(ImGui::InputInt("SPP", &(renderer->spp),1,100,0))
+        {
+            renderer->ResetAccumulation();
+            renderer->spp = std::max(1,renderer->spp);
+        }
         //render radio button group for heatmap mode
         ImGui::Text("Heatmap Mode");
         ImGui::BeginGroup();

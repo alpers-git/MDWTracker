@@ -4,7 +4,7 @@
 nyx_path=~/Desktop/Data/raw/nyx/
 
 # Define the camera parameters
-nyx_camera="-c -0.269169 0.774701 0.732508 0.486144 0.601800 0.100359 0.114627 0.984556 -0.132329 45.000000"
+nyx_camera="-c -0.202679 0.919677 0.926256 0.346511 0.638234 0.139371 0.176116 0.959416 -0.220236 45.000000"
 
 # Define the file pairs arrays
 nyx_file_pairs=(
@@ -15,7 +15,7 @@ nyx_file_pairs=(
 )
 
 # Redirect output (stdout and stderr) to nyxRenderModes.txt
-exec > nyxBlendExps.txt 2>&1
+exec > nyxBlendExps.txt
 
 for ((i = 0; i < ${#nyx_file_pairs[@]}; i++)); do
 	file_pair=(${nyx_file_pairs[$i]})

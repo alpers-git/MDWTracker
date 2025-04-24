@@ -92,7 +92,7 @@ public:
     OWLBuffer wedgesData;     //Unstructured mesh elements
     OWLBuffer verticesData;   //Unstructured mesh vertices
     OWLBuffer scalarData[MAX_CHANNELS];
-    OWLBuffer gridBuffer;     //TODO Unsure if we need N grid buffers for N meshes
+    OWLBuffer gridBuffer;     
     OWLBuffer majorantBuffer; //this will account for all macrocell grids
     OWLBuffer vertexBuffer;   //triangle vertices
     OWLBuffer indexBuffer;    //triangle indices
@@ -100,13 +100,14 @@ public:
     OWLBuffer macrocellsBuffer; //TODO N macrocell buffers for N meshes
     OWLBuffer rootBBoxBuffer;   // used for RootMacrocellTLAS
     OWLBuffer rootMaximaBuffer; // used for RootMacrocellTLAS
-    OWLBuffer gridMaximaBuffer; //Unsure?
+    OWLBuffer gridMaximaBuffer; 
 
     /* frame */
     OWLBuffer accumBuffer{0};
     OWLBuffer frameBuffer{0};
     int accumID{0};
     int frameID{0};
+    int spp = 1;
 
     /* timing */
     float avgTime = 0.0f;

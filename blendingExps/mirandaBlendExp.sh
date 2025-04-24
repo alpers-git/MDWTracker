@@ -4,7 +4,7 @@
 miranda_path=~/Desktop/Data/raw/miranda/
 
 # Define the camera parameters
-miranda_camera="-c 488.432404 202.842041 -56.138477 487.679565 202.839890 -55.480282 -0.658190 -0.002347 -0.752848 45.000000"
+miranda_camera="-c 481.453247 182.770844 -20.637609 480.678436 182.764359 -20.005457 -0.632155 -0.002127 -0.774839 45.000000"
 
 # Define the file pairs arrays
 miranda_file_pairs=(
@@ -15,7 +15,7 @@ miranda_file_pairs=(
 )
 
 # Redirect output (stdout and stderr) to mirandaRenderModes.txt
-exec > mirandaBlendExps.txt 2>&1
+exec > mirandaBlendExps.txt
 
 for ((i = 0; i < ${#miranda_file_pairs[@]}; i++)); do
 	file_pair=(${miranda_file_pairs[$i]})

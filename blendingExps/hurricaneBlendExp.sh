@@ -15,7 +15,7 @@ hurricane_file_pairs=(
 )
 
 # Redirect output (stdout and stderr) to hurricaneRenderModes.txt
-exec > hurricaneBlendExps.txt 2>&1
+exec > hurricaneBlendExps.txt
 
 for ((i = 0; i < ${#hurricane_file_pairs[@]}; i++)); do
 	file_pair=(${hurricane_file_pairs[$i]})

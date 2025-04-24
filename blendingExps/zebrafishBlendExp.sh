@@ -14,7 +14,7 @@ zebrafish_file_pairs=(
 )
 
 # Redirect output (stdout and stderr) to zebrafishRenderModes.txt
-exec > zebrafishBlendExps.txt 2>&1
+exec > zebrafishBlendExps.txt
 
 for ((i = 0; i < ${#zebrafish_file_pairs[@]}; i++)); do
 	file_pair=(${zebrafish_file_pairs[$i]})

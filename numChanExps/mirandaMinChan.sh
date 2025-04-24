@@ -67,7 +67,7 @@ done
 
 
 # Loop over rendering modes 0 to 7
-for m_mode in 7 8; done
+for m_mode in 7 8; do
 
     miranda_command_params=""
 
@@ -82,10 +82,10 @@ for m_mode in 7 8; done
         outfile="miranda_min_$i"
         
         if [ "$m_mode" == 3 ]; then
-        macrocell_size="-mc 250 250 50"
-    else
-        macrocell_size="-mc 125 125 25"
-    fi
+		macrocell_size="-mc 250 250 50"
+	else
+		macrocell_size="-mc 125 125 25"
+    	fi
 
         # Run the command
         ../build/dTViewer -fr $fr_files \

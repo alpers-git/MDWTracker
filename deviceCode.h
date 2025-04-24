@@ -56,6 +56,7 @@ struct LaunchParams
   vec4f *accumBuffer;
   uint32_t frameID;
   uint32_t accumID;
+  int spp = 1;
 
   OptixTraversableHandle triangleTLAS;
   int mode = 0;

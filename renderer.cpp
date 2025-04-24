@@ -27,6 +27,7 @@ OWLVarDecl launchParamVars[] = {
     // framebuffer
     {"fbPtr", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams, fbPtr)},
     {"fbSize", OWL_INT2, OWL_OFFSETOF(LaunchParams, fbSize)},
+    {"spp", OWL_INT, OWL_OFFSETOF(LaunchParams, spp)},
     // renderer variables
     {"enableShadows", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableShadows)},
     {"heatMapMode", OWL_SHORT, OWL_OFFSETOF(LaunchParams, heatMapMode)},
@@ -717,6 +718,7 @@ namespace dtracker
     owlParamsSetBuffer(lp, "fbPtr", frameBuffer);
     owlParamsSet2i(lp, "fbSize", (const owl2i &)fbSize);
     owlParamsSet3f(lp, "bgColor", (const owl3f &)bgColor);
+    owlParamsSet1i(lp, "spp", 1);
 
     // light
     owlParamsSet3f(lp, "lightDir", owl3f{lightDir.x, lightDir.y, lightDir.z});
@@ -769,6 +771,7 @@ namespace dtracker
     owlParamsSet3f(lp, "lightDir", (const owl3f &)lightDir);
     owlParamsSet1b(lp, "enableShadows", enableShadows);
     owlParamsSet1b(lp, "enableAccumulation", enableAccumulation);
+    owlParamsSet1i(lp, "spp", spp);
   }
 
   void Renderer::Terminate()

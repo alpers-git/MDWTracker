@@ -23,7 +23,7 @@ zebrafish_mcSizes=("640 640 121" "320 320 60" "160 160 30" "80 80 15" "40 40 8")
 exec > zebrafishMcSizeExp.txt
 
 # Iterate over values of -m from 0 to 2
-for render_mode in {0..2}; do
+for render_mode in {0..3}; do
     # Iterate over mcSizes array
     for mc_size in "${zebrafish_mcSizes[@]}"; do
         # Iterate over file pairs

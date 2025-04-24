@@ -21,7 +21,7 @@ nyx_file_pairs=(
 nyx_mcSizes=("512 512 512" "256 256 256" "128 128 128" "64 64 64" "32 32 32")
 
 # Redirect output to nyxExp.txt
-exec > nyxMcSizeExp.txt
+exec > nyxMcSizeExp_echo.txt
 
 # Iterate over values of -m from 0 to 2
 for render_mode in {0..3}; do
@@ -38,7 +38,7 @@ for render_mode in {0..3}; do
             output_filename="nyx_$index"
             # Check if it's the 5th execution and run with all file pairs
             if [ "$index" -eq 4 ]; then
-		    ../build/dTViewer -fr "${nyx_path}baryon_512x512x512_float32.raw" \
+		    echo ../build/dTViewer -fr "${nyx_path}baryon_512x512x512_float32.raw" \
 		           "${nyx_path}dark_matter_512x512x512_float32.raw" \
 		           "${nyx_path}temperature_512x512x512_float32.raw" \
 		           "${nyx_path}velmag_512x512x512_float32.raw" \
@@ -49,7 +49,7 @@ for render_mode in {0..3}; do
 		           -bg 0.3 0.3 0.3 -r 1024 1024 -mc $mc_size $nyx_light -dt 0.002900 $nyx_camera \
 		           -wu 25 -n 500 -nt 500 -m "$render_mode" -o "$output_filename"
 		    
-		    ../build/dTViewer -fr "${nyx_path}baryon_512x512x512_float32.raw" \
+		    echo ../build/dTViewer -fr "${nyx_path}baryon_512x512x512_float32.raw" \
 		           "${nyx_path}dark_matter_512x512x512_float32.raw" \
 		           "${nyx_path}temperature_512x512x512_float32.raw" \
 		           "${nyx_path}velmag_512x512x512_float32.raw" \
@@ -62,12 +62,12 @@ for render_mode in {0..3}; do
             
             else
 		    # Run with light parameters, file pair, mc size, and output filename
-		    ../build/dTViewer -fr "${nyx_path}$fr_param" \
+		    echo ../build/dTViewer -fr "${nyx_path}$fr_param" \
 		               -t "${nyx_path}$t_param" \
 		               -bg 0.3 0.3 0.3 -r 1024 1024 -mc $mc_size $nyx_light -dt 0.002900 $nyx_camera \
 		               -wu 25 -n 500 -nt 500 -m "$render_mode" -o "$output_filename"
 		    # Run without light parameters, file pair, mc size, and output filename
-		    ../build/dTViewer -fr "${nyx_path}$fr_param" \
+		    echo ../build/dTViewer -fr "${nyx_path}$fr_param" \
 		               -t "${nyx_path}$t_param" \
 		               -bg 0.3 0.3 0.3 -r 1024 1024 -mc $mc_size -dt 0.002900 $nyx_camera \
 		               -wu 25 -n 500 -nt 500 -m "$render_mode" -o "$output_filename"

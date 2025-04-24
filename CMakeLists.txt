@@ -4,7 +4,7 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES 75)
 endif()
 
-project(rqs-renderer VERSION 0.0.1 LANGUAGES C CXX CUDA)
+project(dT-renderer VERSION 0.0.1 LANGUAGES C CXX CUDA)
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -123,5 +123,30 @@ target_link_libraries(dTViewer
   umesh
   ImGui
   ImGuiTFN)
- target_compile_definitions(dTViewer PRIVATE OFFLINE_VIEWER=${OFFLINE_VIEWER})
+ target_compile_definitions(dTViewer PRIVATE OFFLINE_VIEWER=true)
+#----------------------------------------------------
+#---------------- offline viewer --------------------
+add_executable(dTOfflineViewer
+  dda.h
+  glfwHandler.cpp
+  hilbert.h
+  renderer.cpp
+  renderer.cu
+  stb_image_write.h
+  rawFile.cpp
+  viewer.cpp)
+
+target_link_libraries(dTOfflineViewer PRIVATE -lGL -lGLX)
+target_link_libraries(dTOfflineViewer
+  PRIVATE
+  deviceCode_ptx
+  argparse
+  owl::owl
+  PUBLIC
+  ${OPENGL_LIBRARIES}
+  glfw
+  umesh
+  ImGui
+  ImGuiTFN)
+ target_compile_definitions(dTOfflineViewer PRIVATE OFFLINE_VIEWER=false)
 #----------------------------------------------------
