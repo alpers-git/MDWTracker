@@ -240,8 +240,8 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
         // test for root macrocell intersection
         //===== TIMING =====
-        if (lp.heatMapMode == 3)
-            start = clock();
+        // if (lp.heatMapMode == 3)
+        //     start = clock();
         //==================
         volumePrd.debug = dbg();
         volumePrd.t0 = 0.f;
@@ -281,38 +281,38 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
                 printf("col: %f %f %f %f\n", color.x, color.y, color.z, color.w);
         }
         //===== TIMING=====
-        if (lp.heatMapMode == 3)
-            end = clock();
+        // if (lp.heatMapMode == 3)
+        //     end = clock();
         //==================
         finalColor += over(color, vec4f(lp.bgColor,1.f));
     }
     finalColor /= float(lp.spp);
-    if (lp.heatMapMode == 1) // samples heatmap
-    {
-        int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / lp.heatMapScale, samples / lp.heatMapScale, samples / lp.heatMapScale, 1.f));
-    }
-    else if (lp.heatMapMode == 2) // rejections heatmap
-    {
-        int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
-        lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / lp.heatMapScale, rejections / lp.heatMapScale, rejections / lp.heatMapScale, 1.f));
-    }
-    else if (lp.heatMapMode == 3) // timers heatmap
-    {
-        float time = (end - start) / lp.heatMapScale;
-        const vec4f heatColor = vec4f(time, time, time, 1.f);
-        if (lp.enableAccumulation)
-        {
-            const vec4f accumColor = lp.accumBuffer[fbOfs];
-            vec4f heatColor = vec4f(time, time, time, 1.f);
-            heatColor = (heatColor + float(lp.accumID) * accumColor) / float(lp.accumID + 1);
-            lp.fbPtr[fbOfs] = make_rgba(heatColor);
-            lp.accumBuffer[fbOfs] = vec4f(heatColor);
-        }
-        else
-            lp.fbPtr[fbOfs] = make_rgba(heatColor);
-    }
-    else
+    // if (lp.heatMapMode == 1) // samples heatmap
+    // {
+    //     int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
+    //     lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / lp.heatMapScale, samples / lp.heatMapScale, samples / lp.heatMapScale, 1.f));
+    // }
+    // else if (lp.heatMapMode == 2) // rejections heatmap
+    // {
+    //     int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
+    //     lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / lp.heatMapScale, rejections / lp.heatMapScale, rejections / lp.heatMapScale, 1.f));
+    // }
+    // else if (lp.heatMapMode == 3) // timers heatmap
+    // {
+    //     float time = (end - start) / lp.heatMapScale;
+    //     const vec4f heatColor = vec4f(time, time, time, 1.f);
+    //     if (lp.enableAccumulation)
+    //     {
+    //         const vec4f accumColor = lp.accumBuffer[fbOfs];
+    //         vec4f heatColor = vec4f(time, time, time, 1.f);
+    //         heatColor = (heatColor + float(lp.accumID) * accumColor) / float(lp.accumID + 1);
+    //         lp.fbPtr[fbOfs] = make_rgba(heatColor);
+    //         lp.accumBuffer[fbOfs] = vec4f(heatColor);
+    //     }
+    //     else
+            // lp.fbPtr[fbOfs] = make_rgba(heatColor);
+    // }
+    // else
     {
         if (lp.enableAccumulation)
         {
