@@ -21,7 +21,7 @@ This is a repository for the paper ["Multi-Density Woodcock Tracking: Efficient 
 
 ### Clone and build the repository
 ```bash
-git clone git@github.com:alpers-git/dtracker.git
+git clone git@github.com:alpers-git/MDWTracker.git
 cd dtracker
 mkdir build
 cd build
