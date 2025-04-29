@@ -4,7 +4,7 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES 75)
 endif()
 
-project(dT-renderer VERSION 0.0.1 LANGUAGES C CXX CUDA)
+project(MDWTracker VERSION 0.0.1 LANGUAGES C CXX CUDA)
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -150,3 +150,16 @@ target_link_libraries(mdwtOffline
   ImGuiTFN)
  target_compile_definitions(mdwtOffline PRIVATE OFFLINE_VIEWER=true)
 #----------------------------------------------------
+
+# if windows copy owl.dll to the current build/<build_type> folder
+ # Find the directory where owl.dll is located
+ if(WIN32)
+ foreach(target mdwtViewer mdwtOffline)
+   add_custom_command(TARGET ${target} POST_BUILD
+     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+       $<TARGET_FILE:owl::owl>
+       $<TARGET_FILE_DIR:${target}>
+     COMMENT "Copying owl.dll to build output directory for ${target}"
+   )
+ endforeach()
+endif()
