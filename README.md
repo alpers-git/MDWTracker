@@ -2,7 +2,7 @@
 #### Alper Sahistan, Stefan Zellmann, Nate Morrical, Valerio Pascucci, and Ingo Wald
 
 <!-- Insert two images of equal height here they need to stay on the same line-->
-<img src="png/teaser_1.png" height="400"> <img src="png/teaser_2_alt.png" height="400">
+<img src="png/teaser_1.png" height="300"> <img src="png/teaser_2_alt.png" height="300">
 
 **Abstract:**
   *Volume rendering techniques for scientific visualization have increasingly transitioned toward Monte Carlo (MC) methods in recent years due to their flexibility and robustness. However, their application in multi-channel visualization remains underexplored. Traditional compositing-based approaches often employ arbitrary color blending functions, which lack a physical basis and can obscure data interpretation. We introduce multi-density Woodcock tracking, a simple and flexible extension of Woodcock tracking for multi-channel volume rendering that leverages the strengths of Monte Carlo methods to generate high-fidelity visuals. Our method offers a physically grounded solution for inter-channel color blending and eliminates the need for arbitrary blending functions. We also propose a unified blending modality by generalizing Woodcock’s distance tracking method, facilitating seamless integration of alternative blending functions from prior works. Through evaluation across diverse datasets, we demonstrate that our approach maintains real-time interactivity while achieving high-quality visuals by accumulating frames over time.*
