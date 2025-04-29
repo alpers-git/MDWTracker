@@ -20,13 +20,13 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 #--------------compile options----------------#
 # Set the default value to false
-option(OFFLINE_VIEWER "Enable offline viewer" OFF)
+# option(OFFLINE_VIEWER "Enable offline viewer" OFF)
 
-if (OFFLINE_VIEWER)
-add_compile_definitions(OFFLINE_VIEWER=1)
-else()
-add_compile_definitions(OFFLINE_VIEWER=0)
-endif()
+# if (OFFLINE_VIEWER)
+# add_compile_definitions(OFFLINE_VIEWER=1)
+# else()
+# add_compile_definitions(OFFLINE_VIEWER=0)
+# endif()
 #---------------------------------------------#
 
 # if linux
@@ -101,7 +101,7 @@ embed_ptx(
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --generate-line-info")
 
 #-------------------- viewer ------------------------
-add_executable(dTViewer
+add_executable(mdwtViewer
   dda.h
   glfwHandler.cpp
   hilbert.h
@@ -111,8 +111,8 @@ add_executable(dTViewer
   rawFile.cpp
   viewer.cpp)
 
-target_link_libraries(dTViewer PRIVATE -lGL -lGLX)
-target_link_libraries(dTViewer
+target_link_libraries(mdwtViewer PRIVATE -lGL -lGLX)
+target_link_libraries(mdwtViewer
   PRIVATE
   deviceCode_ptx
   argparse
@@ -123,10 +123,10 @@ target_link_libraries(dTViewer
   umesh
   ImGui
   ImGuiTFN)
- target_compile_definitions(dTViewer PRIVATE OFFLINE_VIEWER=true)
+ target_compile_definitions(mdwtViewer PRIVATE OFFLINE_VIEWER=false)
 #----------------------------------------------------
 #---------------- offline viewer --------------------
-add_executable(dTOfflineViewer
+add_executable(mdwtOffline
   dda.h
   glfwHandler.cpp
   hilbert.h
@@ -136,8 +136,8 @@ add_executable(dTOfflineViewer
   rawFile.cpp
   viewer.cpp)
 
-target_link_libraries(dTOfflineViewer PRIVATE -lGL -lGLX)
-target_link_libraries(dTOfflineViewer
+target_link_libraries(mdwtOffline PRIVATE -lGL -lGLX)
+target_link_libraries(mdwtOffline
   PRIVATE
   deviceCode_ptx
   argparse
@@ -148,5 +148,5 @@ target_link_libraries(dTOfflineViewer
   umesh
   ImGui
   ImGuiTFN)
- target_compile_definitions(dTOfflineViewer PRIVATE OFFLINE_VIEWER=false)
+ target_compile_definitions(mdwtOffline PRIVATE OFFLINE_VIEWER=true)
 #----------------------------------------------------

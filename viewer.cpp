@@ -61,7 +61,7 @@ Viewer::Viewer(int argc, char *argv[])
     stbi_flip_vertically_on_write(true);
     
     // parse arguments
-    argparse::ArgumentParser program("DTracker Viewer");
+    argparse::ArgumentParser program("Viewer");
 
     program.add_argument("-fu", "--umesh-data")
         .help("path to the .umesh file");
@@ -158,7 +158,7 @@ Viewer::Viewer(int argc, char *argv[])
         renderer->fbSize = vec2i(res[0], res[1]);
     }
 #if !OFFLINE_VIEWER
-    GLFWHandler::getInstance()->initWindow(renderer->fbSize.x, renderer->fbSize.y, "DTracker Viewer");
+    GLFWHandler::getInstance()->initWindow(renderer->fbSize.x, renderer->fbSize.y, "Multi-Density WT Viewer");
     // init imgui
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();

@@ -40,6 +40,7 @@ make -j  # If you use Windows, you need to use cmake --build instead
     - For example, ```-fr zebrafish_256x256x256_uint8.raw``` will load a binary 3D volume of size 256x256x256 with of uint8 format. The viewer will automatically detect the number of channels and the format of the data.
 
 - The rest of the parameters are explained in the help message. You can run the viewer with ```./dtracker -h``` to see all the parameters. 
+- Users may use ```!``` to take screenshots ```-/+``` keys to change dt during WT or marching, ```x/y/z``` to change camera up vector, ```r_shift+t``` to save transfer function and ```r_shift+c``` to print out the current camera parameters as a command for the next run.
 
 ##### Feel free to contact us for any questions, issues, or follow-up work.
 [Alper Sahistan](https://alpers-git.github.io/personal-website/)
