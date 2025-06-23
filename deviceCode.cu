@@ -86,14 +86,46 @@ vec3f missCheckerBoard(const vec3f& color0 = vec3f(.2f, .2f, .26f),
     return color;
 }
 
+ //implement a sample method that will return the value at a given point
+  //choose the right texture based on the point
+  __device__ float sample(const StructuredVolumeChannel& v, const vec3f& normalizedPos)
+  {
+    //if the split axis is none, we can just sample from the first texture
+    if(v.splitAxis==3)
+    {
+      return tex3D<float>(v.scalarTex[0], 
+            normalizedPos.x, normalizedPos.y,normalizedPos.z);
+    }
+    //otherwise, we need to determine which texture to sample from
+    else
+    {
+      //calculate the fractional position along the split axis
+      float splitPosFrac = float(v.splitPos)/float(v.dims[v.splitAxis]);
+      vec3f remappedNormalizedPos = normalizedPos;
+      //if the normalized position is less than the split position, sample from the first texture
+      if(normalizedPos[v.splitAxis]<splitPosFrac)
+      {
+        remappedNormalizedPos[v.splitAxis] = normalizedPos[v.splitAxis]/splitPosFrac;
+        return tex3D<float>(v.scalarTex[0], 
+            remappedNormalizedPos.x, remappedNormalizedPos.y, remappedNormalizedPos.z);
+      }
+      //otherwise, sample from the second texture
+      else
+      {
+        remappedNormalizedPos[v.splitAxis] = (normalizedPos[v.splitAxis]-splitPosFrac)/(1.0f-splitPosFrac);
+        return tex3D<float>(v.scalarTex[1], 
+            remappedNormalizedPos.x, remappedNormalizedPos.y, remappedNormalizedPos.z);
+      }
+    }
+  }
+
 inline __device__
 float sampleVolumeTexture(const vec3f& normalizedPos, const int channelID = 0)
 {
     if (normalizedPos.x < 0.0f || normalizedPos.x > 1.0f || normalizedPos.y < 0.0f || normalizedPos.y > 1.0f || normalizedPos.z < 0.0f || normalizedPos.z > 1.0f)
         return NAN;
     auto &lp = optixLaunchParams;
-    float value = tex3D<float>(lp.volume.sGrid[channelID].scalarTex, 
-            normalizedPos.x, normalizedPos.y,normalizedPos.z);
+    float value = sample(lp.volume.sGrid[channelID], normalizedPos);
                     
     // Sample scalar field
     return value;
@@ -208,6 +240,24 @@ vec4f blendChannels(const vec3f texSpacePos)
     }
 }
 
+__device__
+vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon = 0.001f, size_t tfID = 0)
+{
+    vec3f gradient = vec3f(0.0f,0.0f,0.0f);
+    for(int i = 0; i < 3; i++)
+    {
+        vec3f pos1 = texSpacePos;
+        vec3f pos2 = texSpacePos;
+        pos1[i] -= epsilon;
+        pos2[i] += epsilon;
+        float val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
+        float val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
+        gradient[i] = (val2 - val1) / (2.0f * epsilon);
+        //handle boundary conditions if any of the coordinates are outside the volume
+        
+    }
+    return gradient;
+}
 
 OPTIX_RAYGEN_PROGRAM(mainRG)
 ()
@@ -252,9 +302,34 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
         {
             vec3f albedo = vec3f(volumePrd.rgba);
             float transparency = volumePrd.rgba.w;
-            if (lp.enableShadows && (lp.mode < Mode::MARCHER_MULTI))
+            const bool calculateShading = lp.enableGradientShading && (lp.mode < Mode::MARCHER_MULTI) && length(albedo) > 0.001f;
+            const bool calculateShadows = lp.enableShadows && (lp.mode < Mode::MARCHER_MULTI);
+
+            float diffuse = 1.0f;
+            float specular = 0.0f;
+            float shadow = 1.0f;
+            if(calculateShading)
             {
-                // trace shadow rays
+                // assuming ray is already in voxel space
+                box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
+                                {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+
+                const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
+                const vec3f texSpacePos = (ray.origin + volumePrd.tHit * ray.direction) * worldToUnit;
+
+                vec3f gradient = calculateGradient(texSpacePos, lp.volume.dt * 0.01f, volumePrd.channelID);
+                //Shade the particle using Blinn-Phong model
+                vec3f N = normalize(gradient);
+                vec3f L = normalize(lp.lightDir);
+                vec3f V = normalize(-ray.direction);
+                vec3f H = normalize(L + V);
+
+                diffuse = max(dot(L, N), 0.0f);
+                specular = pow(max(dot(H, N), 0.0f), 6.f);
+            }
+            if (calculateShadows)
+            {
+                // trace shadow ray
                 RayPayload shadowbyVolPrd;
                 shadowbyVolPrd.debug = dbg();
                 shadowbyVolPrd.t0 = 0.f;
@@ -269,17 +344,23 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
                 shadowRay.tmax = 1e20f;
 
                 traceRay(lp.volume.rootMacrocellTLAS, shadowRay, shadowbyVolPrd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-                vec3f shadow((1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w) + lp.ambient);
-                color = vec4f(albedo * shadow * lp.lightIntensity, transparency);
+                shadow = (1.f - lp.ambient) * (1.f - shadowbyVolPrd.rgba.w);
 
                 volumePrd.samples += shadowbyVolPrd.samples;       // for heatmap
                 volumePrd.rejections += shadowbyVolPrd.rejections; // for heatmap
             }
-            else
-                color = vec4f(albedo * lp.lightIntensity, transparency);
+            // --- Final Shading ---
+            float direct = (diffuse + specular);
+            float directLit = direct * shadow * lp.lightIntensity; // Only direct light is shadowed and scaled
+            float totalLight = directLit + lp.ambient; // Ambient is always present
+
+            vec3f shadedColor = totalLight * albedo;
+            color = vec4f(shadedColor, transparency);
             if (dbg())
                 printf("col: %f %f %f %f\n", color.x, color.y, color.z, color.w);
         }
+        // else
+        //     color = vec4f(albedo * lp.lightIntensity, transparency);
         //===== TIMING=====
         // if (lp.heatMapMode == 3)
         //     end = clock();
@@ -455,6 +536,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
                     prd.rgba = curSample;
                     prd.rgba.w = 1.0f;
                     prd.missed = false;
+                    prd.channelID = channelID;
                     return false;
                 }
                 nullColThreshold -= curSample.w;
@@ -516,9 +598,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             ts[i] = t0;
         }
 
-        if(prd.debug)
-            for (int i = 0; i < lp.volume.numChannels; i++)
-                printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
+        // if(prd.debug)
+        //     for (int i = 0; i < lp.volume.numChannels; i++)
+        //         printf("cellID = %d, majorant = %f\n", cellID, majorants[i]);
 
         if (majorantSum <= 0.0000001f)
             return true;
@@ -582,6 +664,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
                     prd.rgba = curSample;
                     prd.rgba.w = 1.0f;
                     prd.missed = false;
+                    prd.channelID = selectedChannel;
                     return false;
                 }
             }
@@ -640,8 +723,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
             majorant = lp.volume.majorants[cellID * lp.volume.numChannels + channelID];
             t = t0;
 
-            if(prd.debug)
-                    printf("cellID = %d, channel: %d majorant = %f\n", cellID, channelID, majorant);
+            // if(prd.debug)
+            //         printf("cellID = %d, channel: %d majorant = %f\n", cellID, channelID, majorant);
 
             if (majorant == 0.0f)
             {
@@ -690,6 +773,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
                         prd.rgba = curSample;
                         prd.rgba.w = 1.0f;
                         prd.missed = false;
+                        prd.channelID = channelID;
                         minT = min(t, minT);
                     }
                 }
@@ -802,6 +886,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
                 prd.rgba = curSample;
                 prd.rgba.w = 1.0f;
                 prd.missed = false;
+                prd.channelID = curMesh;
                 tMax = min(tMax, t);
                 return false;
             }

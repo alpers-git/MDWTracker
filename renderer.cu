@@ -502,10 +502,10 @@ namespace dtracker {
     vec3i lo = project(pb.lower,worldBounds,dims);
     vec3i hi = project(pb.upper,worldBounds,dims);
 
-    for (int iz=lo.z;iz<=hi.z;iz++)
-      for (int iy=lo.y;iy<=hi.y;iy++)
-        for (int ix=lo.x;ix<=hi.x;ix++) {
-          const uint32_t cellID
+    for (uint64_t iz=lo.z;iz<=hi.z;iz++)
+      for (uint64_t iy=lo.y;iy<=hi.y;iy++)
+        for (uint64_t ix=lo.x;ix<=hi.x;ix++) {
+          const uint64_t cellID
             = (ix
             + iy * dims.x
             + iz * dims.x * dims.y) * numChannels +  meshIndex;
@@ -839,11 +839,15 @@ namespace dtracker {
                              )
   {
     const uint64_t blockID
-      = blockIdx.x
-      + blockIdx.y * MAX_GRID_SIZE;
-    uint64_t primIdx = blockID*blockDim.x + threadIdx.x;
-    const uint64_t totalElements = gridDims.x * gridDims.y * gridDims.z;
-    if (primIdx >= totalElements) return;
+      = uint64_t(blockIdx.x)
+      + uint64_t(blockIdx.y) * MAX_GRID_SIZE;
+    uint64_t primIdx = blockID*uint64_t(blockDim.x) + uint64_t(threadIdx.x);
+    const uint64_t totalElements = uint64_t(gridDims.x) * uint64_t(gridDims.y) * uint64_t(gridDims.z);
+    if (primIdx >= totalElements) 
+    {
+      //printf("blockId %ld limit %ld\n", primIdx, totalElements);
+      return;
+    }
     box4f primBounds4 = box4f();
     //Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
     //length in each dimension of the voxels in world space
@@ -860,25 +864,26 @@ namespace dtracker {
     primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
     primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
 
-    if(primIdx == 269279)
-      printf("primIdx: %d, primBounds4: %f %f %f %f %f %f %f %f\n", primIdx, primBounds4.lower.x,
-        primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
-        primBounds4.upper.z, primBounds4.upper.w);
+    // if(primIdx == 269279)
+    //   printf("primIdx: %d, primBounds4: %f %f %f %f %f %f %f %f\n", primIdx, primBounds4.lower.x,
+    //     primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
+    //     primBounds4.upper.z, primBounds4.upper.w);
 
-    for (int iz=-1;iz<=1;iz++)
-      for (int iy=-1;iy<=1;iy++)
-        for (int ix=-1;ix<=1;ix++) {
-          const uint32_t neighborIdx 
-            = (primIdx3D.x + ix)
-            + (primIdx3D.y + iy) * gridDims.x
-            + (primIdx3D.z + iz) * gridDims.x * gridDims.y;
-            if(primIdx3D.x + ix < 0 || primIdx3D.x + ix >= gridDims.x) continue;
-            if(primIdx3D.y + iy < 0 || primIdx3D.y + iy >= gridDims.y) continue;
-            if(primIdx3D.z + iz < 0 || primIdx3D.z + iz >= gridDims.z) continue;
-            
+    for (uint64_t iz=-1;iz<=1;iz++)
+      for (uint64_t iy=-1;iy<=1;iy++)
+        for (uint64_t ix=-1;ix<=1;ix++) {
+          if(primIdx3D.x + ix < 0 || primIdx3D.x + ix >= gridDims.x) continue;
+          if(primIdx3D.y + iy < 0 || primIdx3D.y + iy >= gridDims.y) continue;
+          if(primIdx3D.z + iz < 0 || primIdx3D.z + iz >= gridDims.z) continue;
+
+          const uint64_t neighborIdx 
+            = ((uint64_t)primIdx3D.x + (uint64_t)ix)
+            + ((uint64_t)primIdx3D.y + (uint64_t)iy) * (uint64_t)gridDims.x
+            + ((uint64_t)primIdx3D.z + (uint64_t)iz) * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
+                      
           primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
         }
-
+    // __syncthreads();
     rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numChannels);
   }
 
@@ -1104,7 +1109,7 @@ namespace dtracker {
   }
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds) {
-    uint32_t numMacrocells = dims.x * dims.y * dims.z;
+    uint64_t numMacrocells = dims.x * dims.y * dims.z;
     size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
     if(numChannels == 0) throw std::runtime_error("No mesh data found");
 
@@ -1144,14 +1149,20 @@ namespace dtracker {
       for (size_t i = 0; i < numChannels; i++)
       {
         const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[i],0);
-        const int blockSize = 32;
-        const vec3i vxlGridDims = rawPtrs[i]->getDims(); 
-        const int elementCount = vxlGridDims.x * vxlGridDims.y * vxlGridDims.z;
-        const int numBlocks = divRoundUp(elementCount, blockSize);
-        vec3i grid(min(numBlocks,MAX_GRID_SIZE),
-                    divRoundUp(numBlocks,MAX_GRID_SIZE),
-                    1);
+        const uint64_t blockSize = 32;
+        const vec3i vxlGridDims =  {static_cast<int>(rawPtrs[i]->getDims().x),
+                      static_cast<int>(rawPtrs[i]->getDims().y),
+                      static_cast<int>(rawPtrs[i]->getDims().z)};
+        const uint64_t elementCount = uint64_t(vxlGridDims.x) * uint64_t(vxlGridDims.y) * uint64_t(vxlGridDims.z);
+        const uint64_t numBlocks = divRoundUp(elementCount, blockSize);
+        vec3i grid(min(numBlocks, (uint64_t)MAX_GRID_SIZE), divRoundUp(numBlocks, (uint64_t)MAX_GRID_SIZE), 1);
 
+        if (grid.x > MAX_GRID_SIZE || grid.y > MAX_GRID_SIZE || grid.z > MAX_GRID_SIZE) {
+            printf("Grid size exceeds limits.\n");
+            exit(1);
+        }
+        printf("Rastering channel %d with %ldx%ldx%ld blocks with %ld threads\n", 
+                                  i, grid.x, grid.y, grid.z, blockSize);
         rasterElements<<<to_dims(grid),blockSize>>>
           (d_mcGrid,dims,bounds,d_scalars,vxlGridDims,i,numChannels);
         CUDA_SYNC_CHECK();

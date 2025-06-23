@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 
 #define TFN_WIDGET_NO_STB_IMAGE_IMPL
 #include "transfer_function_widget.h"
@@ -94,10 +95,10 @@ Viewer::Viewer(int argc, char *argv[])
         .help("resolution of the framebuffer")
         .nargs(2)
         .scan<'u', unsigned int>();
-    program.add_argument("-sh", "--shadows")
-        .help("enable shadows. Takes light direction<x,y,z>, light intensity, ambient intensity")
+    program.add_argument("-l", "--light")
+        .help("set up light. Takes enable shadows(0/1), enable gradient (0/1) light direction<x,y,z>, light intensity, ambient intensity")
         .scan<'g', float>()
-        .nargs(3,5);
+        .nargs(5,7);
     std::string modeHelpText(
         "sets rendering mode. 0 = multiple DDA traversals using multiple majorant buffers,\n"
         "1 = single DDA traversal using multiple majorant buffers,\n" 
@@ -258,15 +259,16 @@ Viewer::Viewer(int argc, char *argv[])
         modeString = "COMP"; //composite
         break;
     }
-    if(program.is_used("-sh"))
+    if(program.is_used("-l"))
     {
-        auto sh = program.get<std::vector<float>>("-sh");
-        renderer->enableShadows = true;
-        renderer->lightDir = vec3f(sh[0], sh[1], sh[2]);
-        if (sh.size() > 3)
-            renderer->lightIntensity = sh[3];
-        if (sh.size() > 4)
-            renderer->ambient = sh[4];
+        auto sh = program.get<std::vector<float>>("-l");
+        renderer->enableShadows = sh[0];
+        renderer->enableGradientShading = sh[1];
+        renderer->lightDir = vec3f(sh[2], sh[3], sh[4]);
+        if (sh.size() > 5)
+            renderer->lightIntensity = sh[5];
+        if (sh.size() > 6)
+            renderer->ambient = sh[6];
     }
 
     if(program.is_used("-fu"))
@@ -502,10 +504,13 @@ void Viewer::Run()
         {
             if(ImGui::Checkbox("Shadows", &(renderer->enableShadows)))
                 renderer->SetLightDirection(renderer->lightDir); // to reset accumulation
+            ImGui::SameLine();
+            if(ImGui::Checkbox("Gradient shading", &(renderer->enableGradientShading)))
+                renderer->ResetAccumulation();
             static float lightIntensity = renderer->lightIntensity;
             if(ImGui::DragFloat("Light Intensity", &lightIntensity, 0.01f, 0.0f, 1e20f))
                 renderer->SetLightIntensity(lightIntensity);
-            if(renderer->enableShadows)
+            if(renderer->enableShadows || renderer->enableGradientShading)
             {
                 static float ambient = renderer->ambient;
                 if (ImGui::DragFloat("Ambient", &ambient, 0.01f, 0.0f, 10.0f))

@@ -33,6 +33,7 @@ OWLVarDecl launchParamVars[] = {
     {"heatMapMode", OWL_SHORT, OWL_OFFSETOF(LaunchParams, heatMapMode)},
     {"heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, heatMapScale)},
     {"enableAccumulation", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableAccumulation)},
+    {"enableGradientShading", OWL_BOOL, OWL_OFFSETOF(LaunchParams, enableGradientShading)},
     {"bgColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, bgColor)},
     {"mode",    OWL_INT,    OWL_OFFSETOF(LaunchParams, mode)},
     // light variables
@@ -62,30 +63,78 @@ OWLVarDecl launchParamVars[] = {
     {"volume.globalBoundsHi", OWL_FLOAT4, OWL_OFFSETOF(LaunchParams, volume.globalBoundsHi)},
     {"volume.meshType", OWL_INT, OWL_OFFSETOF(LaunchParams, volume.meshType)},
     //    structured volume data
-    {"volume.sGrid[0].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalarTex)},
+    {"volume.sGrid[0].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalarTex[0])},
+    {"volume.sGrid[0].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[0].scalarTex[1])},
     {"volume.sGrid[0].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].dims)},
-    {"volume.sGrid[1].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex)},
+    {"volume.sGrid[0].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].splitAxis)},
+    {"volume.sGrid[0].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[0].splitPos)},
+    
+    {"volume.sGrid[1].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex[0])},
+    {"volume.sGrid[1].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[1].scalarTex[1])},
     {"volume.sGrid[1].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].dims)},
-    {"volume.sGrid[2].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex)},
+    {"volume.sGrid[1].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].splitAxis)},
+    {"volume.sGrid[1].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[1].splitPos)},
+
+    {"volume.sGrid[2].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex[0])},
+    {"volume.sGrid[2].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[2].scalarTex[1])},
     {"volume.sGrid[2].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].dims)},
-    {"volume.sGrid[3].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex)},
+    {"volume.sGrid[2].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].splitAxis)},
+    {"volume.sGrid[2].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[2].splitPos)},
+
+    {"volume.sGrid[3].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex[0])},
+    {"volume.sGrid[3].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[3].scalarTex[1])},
     {"volume.sGrid[3].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].dims)},
-    {"volume.sGrid[4].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex)},
+    {"volume.sGrid[3].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].splitAxis)},
+    {"volume.sGrid[3].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[3].splitPos)},
+
+    {"volume.sGrid[4].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex[0])},
+    {"volume.sGrid[4].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[4].scalarTex[1])},
     {"volume.sGrid[4].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].dims)},
-    {"volume.sGrid[5].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[5].scalarTex)},
+    {"volume.sGrid[4].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].splitAxis)},
+    {"volume.sGrid[4].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[4].splitPos)},
+
+    {"volume.sGrid[5].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[5].scalarTex[0])},
+    {"volume.sGrid[5].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[5].scalarTex[1])},
     {"volume.sGrid[5].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].dims)},
-    {"volume.sGrid[6].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[6].scalarTex)},
+    {"volume.sGrid[5].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].splitAxis)},
+    {"volume.sGrid[5].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[5].splitPos)},
+
+    {"volume.sGrid[6].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[6].scalarTex[0])},
+    {"volume.sGrid[6].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[6].scalarTex[1])},
     {"volume.sGrid[6].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].dims)},
-    {"volume.sGrid[7].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[7].scalarTex)},
+    {"volume.sGrid[6].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].splitAxis)},
+    {"volume.sGrid[6].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[6].splitPos)},
+
+    {"volume.sGrid[7].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[7].scalarTex[0])},
+    {"volume.sGrid[7].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[7].scalarTex[1])},
     {"volume.sGrid[7].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].dims)},
-    {"volume.sGrid[8].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[8].scalarTex)},
+    {"volume.sGrid[7].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].splitAxis)},
+    {"volume.sGrid[7].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[7].splitPos)},
+
+    {"volume.sGrid[8].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[8].scalarTex[0])},
+    {"volume.sGrid[8].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[8].scalarTex[1])},
     {"volume.sGrid[8].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].dims)},
-    {"volume.sGrid[9].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[9].scalarTex)},
+    {"volume.sGrid[8].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].splitAxis)},
+    {"volume.sGrid[8].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[8].splitPos)},
+
+    {"volume.sGrid[9].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[9].scalarTex[0])},
+    {"volume.sGrid[9].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[9].scalarTex[1])},
     {"volume.sGrid[9].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].dims)},
-    {"volume.sGrid[10].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[10].scalarTex)},
+    {"volume.sGrid[9].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].splitAxis)},
+    {"volume.sGrid[9].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[9].splitPos)},
+
+    {"volume.sGrid[10].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[10].scalarTex[0])},
+    {"volume.sGrid[10].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[10].scalarTex[1])},
     {"volume.sGrid[10].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].dims)},
-    {"volume.sGrid[11].scalarTex",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[11].scalarTex)},
+    {"volume.sGrid[10].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].splitAxis)},
+    {"volume.sGrid[10].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[10].splitPos)},
+
+    {"volume.sGrid[11].scalarTex[0]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[11].scalarTex[0])},
+    {"volume.sGrid[11].scalarTex[1]",OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, volume.sGrid[11].scalarTex[1])},
     {"volume.sGrid[11].dims", OWL_UINT3, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].dims)},
+    {"volume.sGrid[11].splitAxis", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].splitAxis)},
+    {"volume.sGrid[11].splitPos", OWL_UINT, OWL_OFFSETOF(LaunchParams, volume.sGrid[11].splitPos)},
+
     // transfer functions (IM SORRY)
     {"transferFunction[0].xf", OWL_USER_TYPE(cudaTextureObject_t), OWL_OFFSETOF(LaunchParams, transferFunction[0].xf)},
     {"transferFunction[0].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[0].volumeDomain)},
@@ -606,7 +655,9 @@ namespace dtracker
           {bboxes[0].upper.x, bboxes[0].upper.y, bboxes[0].upper.z}
         };
 
-      printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), bounds.lower.x, bounds.lower.y, bounds.lower.z, bounds.upper.x, bounds.upper.y, bounds.upper.z);
+      printf("Cummulative Bounds of %d meshes: %f %f %f %f %f %f\n", rawPtrs.size(), 
+              bounds.lower.x, bounds.lower.y, bounds.lower.z, 
+              bounds.upper.x, bounds.upper.y, bounds.upper.z);
       if(mode < Mode::MARCHER_MULTI)
       {
         macrocellsBuffer = buildSpatialMacrocells(
@@ -635,20 +686,101 @@ namespace dtracker
                       owl4f{rawPtrs[i]->getBounds4f().upper.x, rawPtrs[i]->getBounds4f().upper.y,
                             rawPtrs[i]->getBounds4f().upper.z, rawPtrs[i]->getBounds4f().upper.w});
         
-        //scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
-        //get data as void pointer and create vector of floats
-        auto data = rawPtrs[i]->getDataVector();
-        //owlBufferUpload(scalarData[i], data.data());
+        //find the maximum extent of the data and split it into two halves geometrically
+        //to create two separate textures
+        cudaDeviceProp prop;
+        cudaGetDeviceProperties(&prop, 0);
+        const owl3l dims = {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
+                              static_cast<unsigned long>(rawPtrs[i]->getDims().y),
+                              static_cast<unsigned long>(rawPtrs[i]->getDims().z)};
+        //find the maximum extent
+        const int maxAxis= dims.x > dims.y ? (dims.x > dims.z ? 0 : 2) : (dims.y > dims.z ? 1 : 2);
+        if (dims.x > prop.maxTexture3D[0] || dims.y > prop.maxTexture3D[1] || dims.z > prop.maxTexture3D[2])
+        {
+          printf("Creating chunked two texture objects...");
+          // create two vectors to split the data into two halves
+          auto data = rawPtrs[i]->getDataVector();
+          std::vector<float> data1, data2;
+          cudaTextureObject_t volumeTextChunk1, volumeTextChunk2;
+          // split the data into two halves according to the maximum maxAxis
+          if (maxAxis == 0)
+          {
+            data1.resize((dims.x+1)/2  * dims.y * dims.z);
+            data2.resize(dims.x/ 2 * dims.y * dims.z);
+            for (size_t z = 0; z < dims.z; z++)
+              for (size_t y = 0; y < dims.y; y++)
+                for (size_t x = 0; x < dims.x; x++)
+                {
+                  if (x < dims.x / 2)
+                    data1[z * dims.y * (dims.x+1) / 2 + y * (dims.x+1) / 2 + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                  else
+                    data2[z * dims.y * (dims.x / 2) + y * (dims.x / 2) + (x - (dims.x+1) / 2)] = data[z * dims.y * dims.x + y * dims.x + x];
+                }
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.x / 2);
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i((dims.x+1) / 2, dims.y, dims.z));
+            volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x / 2, dims.y, dims.z));
+          }
+          else if (maxAxis == 1)
+          {
+            data1.resize(dims.x * (dims.y +1) / 2 * dims.z );
+            data2.resize(dims.x * dims.y / 2 * dims.z );
+            for (size_t z = 0; z < dims.z; z++)
+              for (size_t y = 0; y < dims.y; y++)
+                for (size_t x = 0; x < dims.x; x++)
+                {
+                 if (y < dims.y / 2)
+                   data1[z * (dims.y + 1) / 2 * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                 else
+                   data2[z * (dims.y / 2) * dims.x + (y - (dims.y+1) / 2) * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                }
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.y / 2);
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, (dims.y + 1) / 2, dims.z));
+            volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x, dims.y / 2, dims.z));
+          }
+          else
+          {
+            data1.resize(dims.x * dims.y * (dims.z + 1) / 2);
+            data2.resize(dims.x * dims.y * dims.z / 2);
+            for (size_t z = 0; z < dims.z; z++)
+              for (size_t y = 0; y < dims.y; y++)
+                for (size_t x = 0; x < dims.x; x++)
+                {
+                  if (z < dims.z / 2)
+                  {
+                    data1[z * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                    //print if data1 size is less than z * dims.y * dims.x + y * dims.x + x
+                    if (z * dims.y * dims.x + y * dims.x + x >= data1.size())
+                      printf("z: %ld, y: %ld, x: %ld, z * dims.y * dims.x + y * dims.x + x: %ld, data1.size(): %ld\n", z, y, x, z * dims.y * dims.x + y * dims.x + x, data1.size());
+                  }
+                  else
+                    data2[(z - (dims.z+1) / 2) * dims.y * dims.x + y * dims.x + x] = data[z * dims.y * dims.x + y * dims.x + x];
+                }
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitPos").c_str(), dims.z / 2);
+            volumeTextChunk1 = create3DTexture(data1.data(), vec3i(dims.x, dims.y, (dims.z + 1) / 2));
+            volumeTextChunk2 = create3DTexture(data2.data(), vec3i(dims.x, dims.y, dims.z / 2));
+          }
+          printf("Done \n");
 
-        printf("Created texture object \n");
-        cudaTextureObject_t volumeTexture = create3DTexture(data.data(), rawPtrs[i]->getDims());
+          owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), maxAxis);
+          owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTextChunk1);
+          owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[1]").c_str(), &volumeTextChunk2);
+        }
+        else
+        {
+          // get data as void pointer and create vector of floats
+          auto data = rawPtrs[i]->getDataVector();
+          // owlBufferUpload(scalarData[i], data.data());
+          printf("Creating 3D texture object ...");
+          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), vec3i(dims.x, dims.y, dims.z));
+          printf("Done \n");
 
-        const owl3ui dims = {static_cast<unsigned int>(rawPtrs[i]->getDims().x),
-                              static_cast<unsigned int>(rawPtrs[i]->getDims().y),
-                              static_cast<unsigned int>(rawPtrs[i]->getDims().z)};
-        //structured grid data
-        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), dims);
-        owlParamsSetRaw(lp,("volume.sGrid[" +  std::to_string(i) + "].scalarTex").c_str(), &volumeTexture);
+          owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTexture);
+          owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), 3);
+        }
+        // structured grid data
+        owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), {static_cast<unsigned int>(dims.x),
+                                                                                      static_cast<unsigned int>(dims.y), 
+                                                                                      static_cast<unsigned int>(dims.z)});
       }
       
 
@@ -772,6 +904,7 @@ namespace dtracker
     owlParamsSet1b(lp, "enableShadows", enableShadows);
     owlParamsSet1b(lp, "enableAccumulation", enableAccumulation);
     owlParamsSet1i(lp, "spp", spp);
+    owlParamsSet1b(lp, "enableGradientShading", enableGradientShading);
   }
 
   void Renderer::Terminate()
@@ -989,7 +1122,9 @@ namespace dtracker
       auto avgDims = vec3ui(0);
       for(auto mesh : rawPtrs)
       {
-        vec3i dims = mesh->getDims();
+        vec3ui dims = {static_cast<unsigned int>(mesh->getDims().x),
+                      static_cast<unsigned int>(mesh->getDims().y),
+                      static_cast<unsigned int>(mesh->getDims().z)};
         avgDims += dims/(float)estimatedElementPerMc;
       }
       avgDims /= (float)rawPtrs.size();

@@ -23,6 +23,15 @@ struct TriangleData
   vec3f *vertices;
 };
 
+struct StructuredVolumeChannel
+{
+  vec3ui dims;
+  //If the data is too big to fit in one texture, we can use two.
+  cudaTextureObject_t scalarTex[2];
+  unsigned int splitAxis=3;//0=x, 1=y, 2=z, 3=none
+  unsigned int splitPos=0;
+};
+
 struct UnstructuredElementData
 {
   unsigned int *tetrahedra;
@@ -61,6 +70,7 @@ struct LaunchParams
   OptixTraversableHandle triangleTLAS;
   int mode = 0;
   bool enableShadows;
+  bool enableGradientShading;
   short heatMapMode = 0;
   float heatMapScale = 1.0f;
   bool enableAccumulation;
@@ -91,11 +101,7 @@ struct LaunchParams
     float4 globalBoundsHi;
 
     //=== Structured Grid ===//
-    struct
-    {
-      vec3ui dims;
-      cudaTextureObject_t scalarTex;
-    } sGrid[MAX_CHANNELS];
+    StructuredVolumeChannel sGrid[MAX_CHANNELS];
 
     //=== Unstructured Grid ===//
     OptixTraversableHandle elementTLAS;
@@ -136,6 +142,7 @@ struct RayPayload
   bool shadowRay;
   bool missed;
   bool debug;
+  short channelID = 0;
 };
 
 /* variables for the miss program */
