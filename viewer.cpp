@@ -635,7 +635,7 @@ void Viewer::Run()
         if (glfw->mouseState.rightButtonDown)
             RightMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
 
-        if (glfw->mouseState.middleButtonDown)
+        if (glfw->mouseState.middleButtonDown || glfw->key.isDown(GLFW_KEY_LEFT_ALT))
             CenterMouseDrag(owl::vec2i(glfw->mouseState.position), owl::vec2i(glfw->mouseState.delta));
 #else   
         if(renderer->frameID < wuFrames)
