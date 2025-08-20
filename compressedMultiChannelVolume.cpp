@@ -48,6 +48,7 @@ std::vector<float> CompressedMultiChannelVolume::getChannel(size_t channelIdx) c
 }
 
 void CompressedMultiChannelVolume::compressChannels() {
+    printf("Compressing multi-channel volume with %zu channels\n", channels_.size());
     const auto& base = channels_[0]->getDataVector();
     size_t numVoxels = base.size();
     size_t numChannels = channels_.size();
