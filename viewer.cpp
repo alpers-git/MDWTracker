@@ -15,6 +15,8 @@
 
 #include "renderer.h"
 
+#include "compressedMultiChannelVolume.h"
+
 struct Viewer
 {
 public:
@@ -289,6 +291,7 @@ Viewer::Viewer(int argc, char *argv[])
     else if(program.is_used("-fr"))
     {
         auto paths = program.get<std::vector<std::string>>("-fr");
+        std::vector<std::shared_ptr<raw::RawR>> rawChannels;
         for (auto path : paths)
         {
             auto start = std::chrono::high_resolution_clock::now();
@@ -305,7 +308,6 @@ Viewer::Viewer(int argc, char *argv[])
                     std::cerr << "Bounds must be given as 3 floats or not at all" << std::endl;
                     std::exit(1);
                 }
-
             }
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
@@ -313,8 +315,13 @@ Viewer::Viewer(int argc, char *argv[])
             std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
             std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
             renderer->PushMesh(rawFile);
+            rawChannels.push_back(rawFile);
             numFiles++;
         }
+        // Create compressed multi-channel container
+        auto compressedVolume = std::make_shared<CompressedMultiChannelVolume>(rawChannels);
+        // TODO: Pass compressedVolume to renderer (update renderer to accept it)
+        // renderer->SetCompressedVolume(compressedVolume);
     }
     else
     {
