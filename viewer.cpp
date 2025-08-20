@@ -122,6 +122,10 @@ Viewer::Viewer(int argc, char *argv[])
         .help("enable accumulation")
         .default_value(true)
         .scan<'i', int>();
+    program.add_argument("-cmp", "--compress")
+        .help("enable compression")
+        .default_value(false)
+        .scan<'i', int>();
 
 #if OFFLINE_VIEWER
     program.add_argument("-n", "--num-frame")
@@ -319,7 +323,9 @@ Viewer::Viewer(int argc, char *argv[])
             numFiles++;
         }
         // Create compressed multi-channel container
-        auto compressedVolume = std::make_shared<CompressedMultiChannelVolume>(rawChannels);
+        auto compressedVolume = std::make_shared<CompressedMultiChannelVolume>(
+            rawChannels,
+            program.get<int>("-cmp"));
         // TODO: Pass compressedVolume to renderer (update renderer to accept it)
         // renderer->SetCompressedVolume(compressedVolume);
     }
