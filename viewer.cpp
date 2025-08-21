@@ -124,7 +124,7 @@ Viewer::Viewer(int argc, char *argv[])
         .scan<'i', int>();
     program.add_argument("-cmp", "--compress")
         .help("enable compression")
-        .default_value(false)
+        .default_value(0)
         .scan<'i', int>();
 
 #if OFFLINE_VIEWER
