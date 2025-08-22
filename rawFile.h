@@ -126,7 +126,6 @@ namespace raw
          */
         DataFormat getDataFormat() const;
 
-
         /*!
         * @brief Get bytes per voxel
         */
@@ -151,6 +150,9 @@ namespace raw
         */
         void reshapeBounds();
         void reshapeBounds(const owl::vec3f remap_dims);
+
+        float getMinValue() const { return bounds_.lower.w; }
+        float getMaxValue() const { return bounds_.upper.w; }
 
     private:
         char const* fileName_ = 0;

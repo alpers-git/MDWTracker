@@ -504,6 +504,8 @@ void Viewer::Run()
                 if (ImGui::BeginTabItem(std::string("TF"+std::to_string(i)).c_str()))
                 {
                     tfnWidgets[i].DrawColorMap(false);
+                    tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getMinValue(),
+                                            renderer->rawPtrs[i]->getMaxValue()});
                     tfnWidgets[i].DrawOpacityScale();
                     tfnWidgets[i].DrawRanges();
                     ImGui::EndTabItem();
