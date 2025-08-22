@@ -138,8 +138,8 @@ void _recalculateDensityRanges(
       float addr2 = remappedMax * (tf[tfID].numTexels);
 
 
-      int addrMin = min(max(int(min((addr1), (addr2))), 0), tf[tfID].numTexels);
-      int addrMax = min(max(int(max((addr1), (addr2))), 0), tf[tfID].numTexels);
+      int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), tf[tfID].numTexels-1);
+      int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), tf[tfID].numTexels-1);
 
       float maxDensityForVolume = 0.f;
       for (int i = addrMin; i <= addrMax; ++i) {
@@ -185,8 +185,8 @@ void _recalculateDensityRangesMM(
       float addr2 = remappedMax * (tf[tfID].numTexels);
 
 
-      int addrMin = min(max(int(min((addr1), (addr2))), 0), tf[tfID].numTexels);
-      int addrMax = min(max(int(max((addr1), (addr2))), 0), tf[tfID].numTexels);
+      int addrMin = min(max(int(min(floor(addr1), floor(addr2))), 0), tf[tfID].numTexels-1);
+      int addrMax = min(max(int(max(ceil(addr1), ceil(addr2))), 0), tf[tfID].numTexels-1);
 
       float maxDensityForVolume = 0.f;
       for (int i = addrMin; i <= addrMax; ++i) {
@@ -501,6 +501,9 @@ namespace dtracker {
 
     vec3i lo = project(pb.lower,worldBounds,dims);
     vec3i hi = project(pb.upper,worldBounds,dims);
+    hi.x = min(hi.x, dims.x - 1);
+    hi.y = min(hi.y, dims.y - 1);
+    hi.z = min(hi.z, dims.z - 1);
 
     for (uint64_t iz=lo.z;iz<=hi.z;iz++)
       for (uint64_t iy=lo.y;iy<=hi.y;iy++)
@@ -861,27 +864,29 @@ namespace dtracker {
     //World space coordinates of the voxel corners
     vec3f vxlLower = worldBounds.lower + vec3f(primIdx3D) * boxLenghts;
 
+    // Initialize bounds with current voxel
     primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
     primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
 
-    // if(primIdx == 269279)
-    //   printf("primIdx: %d, primBounds4: %f %f %f %f %f %f %f %f\n", primIdx, primBounds4.lower.x,
-    //     primBounds4.lower.y, primBounds4.lower.z, primBounds4.lower.w, primBounds4.upper.x, primBounds4.upper.y,
-    //     primBounds4.upper.z, primBounds4.upper.w);
-
-    for (uint64_t iz=-1;iz<=1;iz++)
-      for (uint64_t iy=-1;iy<=1;iy++)
-        for (uint64_t ix=-1;ix<=1;ix++) {
-          if(primIdx3D.x + ix < 0 || primIdx3D.x + ix >= gridDims.x) continue;
-          if(primIdx3D.y + iy < 0 || primIdx3D.y + iy >= gridDims.y) continue;
-          if(primIdx3D.z + iz < 0 || primIdx3D.z + iz >= gridDims.z) continue;
+    // Extend bounds to include neighboring voxels for proper scalar range
+    for (int64_t iz=-1;iz<=1;iz++)
+      for (int64_t iy=-1;iy<=1;iy++)
+        for (int64_t ix=-1;ix<=1;ix++) {
+          int64_t nx = (int64_t)primIdx3D.x + ix;
+          int64_t ny = (int64_t)primIdx3D.y + iy;
+          int64_t nz = (int64_t)primIdx3D.z + iz;
+          
+          if(nx < 0 || nx >= gridDims.x) continue;
+          if(ny < 0 || ny >= gridDims.y) continue;
+          if(nz < 0 || nz >= gridDims.z) continue;
 
           const uint64_t neighborIdx 
-            = ((uint64_t)primIdx3D.x + (uint64_t)ix)
-            + ((uint64_t)primIdx3D.y + (uint64_t)iy) * (uint64_t)gridDims.x
-            + ((uint64_t)primIdx3D.z + (uint64_t)iz) * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
+            = (uint64_t)nx
+            + (uint64_t)ny * (uint64_t)gridDims.x
+            + (uint64_t)nz * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
                       
-          primBounds4.extend({vxlLower.x, vxlLower.y, vxlLower.z, scalars[neighborIdx]});
+          vec3f neighborLower = worldBounds.lower + vec3f(nx, ny, nz) * boxLenghts;
+          primBounds4.extend({neighborLower.x, neighborLower.y, neighborLower.z, scalars[neighborIdx]});
         }
     // __syncthreads();
     rasterBox(d_mcGrid,mcDims,worldBounds,primBounds4,meshIndex,numChannels);
