@@ -24,7 +24,7 @@ public:
     Viewer(int argc, char *argv[]);
     void Run();
 
-    void TakeSnapshot(std::string filename = "frame.png");
+    void TakeSnapshot(std::string filename = "frame.png", bool overlayColormap = false);
     void LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
@@ -358,13 +358,45 @@ Viewer::Viewer(int argc, char *argv[])
     manipulator = std::make_shared<camera::Manipulator>(&(renderer->camera));
 }
 
-void Viewer::TakeSnapshot(std::string filename)
+void Viewer::TakeSnapshot(std::string filename, bool overlayColormap)
 {
     const uint32_t *fb = (const uint32_t *)
         owlBufferGetPointer(renderer->frameBuffer, 0);
+    
+    // Create a copy of the framebuffer for modification
+    std::vector<uint32_t> modifiedFb(renderer->fbSize.x * renderer->fbSize.y);
+    std::copy(fb, fb + renderer->fbSize.x * renderer->fbSize.y, modifiedFb.begin());
+    
+
+    // Add colormap overlays using the transfer function widget utility
+    if (numFiles > 0 && overlayColormap) {
+        const float scale = 1.1f; // Default scale
+        const int marginBottom = renderer->fbSize.y - 250;
+        const int barSpacing = 85; // Spacing between bars
+        const int marginLeft = renderer->fbSize.x - barSpacing * numFiles - 25;
+        
+        for (int fileIndex = 0; fileIndex < numFiles; ++fileIndex) {
+            // Calculate position for this colormap bar using distance from bottom-left corner
+            vec2f pos(
+                marginLeft + fileIndex * barSpacing,  // Distance from left edge
+                marginBottom  // Distance from bottom of image
+            );
+            
+            // Get the data range for this file
+            vec2f dataRange(
+                renderer->rawPtrs[fileIndex]->getMinValue(),
+                renderer->rawPtrs[fileIndex]->getMaxValue()
+            );
+            
+            // Overlay the colormap bar
+            tfnWidgets[fileIndex].OverlayColormapBar(modifiedFb, renderer->fbSize.x, renderer->fbSize.y,
+                                                    {pos.x, pos.y}, {dataRange.x, dataRange.y}, scale, true);
+        }
+    }
+    
     stbi_write_png(filename.c_str(),
                    renderer->fbSize.x, renderer->fbSize.y, 4,
-                   fb, renderer->fbSize.x * sizeof(uint32_t));
+                   modifiedFb.data(), renderer->fbSize.x * sizeof(uint32_t));
     printf("Saved current frame to '%s'\n", filename.c_str());
 }
 
@@ -595,7 +627,7 @@ void Viewer::Run()
         // Taking a snapshot of the current frame
         if (glfw->key.isPressed(GLFW_KEY_1) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"!"
-            TakeSnapshot();
+            TakeSnapshot("frame.png", glfw->key.isDown(GLFW_KEY_LEFT_CONTROL));
 
         if (glfw->key.isPressed(GLFW_KEY_EQUAL) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"+"
