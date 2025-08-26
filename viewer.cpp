@@ -295,7 +295,6 @@ Viewer::Viewer(int argc, char *argv[])
     else if(program.is_used("-fr"))
     {
         auto paths = program.get<std::vector<std::string>>("-fr");
-        std::vector<std::shared_ptr<raw::RawR>> rawChannels;
         for (auto path : paths)
         {
             auto start = std::chrono::high_resolution_clock::now();
@@ -319,22 +318,21 @@ Viewer::Viewer(int argc, char *argv[])
             std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
             std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
             renderer->PushMesh(rawFile);
-            rawChannels.push_back(rawFile);
             numFiles++;
         }
-        // Create compressed multi-channel container
-        auto compressedVolume = std::make_shared<CompressedMultiChannelVolume>(
-            rawChannels,
-            program.get<int>("-cmp"));
-        // TODO: Pass compressedVolume to renderer (update renderer to accept it)
-        // renderer->SetCompressedVolume(compressedVolume);
     }
     else
     {
         std::cerr << "No data file given" << std::endl;
         std::exit(1);
     }
-    
+
+    // if there are more than 1 files and cmp is true set renderer
+    if (numFiles > 1 && program.get<int>("-cmp") > 0)
+        renderer->SetCompressionEnabled(true);
+    else
+        renderer->SetCompressionEnabled(false);
+
     // init transfer function widgets
     tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles, OFFLINE_VIEWER);
     // if tf argument is given, load it
@@ -538,8 +536,8 @@ void Viewer::Run()
                     tfnWidgets[i].DrawColorMap(false);
                     tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getMinValue(),
                                             renderer->rawPtrs[i]->getMaxValue()});
-                    tfnWidgets[i].DrawOpacityScale();
                     tfnWidgets[i].DrawRanges();
+                    tfnWidgets[i].DrawOpacityScale();
                     ImGui::EndTabItem();
                     //tabChanged = selectedTF != i;
                     selectedTF = i;

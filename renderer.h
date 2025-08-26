@@ -11,6 +11,7 @@
 #include "deviceCode.h"
 
 #include "rawFile.h"
+#include "compressedMultiChannelVolume.h"
 
 namespace dtracker
 {
@@ -59,6 +60,8 @@ public:
     camera::Camera camera;
     std::vector<std::shared_ptr<umesh::UMesh>> umeshPtrs;
     std::vector<std::shared_ptr<raw::RawR>> rawPtrs;
+    std::shared_ptr<CompressedMultiChannelVolume> compressedVolume;
+    bool compressionEnabled = false;
 
     /* raygen */
     OWLRayGen rayGen{0};
@@ -145,8 +148,12 @@ public:
     void Terminate();
     /*! pushes a umesh*/
     bool PushMesh(std::shared_ptr<umesh::UMesh> umeshPtr);
-    /*! pushes a raw file*/
+    /*! pushes a raw file - returns true if this completes the volume */
     bool PushMesh(std::shared_ptr<raw::RawR> rawPtr);
+    /*! sets the compression enabled flag */
+    void SetCompressionEnabled(bool enabled);
+    /*! creates compressed volume if conditions are met */
+    void CreateCompressedVolumeIfReady();
     /*! resizes the frame buffer */
     void Resize(vec2i newSize);
     /*! updates camera at device*/

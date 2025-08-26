@@ -30,6 +30,9 @@ public:
     // Get dimensions (assume all channels have same dims)
     raw::Vec3l getDims() const;
 
+    // Get compressed volume bounds
+    owl::box4f getBounds4f() const;
+
     // Is compression enabled?
     bool isCompressed() const { return compress_; }
 
@@ -42,6 +45,7 @@ private:
     std::vector<std::vector<float>> compressedDiffsFloat_; // for float diffs
 
     bool compress_ = true;
+    owl::box4f bounds_;
 
     // Helper: compress all channels
     void compressChannels();

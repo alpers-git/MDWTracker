@@ -7,6 +7,10 @@ CompressedMultiChannelVolume::CompressedMultiChannelVolume(const std::vector<std
     : channels_(channels), compress_(compress)
 {
     assert(!channels.empty());
+    bounds_ = channels[0]->getBounds4f();
+    for (size_t i = 1; i < channels.size(); i++) {
+        bounds_.extend(channels[i]->getBounds4f());
+    }
     if (compress_)
         compressChannels();
 }
@@ -17,6 +21,10 @@ raw::Vec3l CompressedMultiChannelVolume::getDims() const {
 
 CompressedType CompressedMultiChannelVolume::getCompressedType(size_t channelIdx) const {
     return compressedTypes_[channelIdx];
+}
+
+owl::box4f CompressedMultiChannelVolume::getBounds4f() const {
+    return bounds_;
 }
 
 std::vector<float> CompressedMultiChannelVolume::getChannel(size_t channelIdx) const {
