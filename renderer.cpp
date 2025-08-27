@@ -635,7 +635,7 @@ namespace dtracker
           scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, dims.x * dims.y * dims.z, nullptr);
           
           // Get decompressed channel data
-          auto decompressedData = compressedVolume->getChannel(i);
+          auto decompressedData = compressedVolume->getDecompressedChannel(i);
           owlBufferUpload(scalarData[i], decompressedData.data());
           
           LOG("Uploaded decompressed channel " << i << " (" << decompressedData.size() << " floats)\n");
@@ -968,7 +968,15 @@ namespace dtracker
 
     LOG("Pushing mesh...\n");
     rawPtrs.push_back(mesh);
-    
+
+    // for debug purposes if the second channel is pushed this time print 42nd index of it
+    if (rawPtrs.size() == 2) {
+      const auto& channelData = rawPtrs[1]->getDataVector();
+      if (channelData.size() > 42) {
+        LOG("Debug print (42 index of 2nd channel): " << channelData[42] << "\n");
+      }
+    }
+
     return true;
   }
 
@@ -981,8 +989,16 @@ namespace dtracker
   {
     // Create compressed volume if compression is enabled and we have channels
     if (compressionEnabled && !rawPtrs.empty() && !compressedVolume) {
-      LOG("Creating compressed multi-channel volume with " << rawPtrs.size() << " channels\n");
+      LOG_OK("Creating compressed multi-channel volume with " << rawPtrs.size() << " channels\n");
       compressedVolume = std::make_shared<CompressedMultiChannelVolume>(rawPtrs, compressionEnabled);
+    }
+
+    //For debug print 42 index of 2nd channel from compressed volume
+    if (compressedVolume) {
+      const auto& channelData = compressedVolume->getDecompressedChannel(1);
+      if (channelData.size() > 42) {
+        LOG_OK("Debug print (42 index of 2nd compressed channel): " << channelData[42] << "\n");
+      }
     }
   }
 
