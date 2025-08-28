@@ -261,7 +261,7 @@ namespace dtracker
 
   void Renderer::Init(const unsigned int mode, bool autoSetCamera)
   {
-    if(umeshPtrs.size() == 0 && rawPtrs.size() == 0 && !compressedVolume)
+    if(umeshPtrs.size() == 0 && !volumeChannels)
     {
       LOG_ERROR("No data source specified!");
       return;
@@ -424,7 +424,7 @@ namespace dtracker
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
       size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
-          ( mode <= Mode::MULTI_ALT ? rawPtrs.size() : mode <= Mode::MIX ? 1 : 0 );
+          ( mode <= Mode::MULTI_ALT ? volumeChannels->numChannels() : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
@@ -570,10 +570,11 @@ namespace dtracker
       owlGroupGetAccelSize(elementTLAS, &final, &peak);
     }
     //================================================================================================
-    else if(rawPtrs.size() > 0 || compressedVolume)
+    else if(volumeChannels)
     {
       // Create compressed volume if compression is enabled
-      CreateCompressedVolumeIfReady();
+      if(compressionEnabled)
+        volumeChannels->compressChannels();
       
       meshType = MeshType::RAW;
       if (macrocellDims.x == 0 || macrocellDims.y == 0 || macrocellDims.z == 0)
@@ -625,30 +626,19 @@ namespace dtracker
       owlBuildPrograms(context);
       LOG("Setting buffers ...");
       
-      // Handle compressed volume if available, otherwise use raw volumes
-      if (compressedVolume && compressedVolume->isCompressed()) {
-        // Create scalar data buffers for decompressed channels
-        auto dims = compressedVolume->getDims(); // Get dims once outside loop
-        for (size_t i = 0; i < compressedVolume->numChannels(); i++) {
-          if (i >= MAX_CHANNELS) break;
-          
-          scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, dims.x * dims.y * dims.z, nullptr);
-          
-          // Get decompressed channel data
-          auto decompressedData = compressedVolume->getDecompressedChannel(i);
-          owlBufferUpload(scalarData[i], decompressedData.data());
-          
-          LOG("Uploaded decompressed channel " << i << " (" << decompressedData.size() << " floats)\n");
-        }
-      } else {
-        // Use regular raw volumes
-        for (size_t i = 0; i < rawPtrs.size(); i++)
-        {
-          scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, rawPtrs[i]->getDims().x * rawPtrs[i]->getDims().y * rawPtrs[i]->getDims().z, nullptr);
-          //get data as void pointer and create vector of floats
-          auto data = rawPtrs[i]->getDataVector();
-          owlBufferUpload(scalarData[i], data.data());
-        }
+      // Handle volume data - always use MultiVolume
+      // Create scalar data buffers for decompressed channels
+      auto dims = volumeChannels->getDims(); // Get dims once outside loop
+      for (size_t i = 0; i < volumeChannels->numChannels(); i++) {
+        if (i >= MAX_CHANNELS) break;
+        
+        scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, dims.x * dims.y * dims.z, nullptr);
+        
+        // Get decompressed channel data
+        auto decompressedData = volumeChannels->getDecompressedChannel(i);
+        owlBufferUpload(scalarData[i], decompressedData.data());
+        
+        LOG("Uploaded decompressed channel " << i << " (" << decompressedData.size() << " floats)\n");
       }
       // Macrocell data
       int numMacrocells = 1;
@@ -657,16 +647,16 @@ namespace dtracker
       bboxes.resize(numMacrocells);
       bboxes[0] = box4f();
       
-      if (compressedVolume && compressedVolume->isCompressed()) {
+      if (volumeChannels && volumeChannels->isCompressed()) {
         // Use compressed volume bounds
-        bboxes[0].extend(compressedVolume->getBounds4f());
+        bboxes[0].extend(volumeChannels->getBounds4f());
       } else {
         // Use raw volume bounds
         for (size_t i = 0; i < rawPtrs.size(); i++)
           bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
       }
 
-      size_t numChannels = compressedVolume ? compressedVolume->numChannels() : rawPtrs.size();
+      size_t numChannels = volumeChannels ? volumeChannels->numChannels() : rawPtrs.size();
       size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
           ( mode <= Mode::MULTI_ALT ? numChannels : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
@@ -812,7 +802,6 @@ namespace dtracker
                                                                                       static_cast<unsigned int>(dims.z)});
       }
       
-
       // camera
       if(autoSetCamera)
       {
@@ -896,7 +885,7 @@ namespace dtracker
     Resetdt();
 
     owlParamsSet1i(lp, "volume.numChannels", meshType == MeshType::UMESH ? umeshPtrs.size() : 
-                   (compressedVolume ? compressedVolume->numChannels() : rawPtrs.size()));
+                   (volumeChannels ? volumeChannels->numChannels() : rawPtrs.size()));
 
     LOG("Building programs...");
     owlBuildPipeline(context);
@@ -980,26 +969,22 @@ namespace dtracker
     return true;
   }
 
+  bool Renderer::SetMeshList(const std::vector<std::shared_ptr<raw::RawR>>& meshes)
+  {
+    if(meshes.size() > MAX_CHANNELS)
+    {
+      LOG_ERROR("Cannot set mesh list - max channels exceeded\n");
+      return false;
+    }
+    LOG("Setting mesh list...\n");
+    rawPtrs = meshes;//TODO: Remove
+    volumeChannels = std::make_shared<MultiVolume>(meshes);
+    return true;
+  }
+
   void Renderer::SetCompressionEnabled(bool enabled)
   {
     compressionEnabled = enabled;
-  }
-
-  void Renderer::CreateCompressedVolumeIfReady()
-  {
-    // Create compressed volume if compression is enabled and we have channels
-    if (compressionEnabled && !rawPtrs.empty() && !compressedVolume) {
-      LOG_OK("Creating compressed multi-channel volume with " << rawPtrs.size() << " channels\n");
-      compressedVolume = std::make_shared<CompressedMultiChannelVolume>(rawPtrs, compressionEnabled);
-    }
-
-    //For debug print 42 index of 2nd channel from compressed volume
-    if (compressedVolume) {
-      const auto& channelData = compressedVolume->getDecompressedChannel(1);
-      if (channelData.size() > 42) {
-        LOG_OK("Debug print (42 index of 2nd compressed channel): " << channelData[42] << "\n");
-      }
-    }
   }
 
   void Renderer::Resize(const vec2i newSize)

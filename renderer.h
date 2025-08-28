@@ -11,7 +11,7 @@
 #include "deviceCode.h"
 
 #include "rawFile.h"
-#include "compressedMultiChannelVolume.h"
+#include "MultiVolume.h"
 
 namespace dtracker
 {
@@ -60,7 +60,7 @@ public:
     camera::Camera camera;
     std::vector<std::shared_ptr<umesh::UMesh>> umeshPtrs;
     std::vector<std::shared_ptr<raw::RawR>> rawPtrs;
-    std::shared_ptr<CompressedMultiChannelVolume> compressedVolume;
+    std::shared_ptr<MultiVolume> volumeChannels;
     bool compressionEnabled = false;
 
     /* raygen */
@@ -150,6 +150,8 @@ public:
     bool PushMesh(std::shared_ptr<umesh::UMesh> umeshPtr);
     /*! pushes a raw file - returns true if this completes the volume */
     bool PushMesh(std::shared_ptr<raw::RawR> rawPtr);
+    /*! sets the mesh list */
+    bool SetMeshList(const std::vector<std::shared_ptr<raw::RawR>>& meshes);
     /*! sets the compression enabled flag */
     void SetCompressionEnabled(bool enabled);
     /*! creates compressed volume if conditions are met */

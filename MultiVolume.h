@@ -13,10 +13,10 @@ enum class CompressedType {
     Float32
 };
 
-class CompressedMultiChannelVolume {
+class MultiVolume {
 public:
-    // Construct from a vector of RawR pointers (channels), with optional compression
-    CompressedMultiChannelVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels, bool compress = true);
+    // Construct from a vector of RawR pointers (channels)
+    MultiVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels);
 
     // Get decompressed data for channel N (returns float vector)
     std::vector<float> getDecompressedChannel(size_t channelIdx) const;
@@ -37,7 +37,13 @@ public:
     owl::box4f getGlobalBounds4f() const;
 
     // Is compression enabled?
-    bool isCompressed() const { return compress_; }
+    bool isCompressed() const { return compressed; }
+
+    // Compresses channels and deletes original data
+    void compressChannels();
+
+    // Decompresses all channels and restores original data
+    void decompressChannels();
 
 private:
     std::vector<std::shared_ptr<raw::RawR>> channels_; // original channels
@@ -48,7 +54,7 @@ private:
     std::vector<std::vector<uint32_t>> compressedDiffs32_;  // for uint32 diffs
     std::vector<std::vector<float>> compressedDiffsFloat_; // for float diffs
 
-    bool compress_ = true;
+    bool compressed = false;
     owl::box4f globalBounds;
 
     struct ChannelInfo {
@@ -59,9 +65,5 @@ private:
         float diffMax;  // maximum diff value for decompression scaling
     };
     std::vector<ChannelInfo> channelInfo;
-
-    // Helper: compress all channels
-    void compressChannels();
+    
 };
-
-// Next: implement the constructor and compression logic in a .cpp file.

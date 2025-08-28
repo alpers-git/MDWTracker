@@ -110,8 +110,8 @@ add_executable(mdwtViewer
   renderer.cpp
   renderer.cu
   stb_image_write.h
-  compressedMultiChannelVolume.cpp
-  compressedMultiChannelVolume.h
+  MultiVolume.cpp
+  MultiVolume.h
   rawFile.cpp
   viewer.cpp)
 
@@ -137,8 +137,8 @@ add_executable(mdwtOffline
   renderer.cpp
   renderer.cu
   stb_image_write.h
-  compressedMultiChannelVolume.cpp
-  compressedMultiChannelVolume.h
+  MultiVolume.cpp
+  MultiVolume.h
   rawFile.cpp
   viewer.cpp)
 

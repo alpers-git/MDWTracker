@@ -1,10 +1,10 @@
-#include "compressedMultiChannelVolume.h"
+#include "MultiVolume.h"
 #include <algorithm>
 #include <limits>
 #include <cassert>
 
-CompressedMultiChannelVolume::CompressedMultiChannelVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels, bool compress)
-    : channels_(channels), compress_(compress)
+MultiVolume::MultiVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels)
+    : channels_(channels)
 {
     assert(!channels.empty());
     channelInfo.resize(channels.size());
@@ -14,31 +14,29 @@ CompressedMultiChannelVolume::CompressedMultiChannelVolume(const std::vector<std
         channelInfo[i].dims = channels[i]->getDims();
         globalBounds.extend(channelInfo[i].bounds);
     }
-    if (compress_)
-        compressChannels();
 }
 
-raw::Vec3l CompressedMultiChannelVolume::getDims(size_t channelIdx) const {
+raw::Vec3l MultiVolume::getDims(size_t channelIdx) const {
     return channels_[channelIdx]->getDims();
 }
 
-CompressedType CompressedMultiChannelVolume::getCompressedType(size_t channelIdx) const {
+CompressedType MultiVolume::getCompressedType(size_t channelIdx) const {
     return channelInfo[channelIdx].type;
 }
 
-owl::box4f CompressedMultiChannelVolume::getBounds4f(size_t channelIdx) const {
+owl::box4f MultiVolume::getBounds4f(size_t channelIdx) const {
     return channelInfo[channelIdx].bounds;
 }
 
-owl::box4f CompressedMultiChannelVolume::getGlobalBounds4f() const {
+owl::box4f MultiVolume::getGlobalBounds4f() const {
     return globalBounds;
 }
 
-std::vector<float> CompressedMultiChannelVolume::getDecompressedChannel(size_t channelIdx) const {
+std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const {
     printf("Decompressing channel %zu\n", channelIdx);
     
-    if (!compress_ || channelIdx == 0) {
-        if (compress_ && channelIdx == 0) {
+    if (!compressed || channelIdx == 0) {
+        if (compressed && channelIdx == 0) {
             // Return stored base channel after denormalization
             float baseMin = channelInfo[0].bounds.lower.w;
             float baseMax = channelInfo[0].bounds.upper.w;
@@ -107,7 +105,12 @@ std::vector<float> CompressedMultiChannelVolume::getDecompressedChannel(size_t c
     return result;
 }
 
-void CompressedMultiChannelVolume::compressChannels() {
+void MultiVolume::compressChannels() {
+    if (compressed) {
+        printf("Volume is already compressed.\n");
+        return;
+    }
+
     printf("Compressing multi-channel volume with %zu channels\n", channels_.size());
     baseChannelData_ = channels_[0]->getDataVector();
     
@@ -201,4 +204,23 @@ void CompressedMultiChannelVolume::compressChannels() {
     
     // deallocate the channels
     channels_.clear();
+}
+
+//TODO: implement decompressChannel function
+void MultiVolume::decompressChannels() {
+    return;
+    if (!compressed) {
+        printf("Volume is not compressed.\n");
+        return;
+    }
+
+    // Decompress all channels to restore original data using decompress channel function
+
+    // Clear compressed data to free memory
+    compressedDiffs8_.clear();
+    compressedDiffs16_.clear();
+    compressedDiffs32_.clear();
+    compressedDiffsFloat_.clear();
+    compressed = false;
+    printf("Decompressed all channels and cleared compressed data.\n");
 }

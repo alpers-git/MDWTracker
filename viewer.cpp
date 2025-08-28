@@ -15,8 +15,6 @@
 
 #include "renderer.h"
 
-#include "compressedMultiChannelVolume.h"
-
 struct Viewer
 {
 public:
@@ -295,6 +293,7 @@ Viewer::Viewer(int argc, char *argv[])
     else if(program.is_used("-fr"))
     {
         auto paths = program.get<std::vector<std::string>>("-fr");
+        std::vector<std::shared_ptr<raw::RawR>> rawFiles;
         for (auto path : paths)
         {
             auto start = std::chrono::high_resolution_clock::now();
@@ -317,9 +316,11 @@ Viewer::Viewer(int argc, char *argv[])
             std::cout << "Time taken to load raw data: " << duration.count() << " milliseconds" << std::endl;
             std::cout << "found " << rawFile->getDims().x << " x " << rawFile->getDims().y << " x " << rawFile->getDims().z << " voxels and " << rawFile->getBytesPerVoxel() << " byte(s) per voxel" << std::endl;
             std::cout << "total size: " << rawFile->getDims().x * rawFile->getDims().y * rawFile->getDims().z * rawFile->getBytesPerVoxel() / 1024.0f / 1024.0f << " MB" << std::endl;
-            renderer->PushMesh(rawFile);
+            // renderer->PushMesh(rawFile);
+            rawFiles.push_back(rawFile);
             numFiles++;
         }
+        renderer->SetMeshList(rawFiles);
     }
     else
     {
@@ -404,7 +405,7 @@ void Viewer::printCameraParameters()
     vec3f gaze = renderer->camera.getAt();
     vec3f up = renderer->camera.getUp();
     float cosfovy = renderer->camera.getFovyInDegrees();
-    printf("-c %f %f %f %f %f %f %f %f %f %f\n", 
+    printf("-c %f %f %f %f %f %f %f %f %f %f\n",
         pos.x, pos.y, pos.z,
         gaze.x, gaze.y, gaze.z,
         up.x, up.y, up.z,
