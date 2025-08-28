@@ -803,8 +803,8 @@ namespace dtracker
         }
         else
         {
-          // get data as void pointer and create vector of floats
-          auto data = rawPtrs[i]->getDataVector();
+          // get data as vector of floats
+          auto data = volumeChannels->getDecompressedChannel(i);
           // owlBufferUpload(scalarData[i], data.data());
           printf("Creating 3D texture object ...");
           cudaTextureObject_t volumeTexture = create3DTexture(data.data(), vec3i(dims.x, dims.y, dims.z));
@@ -902,7 +902,7 @@ namespace dtracker
     Resetdt();
 
     owlParamsSet1i(lp, "volume.numChannels", meshType == MeshType::UMESH ? umeshPtrs.size() : 
-                   (volumeChannels ? volumeChannels->numChannels() : rawPtrs.size()));
+                   (volumeChannels ? volumeChannels->numChannels() : 0));
 
     LOG("Building programs...");
     owlBuildPipeline(context);
@@ -977,7 +977,7 @@ namespace dtracker
 
     // for debug purposes if the second channel is pushed this time print 42nd index of it
     if (rawPtrs.size() == 2) {
-      const auto& channelData = rawPtrs[1]->getDataVector();
+      const auto& channelData = mesh->getDataVector();
       if (channelData.size() > 42) {
         LOG("Debug print (42 index of 2nd channel): " << channelData[42] << "\n");
       }
@@ -1039,8 +1039,12 @@ namespace dtracker
     const vec3f vertical = 2.0f * half_height * focusDist * v;
     if(meshType == MeshType::UMESH)
       camera.motionSpeed = umesh::length(umeshPtrs[0]->getBounds().size()) / 50.f;
-    else if(meshType == MeshType::RAW)
-      camera.motionSpeed = owl::length(rawPtrs[0]->getBounds().size()) / 50.f;
+    else if(meshType == MeshType::RAW && volumeChannels) {
+      auto bounds4f = volumeChannels->getBounds4f(0);
+      box3f bounds3f = {{bounds4f.lower.x, bounds4f.lower.y, bounds4f.lower.z},
+                        {bounds4f.upper.x, bounds4f.upper.y, bounds4f.upper.z}};
+      camera.motionSpeed = owl::length(bounds3f.size()) / 50.f;
+    }
 
 
     // ----------- set variables  ----------------------------
@@ -1178,17 +1182,18 @@ namespace dtracker
       return avgDims;
 
     }
-    else if(meshType == MeshType::RAW)
+    else if(meshType == MeshType::RAW && volumeChannels)
     {
       auto avgDims = vec3ui(0);
-      for(auto mesh : rawPtrs)
+      for(size_t i = 0; i < volumeChannels->numChannels(); i++)
       {
-        vec3ui dims = {static_cast<unsigned int>(mesh->getDims().x),
-                      static_cast<unsigned int>(mesh->getDims().y),
-                      static_cast<unsigned int>(mesh->getDims().z)};
+        auto meshDims = volumeChannels->getDims(i);
+        vec3ui dims = {static_cast<unsigned int>(meshDims.x),
+                      static_cast<unsigned int>(meshDims.y),
+                      static_cast<unsigned int>(meshDims.z)};
         avgDims += dims/(float)estimatedElementPerMc;
       }
-      avgDims /= (float)rawPtrs.size();
+      avgDims /= (float)volumeChannels->numChannels();
       printf("Calculated MC Grid Dims: %d %d %d\n", avgDims.x, avgDims.y, avgDims.z);
       return avgDims;
     }
@@ -1280,13 +1285,16 @@ namespace dtracker
       }
       Setdt(minSpan * 0.5f);
     }
-    else if (meshType == MeshType::RAW)
+    else if (meshType == MeshType::RAW && volumeChannels)
     {
       float minVoxelSideLength = std::numeric_limits<float>::max();
-      for (int i = 0; i < rawPtrs.size(); ++i)
+      for (size_t i = 0; i < volumeChannels->numChannels(); ++i)
       {
-        const auto& span = rawPtrs[i]->getBounds().span();
-        const auto& dims = rawPtrs[i]->getDims();
+        const auto bounds4f = volumeChannels->getBounds4f(i);
+        box3f bounds3f = {{bounds4f.lower.x, bounds4f.lower.y, bounds4f.lower.z}, 
+                          {bounds4f.upper.x, bounds4f.upper.y, bounds4f.upper.z}};
+        const auto span = bounds3f.span();
+        const auto dims = volumeChannels->getDims(i);
         minVoxelSideLength = min(span.x/(float)dims.x, min(span.y/(float)dims.y, span.z/(float)dims.z));
       }
       Setdt(minVoxelSideLength * 0.5f);

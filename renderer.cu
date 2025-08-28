@@ -205,7 +205,7 @@ void _recalculateDensityRangesMM(
 namespace dtracker {
   void Renderer::RecalculateDensityRanges()
   {
-    size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
+    size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : volumeChannels->numChannels()) : 0;
     if(numChannels == 0) throw std::runtime_error("No mesh data found");
 
     //Create a dvice buffer of TFData
@@ -1115,7 +1115,7 @@ namespace dtracker {
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds) {
     uint64_t numMacrocells = dims.x * dims.y * dims.z;
-    size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : rawPtrs.size()) : 0;
+    size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ?umeshPtrs.size() : volumeChannels->numChannels()) : 0;
     if(numChannels == 0) throw std::runtime_error("No mesh data found");
 
     OWLBuffer MacrocellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), 
@@ -1155,9 +1155,10 @@ namespace dtracker {
       {
         const float *d_scalars = (const float*)owlBufferGetPointer(scalarData[i],0);
         const uint64_t blockSize = 32;
-        const vec3i vxlGridDims =  {static_cast<int>(rawPtrs[i]->getDims().x),
-                      static_cast<int>(rawPtrs[i]->getDims().y),
-                      static_cast<int>(rawPtrs[i]->getDims().z)};
+        const auto tmp = volumeChannels->getDims(i);
+        const vec3i vxlGridDims = {static_cast<int>(tmp.x),
+                                static_cast<int>(tmp.y),
+                                static_cast<int>(tmp.z)};
         const uint64_t elementCount = uint64_t(vxlGridDims.x) * uint64_t(vxlGridDims.y) * uint64_t(vxlGridDims.z);
         const uint64_t numBlocks = divRoundUp(elementCount, blockSize);
         vec3i grid(min(numBlocks, (uint64_t)MAX_GRID_SIZE), divRoundUp(numBlocks, (uint64_t)MAX_GRID_SIZE), 1);
