@@ -423,8 +423,9 @@ namespace dtracker
       auto bb = umeshPtrs[0]->getBounds4f();
       bboxes[0] = box4f(vec4f(bb.lower.x, bb.lower.y, bb.lower.z, bb.lower.w), vec4f(bb.upper.x, bb.upper.y, bb.upper.z, bb.upper.w));
 
+      size_t numChannels = volumeChannels ? volumeChannels->numChannels() : 0;
       size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
-          ( mode <= Mode::MULTI_ALT ? volumeChannels->numChannels() : mode <= Mode::MIX ? 1 : 0 );
+          ( mode <= Mode::MULTI_ALT ? numChannels : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
           gMaximaBufSize, nullptr);
       //clusterMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, numClusters, nullptr);
@@ -626,19 +627,35 @@ namespace dtracker
       owlBuildPrograms(context);
       LOG("Setting buffers ...");
       
-      // Handle volume data - always use MultiVolume
-      // Create scalar data buffers for decompressed channels
-      auto dims = volumeChannels->getDims(); // Get dims once outside loop
-      for (size_t i = 0; i < volumeChannels->numChannels(); i++) {
-        if (i >= MAX_CHANNELS) break;
-        
-        scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, dims.x * dims.y * dims.z, nullptr);
-        
-        // Get decompressed channel data
-        auto decompressedData = volumeChannels->getDecompressedChannel(i);
-        owlBufferUpload(scalarData[i], decompressedData.data());
-        
-        LOG("Uploaded decompressed channel " << i << " (" << decompressedData.size() << " floats)\n");
+      // Handle compressed volume if available, otherwise use raw volumes
+      if (volumeChannels && volumeChannels->isCompressed()) {
+        // Create scalar data buffers for decompressed channels
+        auto dims = volumeChannels->getDims(); // Get dims once outside loop
+        for (size_t i = 0; i < volumeChannels->numChannels(); i++) {
+          if (i >= MAX_CHANNELS) break;
+          
+          scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, dims.x * dims.y * dims.z, nullptr);
+          
+          // Get decompressed channel data
+          auto decompressedData = volumeChannels->getDecompressedChannel(i);
+          owlBufferUpload(scalarData[i], decompressedData.data());
+          
+          LOG("Uploaded decompressed channel " << i << " (" << decompressedData.size() << " floats)\n");
+        }
+      } else if (volumeChannels) {
+        // Use uncompressed volume channels
+        auto dims = volumeChannels->getDims(); // Get dims once outside loop
+        for (size_t i = 0; i < volumeChannels->numChannels(); i++)
+        {
+          if (i >= MAX_CHANNELS) break;
+          
+          scalarData[i] = owlDeviceBufferCreate(context, OWL_FLOAT, dims.x * dims.y * dims.z, nullptr);
+          //get data as vector of floats
+          auto data = volumeChannels->getDecompressedChannel(i);
+          owlBufferUpload(scalarData[i], data.data());
+          
+          LOG("Uploaded channel " << i << " (" << data.size() << " floats)\n");
+        }
       }
       // Macrocell data
       int numMacrocells = 1;
@@ -647,16 +664,14 @@ namespace dtracker
       bboxes.resize(numMacrocells);
       bboxes[0] = box4f();
       
-      if (volumeChannels && volumeChannels->isCompressed()) {
-        // Use compressed volume bounds
-        bboxes[0].extend(volumeChannels->getBounds4f());
-      } else {
-        // Use raw volume bounds
-        for (size_t i = 0; i < rawPtrs.size(); i++)
-          bboxes[0].extend(rawPtrs[i]->getBounds4f());//Extend the bounding box to include all meshes
+      if (volumeChannels) {
+        // Use volume bounds - extend for all channels
+        for (size_t i = 0; i < volumeChannels->numChannels(); i++) {
+          bboxes[0].extend(volumeChannels->getBounds4f(i));//Extend the bounding box to include all meshes
+        }
       }
 
-      size_t numChannels = volumeChannels ? volumeChannels->numChannels() : rawPtrs.size();
+      size_t numChannels = volumeChannels ? volumeChannels->numChannels() : 0;
       size_t gMaximaBufSize = macrocellDims.x*macrocellDims.y*macrocellDims.z * 
           ( mode <= Mode::MULTI_ALT ? numChannels : mode <= Mode::MIX ? 1 : 0 );
       gridMaximaBuffer = owlDeviceBufferCreate(context, OWL_FLOAT, 
@@ -689,43 +704,45 @@ namespace dtracker
         owlParamsSet3ui(lp, "volume.macrocellDims", (const owl3ui &)macrocellDims);
       }
       //delete scalar buffers since we don't need them anymore
-      for (size_t i = 0; i < rawPtrs.size(); i++)
+      for (size_t i = 0; i < numChannels; i++)
         owlBufferDestroy(scalarData[i]);
 
-      for (size_t i = 0; i < rawPtrs.size(); i++)
+      for (size_t i = 0; i < numChannels; i++)
       {
         OWL_CUDA_SYNC_CHECK();
         tfdatas.push_back(TFData());// push one empty transfer function
-        tfdatas[i].volDomain = interval<float>({rawPtrs[i]->getBounds4f().lower.w, rawPtrs[i]->getBounds4f().upper.w});
+        auto bounds = volumeChannels->getBounds4f(i);
+        tfdatas[i].volDomain = interval<float>({bounds.lower.w, bounds.upper.w});
         printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
         owlParamsSet4f(lp, "volume.globalBoundsLo",
-                      owl4f{rawPtrs[i]->getBounds4f().lower.x, rawPtrs[i]->getBounds4f().lower.y,
-                            rawPtrs[i]->getBounds4f().lower.z, rawPtrs[i]->getBounds4f().lower.w});
+                      owl4f{bounds.lower.x, bounds.lower.y,
+                            bounds.lower.z, bounds.lower.w});
         owlParamsSet4f(lp, "volume.globalBoundsHi",
-                      owl4f{rawPtrs[i]->getBounds4f().upper.x, rawPtrs[i]->getBounds4f().upper.y,
-                            rawPtrs[i]->getBounds4f().upper.z, rawPtrs[i]->getBounds4f().upper.w});
+                      owl4f{bounds.upper.x, bounds.upper.y,
+                            bounds.upper.z, bounds.upper.w});
         
         //find the maximum extent of the data and split it into two halves geometrically
         //to create two separate textures
         cudaDeviceProp prop;
         cudaGetDeviceProperties(&prop, 0);
-        const owl3l dims = {static_cast<unsigned long>(rawPtrs[i]->getDims().x),
-                              static_cast<unsigned long>(rawPtrs[i]->getDims().y),
-                              static_cast<unsigned long>(rawPtrs[i]->getDims().z)};
+        auto dims = volumeChannels->getDims(i);
+        const owl3l dimsl = {static_cast<unsigned long>(dims.x),
+                              static_cast<unsigned long>(dims.y),
+                              static_cast<unsigned long>(dims.z)};
         //find the maximum extent
-        const int maxAxis= dims.x > dims.y ? (dims.x > dims.z ? 0 : 2) : (dims.y > dims.z ? 1 : 2);
-        if (dims.x > prop.maxTexture3D[0] || dims.y > prop.maxTexture3D[1] || dims.z > prop.maxTexture3D[2])
+        const int maxAxis= dimsl.x > dimsl.y ? (dimsl.x > dimsl.z ? 0 : 2) : (dimsl.y > dimsl.z ? 1 : 2);
+        if (dimsl.x > prop.maxTexture3D[0] || dimsl.y > prop.maxTexture3D[1] || dimsl.z > prop.maxTexture3D[2])
         {
           printf("Creating chunked two texture objects...");
           // create two vectors to split the data into two halves
-          auto data = rawPtrs[i]->getDataVector();
+          auto data = volumeChannels->getDecompressedChannel(i);
           std::vector<float> data1, data2;
           cudaTextureObject_t volumeTextChunk1, volumeTextChunk2;
           // split the data into two halves according to the maximum maxAxis
           if (maxAxis == 0)
           {
-            data1.resize((dims.x+1)/2  * dims.y * dims.z);
-            data2.resize(dims.x/ 2 * dims.y * dims.z);
+            data1.resize((dimsl.x+1)/2  * dimsl.y * dimsl.z);
+            data2.resize(dimsl.x/ 2 * dimsl.y * dimsl.z);
             for (size_t z = 0; z < dims.z; z++)
               for (size_t y = 0; y < dims.y; y++)
                 for (size_t x = 0; x < dims.x; x++)
