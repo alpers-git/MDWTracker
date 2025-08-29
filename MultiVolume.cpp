@@ -39,20 +39,22 @@ ChannelInfo MultiVolume::getChannelInfo(size_t channelIdx) const {
 std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const {
     printf("Decompressing channel %zu\n", channelIdx);
     
-    if (!compressed || channelIdx == 0) {
-        if (compressed && channelIdx == 0) {
-            // Return stored base channel after denormalization
-            float baseMin = channelInfo[0].bounds.lower.w;
-            float baseMax = channelInfo[0].bounds.upper.w;
+    if (!compressed) {
+        // Return original channel data when not compressed
+        return channels_[channelIdx]->getDataVector();
+    }
+    
+    if (channelIdx == 0) {
+        // Return stored base channel after denormalization
+        float baseMin = channelInfo[0].bounds.lower.w;
+        float baseMax = channelInfo[0].bounds.upper.w;
 
-            // Denormalize base channel data
-            std::vector<float> result(baseChannelData_.size());
-            for (size_t i = 0; i < baseChannelData_.size(); ++i) {
-                result[i] = baseChannelData_[i] * (baseMax - baseMin) + baseMin;
-            }
-            return result;
+        // Denormalize base channel data
+        std::vector<float> result(baseChannelData_.size());
+        for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+            result[i] = baseChannelData_[i] * (baseMax - baseMin) + baseMin;
         }
-        return baseChannelData_;
+        return result;
     }
     
     // Get normalization parameters from bounds
@@ -107,6 +109,51 @@ std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const 
             break;
     }
     return result;
+}
+
+// Template function implementation for getting compressed channel data
+template<typename T>
+std::vector<T> MultiVolume::getCompressedChannelData(size_t channelIdx, raw::DataFormat expectedFormat) const {
+    if (!compressed || channelIdx == 0 || channelInfo[channelIdx].type != expectedFormat) {
+        return std::vector<T>();
+    }
+    
+    if constexpr (std::is_same_v<T, uint8_t>) {
+        if (expectedFormat == raw::DataFormat::Int8) {
+            return compressedDiffs8_[channelIdx-1];
+        }
+    } else if constexpr (std::is_same_v<T, uint16_t>) {
+        if (expectedFormat == raw::DataFormat::Int16) {
+            return compressedDiffs16_[channelIdx-1];
+        }
+    } else if constexpr (std::is_same_v<T, uint32_t>) {
+        if (expectedFormat == raw::DataFormat::Int32) {
+            return compressedDiffs32_[channelIdx-1];
+        }
+    } else if constexpr (std::is_same_v<T, float>) {
+        if (expectedFormat == raw::DataFormat::Float32) {
+            return compressedDiffsFloat_[channelIdx-1];
+        }
+    }
+    
+    return std::vector<T>();
+}
+
+// Explicit template instantiations
+template std::vector<uint8_t> MultiVolume::getCompressedChannelData<uint8_t>(size_t, raw::DataFormat) const;
+template std::vector<uint16_t> MultiVolume::getCompressedChannelData<uint16_t>(size_t, raw::DataFormat) const;
+template std::vector<uint32_t> MultiVolume::getCompressedChannelData<uint32_t>(size_t, raw::DataFormat) const;
+template std::vector<float> MultiVolume::getCompressedChannelData<float>(size_t, raw::DataFormat) const;
+
+std::vector<float> MultiVolume::getBaseChannelData() const {
+    if (compressed) {
+        return baseChannelData_;
+    }
+    // If not compressed, return the first channel's data
+    if (!channels_.empty()) {
+        return channels_[0]->getDataVector();
+    }
+    return std::vector<float>();
 }
 
 void MultiVolume::compressChannels() {

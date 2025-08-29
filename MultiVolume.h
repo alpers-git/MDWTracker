@@ -21,6 +21,10 @@ public:
     // Get decompressed data for channel N (returns float vector)
     std::vector<float> getDecompressedChannel(size_t channelIdx) const;
 
+    // Template function to get compressed data based on format and type
+    template<typename T>
+    std::vector<T> getCompressedChannelData(size_t channelIdx, raw::DataFormat expectedFormat) const;
+
     // Get compressed type for channel N
     raw::DataFormat getCompressedType(size_t channelIdx) const;
 
@@ -35,6 +39,9 @@ public:
 
     // Get channel information
     ChannelInfo getChannelInfo(size_t channelIdx) const;
+
+    // Get base channel data (for GPU reconstruction)
+    std::vector<float> getBaseChannelData() const;
 
     // Get global bounds
     owl::box4f getGlobalBounds() const;

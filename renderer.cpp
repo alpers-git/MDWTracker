@@ -186,67 +186,125 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction[11].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].xfDomain)},
     {/* sentinel to mark end of list */}};
 
-    cudaTextureObject_t create3DTexture(float* data, vec3i dims)
+    // Template for creating 3D textures with different data types
+    template<typename T>
+    cudaTextureObject_t create3DTextureTyped(T* data, vec3i dims)
     {
-      //Create texture for scalars
         cudaTextureObject_t volumeTexture;
         cudaResourceDesc res_desc = {};
-        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<float>();
+        cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<T>();
 
-        cudaArray_t   voxelArray;
+        cudaArray_t voxelArray;
         cudaMalloc3DArray(&voxelArray,
                           &channel_desc,
                           make_cudaExtent(dims.x,
                                           dims.y,
                                           dims.z));
         OWL_CUDA_SYNC_CHECK();
+        
         cudaMemcpy3DParms copyParams = {0};
-        cudaExtent volumeSize = make_cudaExtent(dims.x,
-                                                dims.y,
-                                                dims.z);
-        copyParams.srcPtr
-          = make_cudaPitchedPtr((void *)data,
-                                volumeSize.width
-                                * sizeof(float),
-                                volumeSize.width,
-                                volumeSize.height);
+        cudaExtent volumeSize = make_cudaExtent(dims.x, dims.y, dims.z);
+        copyParams.srcPtr = make_cudaPitchedPtr((void *)data,
+                                              volumeSize.width * sizeof(T),
+                                              volumeSize.width,
+                                              volumeSize.height);
         copyParams.dstArray = voxelArray;
-        copyParams.extent   = volumeSize;
-        copyParams.kind     = cudaMemcpyHostToDevice;
+        copyParams.extent = volumeSize;
+        copyParams.kind = cudaMemcpyHostToDevice;
         cudaMemcpy3D(&copyParams);
         
-        cudaResourceDesc            texRes;
-        memset(&texRes,0,sizeof(cudaResourceDesc));
+        cudaResourceDesc texRes;
+        memset(&texRes, 0, sizeof(cudaResourceDesc));
+        texRes.resType = cudaResourceTypeArray;
+        texRes.res.array.array = voxelArray;
         
-        texRes.resType            = cudaResourceTypeArray;
-        texRes.res.array.array    = voxelArray;
-        
-        cudaTextureDesc             texDescr;
-        memset(&texDescr,0,sizeof(cudaTextureDesc));
-        
-        texDescr.normalizedCoords = true; // access with normalized texture coordinates
-        texDescr.filterMode       = cudaFilterModeLinear; // linear interpolation
-        // wrap texture coordinates
-        texDescr.addressMode[0] = cudaAddressModeClamp;//Wrap;
-        texDescr.addressMode[1] = cudaAddressModeClamp;//Wrap;
-        texDescr.addressMode[2] = cudaAddressModeClamp;//Wrap;
-        texDescr.sRGB                = 0;
-
-        // texDescr.addressMode[0]      = cudaAddressModeBorder;
-        // texDescr.addressMode[1]      = cudaAddressModeBorder;
-        texDescr.maxAnisotropy       = 1;
+        cudaTextureDesc texDescr;
+        memset(&texDescr, 0, sizeof(cudaTextureDesc));
+        texDescr.normalizedCoords = true;
+        texDescr.filterMode = cudaFilterModeLinear;
+        texDescr.addressMode[0] = cudaAddressModeClamp;
+        texDescr.addressMode[1] = cudaAddressModeClamp;
+        texDescr.addressMode[2] = cudaAddressModeClamp;
+        texDescr.sRGB = 0;
+        texDescr.maxAnisotropy = 1;
         texDescr.maxMipmapLevelClamp = 0;
         texDescr.minMipmapLevelClamp = 0;
-        texDescr.mipmapFilterMode    = cudaFilterModePoint;
-        texDescr.borderColor[0]      = 0.0f;
-        texDescr.borderColor[1]      = 0.0f;
-        texDescr.borderColor[2]      = 0.0f;
-        texDescr.borderColor[3]      = 0.0f;
+        texDescr.mipmapFilterMode = cudaFilterModePoint;
+        texDescr.borderColor[0] = 0.0f;
+        texDescr.borderColor[1] = 0.0f;
+        texDescr.borderColor[2] = 0.0f;
+        texDescr.borderColor[3] = 0.0f;
         texDescr.readMode = cudaReadModeElementType;
     
         cudaCreateTextureObject(&volumeTexture, &texRes, &texDescr, NULL);
         return volumeTexture;
-    } 
+    }
+
+    // Main texture creation function that handles different data formats
+    cudaTextureObject_t create3DTexture(const MultiVolume* volumeChannels, size_t channelIdx, vec3i dims)
+    {
+        if (!volumeChannels->isCompressed()) {
+            // Use decompressed float data for uncompressed volumes
+            auto data = volumeChannels->getDecompressedChannel(channelIdx);
+            return create3DTextureTyped<float>(data.data(), dims);
+        }
+        
+        if (channelIdx == 0) {
+            // For base channel, use the base channel data directly
+            auto data = volumeChannels->getBaseChannelData();
+            return create3DTextureTyped<float>(data.data(), dims);
+        }
+        
+        // Use compressed data based on format with native CUDA texture types
+        raw::DataFormat format = volumeChannels->getCompressedType(channelIdx);
+        
+        switch (format) {
+            case raw::DataFormat::Int8:
+            {
+                auto data = volumeChannels->getCompressedChannelData<uint8_t>(channelIdx, raw::DataFormat::Int8);
+                if (!data.empty()) {
+                    return create3DTextureTyped<uint8_t>(data.data(), dims);
+                }
+                break;
+            }
+            case raw::DataFormat::Int16:
+            {
+                auto data = volumeChannels->getCompressedChannelData<uint16_t>(channelIdx, raw::DataFormat::Int16);
+                if (!data.empty()) {
+                    return create3DTextureTyped<uint16_t>(data.data(), dims);
+                }
+                break;
+            }
+            case raw::DataFormat::Int32:
+            {
+                auto data = volumeChannels->getCompressedChannelData<uint32_t>(channelIdx, raw::DataFormat::Int32);
+                if (!data.empty()) {
+                    return create3DTextureTyped<uint32_t>(data.data(), dims);
+                }
+                break;
+            }
+            case raw::DataFormat::Float32:
+            {
+                auto data = volumeChannels->getCompressedChannelData<float>(channelIdx, raw::DataFormat::Float32);
+                if (!data.empty()) {
+                    return create3DTextureTyped<float>(data.data(), dims);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        
+        // Fallback to decompressed data
+        auto data = volumeChannels->getDecompressedChannel(channelIdx);
+        return create3DTextureTyped<float>(data.data(), dims);
+    }
+
+    // Legacy function for backward compatibility with chunked textures
+    cudaTextureObject_t create3DTexture(float* data, vec3i dims)
+    {
+        return create3DTextureTyped<float>(data, dims);
+    }
 
 namespace dtracker
 {
@@ -707,6 +765,16 @@ namespace dtracker
       for (size_t i = 0; i < numChannels; i++)
         owlBufferDestroy(scalarData[i]);
 
+      // Create base channel texture for compressed volumes (needed for GPU decompression)
+      if (volumeChannels->isCompressed()) {
+        printf("Creating base channel texture for GPU decompression...");
+        auto baseDims = volumeChannels->getDims(0);
+        auto baseData = volumeChannels->getBaseChannelData();
+        cudaTextureObject_t baseTexture = create3DTextureTyped<float>(baseData.data(), vec3i(baseDims.x, baseDims.y, baseDims.z));
+        owlParamsSetRaw(lp, "volume.baseChannelTex", &baseTexture);
+        printf("Done\n");
+      }
+
       for (size_t i = 0; i < numChannels; i++)
       {
         OWL_CUDA_SYNC_CHECK();
@@ -803,15 +871,34 @@ namespace dtracker
         }
         else
         {
-          // get data as vector of floats
-          auto data = volumeChannels->getDecompressedChannel(i);
-          // owlBufferUpload(scalarData[i], data.data());
-          printf("Creating 3D texture object ...");
-          cudaTextureObject_t volumeTexture = create3DTexture(data.data(), vec3i(dims.x, dims.y, dims.z));
+          printf("Creating 3D texture object for channel %zu...", i);
+          cudaTextureObject_t volumeTexture = create3DTexture(volumeChannels.get(), i, vec3i(dims.x, dims.y, dims.z));
           printf("Done \n");
 
           owlParamsSetRaw(lp, ("volume.sGrid[" + std::to_string(i) + "].scalarTex[0]").c_str(), &volumeTexture);
           owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].splitAxis").c_str(), 3);
+          
+          // Set compression parameters for GPU decompression
+          if (volumeChannels->isCompressed() && i > 0) {
+            ChannelInfo channelInfo = volumeChannels->getChannelInfo(i);
+            owlParamsSet1f(lp, ("volume.sGrid[" + std::to_string(i) + "].diffMin").c_str(), channelInfo.diffMin);
+            owlParamsSet1f(lp, ("volume.sGrid[" + std::to_string(i) + "].diffMax").c_str(), channelInfo.diffMax);
+            owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].compressionType").c_str(), static_cast<uint32_t>(channelInfo.type));
+            
+            // Set bounds for denormalization
+            owlParamsSet2f(lp, ("volume.sGrid[" + std::to_string(i) + "].valueRange").c_str(), 
+                          channelInfo.bounds.lower.w, channelInfo.bounds.upper.w);
+          } else {
+            //TODO: implement the GPU decompression
+            // No compression parameters needed
+            // owlParamsSet1f(lp, ("volume.sGrid[" + std::to_string(i) + "].diffMin").c_str(), 0.0f);
+            // owlParamsSet1f(lp, ("volume.sGrid[" + std::to_string(i) + "].diffMax").c_str(), 0.0f);
+            // owlParamsSet1ui(lp, ("volume.sGrid[" + std::to_string(i) + "].compressionType").c_str(), 0);
+            
+            // auto bounds = volumeChannels->getBounds(i);
+            // owlParamsSet2f(lp, ("volume.sGrid[" + std::to_string(i) + "].valueRange").c_str(), 
+            //               bounds.lower.w, bounds.upper.w);
+          }
         }
         // structured grid data
         owlParamsSet3ui(lp, ("volume.sGrid[" + std::to_string(i) + "].dims").c_str(), {static_cast<unsigned int>(dims.x),
