@@ -9,7 +9,7 @@ MultiVolume::MultiVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels
     assert(!channels.empty());
     channelInfo.resize(channels.size());
     for (size_t i = 0; i < channels.size(); i++) {
-        channelInfo[i].type = CompressedType::Float32; // default to uncompressed
+        channelInfo[i].type = raw::DataFormat::Float32; // default to uncompressed
         channelInfo[i].bounds = channels[i]->getBounds4f();
         channelInfo[i].dims = channels[i]->getDims();
         globalBounds.extend(channelInfo[i].bounds);
@@ -17,19 +17,23 @@ MultiVolume::MultiVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels
 }
 
 raw::Vec3l MultiVolume::getDims(size_t channelIdx) const {
-    return channels_[channelIdx]->getDims();
+    return channelInfo[channelIdx].dims;
 }
 
-CompressedType MultiVolume::getCompressedType(size_t channelIdx) const {
+raw::DataFormat MultiVolume::getCompressedType(size_t channelIdx) const {
     return channelInfo[channelIdx].type;
 }
 
-owl::box4f MultiVolume::getBounds4f(size_t channelIdx) const {
+owl::box4f MultiVolume::getBounds(size_t channelIdx) const {
     return channelInfo[channelIdx].bounds;
 }
 
-owl::box4f MultiVolume::getGlobalBounds4f() const {
+owl::box4f MultiVolume::getGlobalBounds() const {
     return globalBounds;
+}
+
+ChannelInfo MultiVolume::getChannelInfo(size_t channelIdx) const {
+    return channelInfo[channelIdx];
 }
 
 std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const {
@@ -48,7 +52,7 @@ std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const 
             }
             return result;
         }
-        return channels_[channelIdx]->getDataVector();
+        return baseChannelData_;
     }
     
     // Get normalization parameters from bounds
@@ -59,7 +63,7 @@ std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const 
     std::vector<float> result(baseChannelData_.size());
     
     switch (channelInfo[channelIdx].type) {
-        case CompressedType::Int8:
+        case raw::DataFormat::Int8:
             {
                 float diffMin = channelInfo[channelIdx].diffMin;
                 float diffMax = channelInfo[channelIdx].diffMax;
@@ -71,7 +75,7 @@ std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const 
                 }
             }
             break;
-        case CompressedType::Int16:
+        case raw::DataFormat::Int16:
             {
                 float diffMin = channelInfo[channelIdx].diffMin;
                 float diffMax = channelInfo[channelIdx].diffMax;
@@ -83,7 +87,7 @@ std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const 
                 }
             }
             break;
-        case CompressedType::Int32:
+        case raw::DataFormat::Int32:
             {
                 float diffMin = channelInfo[channelIdx].diffMin;
                 float diffMax = channelInfo[channelIdx].diffMax;
@@ -95,7 +99,7 @@ std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const 
                 }
             }
             break;
-        case CompressedType::Float32:
+        case raw::DataFormat::Float32:
             for (size_t i = 0; i < baseChannelData_.size(); ++i) {
                 float normChannel = baseChannelData_[i] - compressedDiffsFloat_[channelIdx-1][i];
                 result[i] = normChannel * (channelMax - channelMin) + channelMin;
@@ -125,7 +129,7 @@ void MultiVolume::compressChannels() {
     size_t numVoxels = baseChannelData_.size();
     size_t numChannels = channels_.size();
     channelInfo.resize(numChannels);
-    channelInfo[0].type = CompressedType::Float32; // base channel is uncompressed
+    channelInfo[0].type = raw::DataFormat::Float32; // base channel is uncompressed
     compressedDiffs8_.resize(numChannels-1);
     compressedDiffs16_.resize(numChannels-1);
     compressedDiffs32_.resize(numChannels-1);
@@ -163,7 +167,7 @@ void MultiVolume::compressChannels() {
         
         // Check if fits in int8 (0 to 255 range)
         if (diffRange <= 255.0f) {
-            channelInfo[c].type = CompressedType::Int8;
+            channelInfo[c].type = raw::DataFormat::Int8;
             compressedDiffs8_[c-1].resize(numVoxels);
             float scale = 255.0f / diffRange;
             for (size_t i = 0; i < numVoxels; ++i) {
@@ -174,7 +178,7 @@ void MultiVolume::compressChannels() {
         }
         // Check if fits in int16 (0 to 65535 range)
         else if (diffRange <= 65535.0f) {
-            channelInfo[c].type = CompressedType::Int16;
+            channelInfo[c].type = raw::DataFormat::Int16;
             compressedDiffs16_[c-1].resize(numVoxels);
             float scale = 65535.0f / diffRange;
             for (size_t i = 0; i < numVoxels; ++i) {
@@ -185,7 +189,7 @@ void MultiVolume::compressChannels() {
         }
         // Check if fits in int32 
         else if (diffRange <= static_cast<float>(std::numeric_limits<uint32_t>::max())) {
-            channelInfo[c].type = CompressedType::Int32;
+            channelInfo[c].type = raw::DataFormat::Int32;
             compressedDiffs32_[c-1].resize(numVoxels);
             float scale = static_cast<float>(std::numeric_limits<uint32_t>::max()) / diffRange;
             for (size_t i = 0; i < numVoxels; ++i) {
@@ -196,7 +200,7 @@ void MultiVolume::compressChannels() {
         }
         // Fall back to float32 for everything else
         else {
-            channelInfo[c].type = CompressedType::Float32;
+            channelInfo[c].type = raw::DataFormat::Float32;
             compressedDiffsFloat_[c-1] = std::move(diff);
             printf("Compressed channel %zu as float32 (range: %.6f to %.6f)\n", c, minDiff, maxDiff);
         }

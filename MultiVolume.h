@@ -5,13 +5,13 @@
 #include <cstdint>
 #include "rawFile.h"
 
-// Enum for supported compressed types
-enum class CompressedType {
-    Int8,
-    Int16,
-    Int32,
-    Float32
-};
+struct ChannelInfo {
+        raw::DataFormat type;
+        owl::box4f bounds;
+        raw::Vec3l dims;
+        float diffMin;  // minimum diff value for decompression offset
+        float diffMax;  // maximum diff value for decompression scaling
+    };
 
 class MultiVolume {
 public:
@@ -22,7 +22,7 @@ public:
     std::vector<float> getDecompressedChannel(size_t channelIdx) const;
 
     // Get compressed type for channel N
-    CompressedType getCompressedType(size_t channelIdx) const;
+    raw::DataFormat getCompressedType(size_t channelIdx) const;
 
     // Get number of channels
     size_t numChannels() const { return channelInfo.size(); }
@@ -31,10 +31,13 @@ public:
     raw::Vec3l getDims(size_t channelIdx = 0) const;
 
     // Get compressed volume bounds
-    owl::box4f getBounds4f(size_t channelIdx = 0) const;
+    owl::box4f getBounds(size_t channelIdx = 0) const;
+
+    // Get channel information
+    ChannelInfo getChannelInfo(size_t channelIdx) const;
 
     // Get global bounds
-    owl::box4f getGlobalBounds4f() const;
+    owl::box4f getGlobalBounds() const;
 
     // Is compression enabled?
     bool isCompressed() const { return compressed; }
@@ -56,14 +59,6 @@ private:
 
     bool compressed = false;
     owl::box4f globalBounds;
-
-    struct ChannelInfo {
-        CompressedType type;
-        owl::box4f bounds;
-        raw::Vec3l dims;
-        float diffMin;  // minimum diff value for decompression offset
-        float diffMax;  // maximum diff value for decompression scaling
-    };
     std::vector<ChannelInfo> channelInfo;
     
 };

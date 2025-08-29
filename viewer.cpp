@@ -535,8 +535,8 @@ void Viewer::Run()
                 if (ImGui::BeginTabItem(std::string("TF"+std::to_string(i)).c_str()))
                 {
                     tfnWidgets[i].DrawColorMap(false);
-                    tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getMinValue(),
-                                            renderer->rawPtrs[i]->getMaxValue()});
+                    tfnWidgets[i].DrawRuler({renderer->volumeChannels->getBounds(i).lower.w,
+                                            renderer->volumeChannels->getBounds(i).upper.w});
                     tfnWidgets[i].DrawRanges();
                     tfnWidgets[i].DrawOpacityScale();
                     ImGui::EndTabItem();
@@ -708,10 +708,10 @@ void Viewer::Run()
     for(int i = 0; i < numFiles; i++)
     {
         printf("Volume #%d size: %ux%ux%u (%u MiB)\n", 
-            i, renderer->rawPtrs[i]->getDims().x, renderer->rawPtrs[i]->getDims().y,
-            renderer->rawPtrs[i]->getDims().z, renderer->rawPtrs[i]->getDims().x *
-            renderer->rawPtrs[i]->getDims().y * renderer->rawPtrs[i]->getDims().z *
-            renderer->rawPtrs[i]->getBytesPerVoxel() / 1024 / 1024);
+            i, renderer->volumeChannels->getDims(i).x, renderer->volumeChannels->getDims(i).y,
+            renderer->volumeChannels->getDims(i).z, renderer->volumeChannels->getDims(i).x *
+            renderer->volumeChannels->getDims(i).y * renderer->volumeChannels->getDims(i).z *
+            raw::getSizeInBytes(renderer->volumeChannels->getChannelInfo(i).type) / 1024 / 1024);
     }
     printf("avg. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->avgTime, renderer->avgTime);
     printf("best. fps: %.3f (%0.4f sec)\n", 1.0f/renderer->minTime, renderer->minTime);

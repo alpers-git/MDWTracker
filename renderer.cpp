@@ -667,7 +667,7 @@ namespace dtracker
       if (volumeChannels) {
         // Use volume bounds - extend for all channels
         for (size_t i = 0; i < volumeChannels->numChannels(); i++) {
-          bboxes[0].extend(volumeChannels->getBounds4f(i));//Extend the bounding box to include all meshes
+          bboxes[0].extend(volumeChannels->getBounds(i));//Extend the bounding box to include all meshes
         }
       }
 
@@ -711,7 +711,7 @@ namespace dtracker
       {
         OWL_CUDA_SYNC_CHECK();
         tfdatas.push_back(TFData());// push one empty transfer function
-        auto bounds = volumeChannels->getBounds4f(i);
+        auto bounds = volumeChannels->getBounds(i);
         tfdatas[i].volDomain = interval<float>({bounds.lower.w, bounds.upper.w});
         printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
         owlParamsSet4f(lp, "volume.globalBoundsLo",
@@ -966,6 +966,12 @@ namespace dtracker
 
   bool Renderer::PushMesh(std::shared_ptr<raw::RawR> mesh)
   {
+    // Prevent adding meshes after MultiVolume has been created
+    if (volumeChannels != nullptr) {
+      LOG_ERROR("Cannot push mesh - MultiVolume already created. Use SetMeshList instead.\n");
+      return false;
+    }
+    
     if(rawPtrs.size() >= MAX_CHANNELS)
     {
       LOG_ERROR("Cannot push mesh - max channels exceeded\n");
@@ -994,8 +1000,14 @@ namespace dtracker
       return false;
     }
     LOG("Setting mesh list...\n");
-    rawPtrs = meshes;//TODO: Remove
+    
+    // Create MultiVolume with the meshes - this will take ownership via shared_ptr
     volumeChannels = std::make_shared<MultiVolume>(meshes);
+    
+    // Now we can safely clear rawPtrs since MultiVolume has its own references
+    // rawPtrs.clear();
+    LOG("Cleared rawPtrs after MultiVolume creation\n");
+    
     return true;
   }
 
@@ -1040,7 +1052,7 @@ namespace dtracker
     if(meshType == MeshType::UMESH)
       camera.motionSpeed = umesh::length(umeshPtrs[0]->getBounds().size()) / 50.f;
     else if(meshType == MeshType::RAW && volumeChannels) {
-      auto bounds4f = volumeChannels->getBounds4f(0);
+      auto bounds4f = volumeChannels->getBounds(0);
       box3f bounds3f = {{bounds4f.lower.x, bounds4f.lower.y, bounds4f.lower.z},
                         {bounds4f.upper.x, bounds4f.upper.y, bounds4f.upper.z}};
       camera.motionSpeed = owl::length(bounds3f.size()) / 50.f;
@@ -1290,7 +1302,7 @@ namespace dtracker
       float minVoxelSideLength = std::numeric_limits<float>::max();
       for (size_t i = 0; i < volumeChannels->numChannels(); ++i)
       {
-        const auto bounds4f = volumeChannels->getBounds4f(i);
+        const auto bounds4f = volumeChannels->getBounds(i);
         box3f bounds3f = {{bounds4f.lower.x, bounds4f.lower.y, bounds4f.lower.z}, 
                           {bounds4f.upper.x, bounds4f.upper.y, bounds4f.upper.z}};
         const auto span = bounds3f.span();
