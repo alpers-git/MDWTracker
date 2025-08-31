@@ -151,7 +151,7 @@ public:
     /*! pushes a raw file - returns true if this completes the volume */
     bool PushMesh(std::shared_ptr<raw::RawR> rawPtr);
     /*! sets the mesh list */
-    bool SetMeshList(const std::vector<std::shared_ptr<raw::RawR>>& meshes);
+    bool SetVolumeList(const std::vector<std::shared_ptr<raw::RawR>>& meshes);
     /*! sets the compression enabled flag */
     void SetCompressionEnabled(bool enabled);
     /*! creates compressed volume if conditions are met */

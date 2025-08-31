@@ -14,6 +14,7 @@ MultiVolume::MultiVolume(const std::vector<std::shared_ptr<raw::RawR>>& channels
         channelInfo[i].dims = channels[i]->getDims();
         globalBounds.extend(channelInfo[i].bounds);
     }
+    compressed = false;
 }
 
 raw::Vec3l MultiVolume::getDims(size_t channelIdx) const {
@@ -162,17 +163,21 @@ void MultiVolume::compressChannels() {
         return;
     }
 
-    printf("Compressing multi-channel volume with %zu channels\n", channels_.size());
+    // printf("Compressing multi-channel volume with %zu channels\n", channels_.size());
     baseChannelData_ = channels_[0]->getDataVector();
+
+    printf("Printing Compression Steps for 16784717\n");
     
     //normalize base
     float baseMin = *std::min_element(baseChannelData_.begin(), baseChannelData_.end());
     float baseMax = *std::max_element(baseChannelData_.begin(), baseChannelData_.end());
-    printf("Base channel range: [%.6f, %.6f]\n", baseMin, baseMax);
+    // printf("Base channel range: [%.6f, %.6f]\n", baseMin, baseMax);
+    printf("Base channel[16784717] pre-normalization: %.6f\n", baseChannelData_[16784717]);
     
     for (size_t i = 0; i < baseChannelData_.size(); ++i) {
         baseChannelData_[i] = (baseChannelData_[i] - baseMin) / (baseMax - baseMin);
     }
+    printf("Base channel[16784717] post-normalization: %.6f\n", baseChannelData_[16784717]);
     size_t numVoxels = baseChannelData_.size();
     size_t numChannels = channels_.size();
     channelInfo.resize(numChannels);
@@ -188,12 +193,12 @@ void MultiVolume::compressChannels() {
         std::vector<float> normData = data;
         float dataMin = channelInfo[c].bounds.lower.w;
         float dataMax = channelInfo[c].bounds.upper.w;
-        printf("Channel %zu range: [%.6f, %.6f]\n", c, dataMin, dataMax);
-        
+        // printf("Channel %zu range: [%.6f, %.6f]\n", c, dataMin, dataMax);
+        printf("Channel %zu[16784717] pre-normalization: %.6f\n", c, data[16784717]);
         for (size_t i = 0; i < normData.size(); ++i) {
             normData[i] = (data[i] - dataMin) / (dataMax - dataMin);
         }
-        
+        printf("Channel %zu[16784717] post-normalization: %.6f\n", c, normData[16784717]);
         std::vector<float> diff(numVoxels);
         float minDiff = std::numeric_limits<float>::max();
         float maxDiff = std::numeric_limits<float>::lowest();
@@ -202,7 +207,7 @@ void MultiVolume::compressChannels() {
             minDiff = std::min(minDiff, diff[i]);
             maxDiff = std::max(maxDiff, diff[i]);
         }
-        
+        printf("Channel %zu[16784717] diff pre-decompression: %.6f\n", c, diff[16784717]);
         printf("Channel %zu diff range: [%.6f, %.6f]\n", c, minDiff, maxDiff);
         
         // Store diff range for decompression
@@ -252,7 +257,8 @@ void MultiVolume::compressChannels() {
             printf("Compressed channel %zu as float32 (range: %.6f to %.6f)\n", c, minDiff, maxDiff);
         }
     }
-    
+
+    compressed = true;
     // deallocate the channels
     channels_.clear();
 }

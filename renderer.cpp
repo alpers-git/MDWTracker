@@ -771,7 +771,7 @@ namespace dtracker
         auto baseDims = volumeChannels->getDims(0);
         auto baseData = volumeChannels->getBaseChannelData();
         cudaTextureObject_t baseTexture = create3DTextureTyped<float>(baseData.data(), vec3i(baseDims.x, baseDims.y, baseDims.z));
-        owlParamsSetRaw(lp, "volume.baseChannelTex", &baseTexture);
+        // owlParamsSetRaw(lp, "volume.baseChannelTex", &baseTexture);
         printf("Done\n");
       }
 
@@ -1079,20 +1079,21 @@ namespace dtracker
     return true;
   }
 
-  bool Renderer::SetMeshList(const std::vector<std::shared_ptr<raw::RawR>>& meshes)
+  bool Renderer::SetVolumeList(const std::vector<std::shared_ptr<raw::RawR>>& volumes)
   {
-    if(meshes.size() > MAX_CHANNELS)
+    if(volumes.size() > MAX_CHANNELS)
     {
-      LOG_ERROR("Cannot set mesh list - max channels exceeded\n");
+      LOG_ERROR("Cannot set volume list - max channels exceeded\n");
       return false;
     }
-    LOG("Setting mesh list...\n");
+    LOG("Setting volume list...\n");
     
+
     // Create MultiVolume with the meshes - this will take ownership via shared_ptr
-    volumeChannels = std::make_shared<MultiVolume>(meshes);
+    volumeChannels = std::make_shared<MultiVolume>(volumes);
     
     // Now we can safely clear rawPtrs since MultiVolume has its own references
-    // rawPtrs.clear();
+    rawPtrs.clear();
     LOG("Cleared rawPtrs after MultiVolume creation\n");
     
     return true;

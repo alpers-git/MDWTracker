@@ -320,7 +320,7 @@ Viewer::Viewer(int argc, char *argv[])
             rawFiles.push_back(rawFile);
             numFiles++;
         }
-        renderer->SetMeshList(rawFiles);
+        renderer->SetVolumeList(rawFiles);
     }
     else
     {
