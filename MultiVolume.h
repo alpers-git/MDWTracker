@@ -48,13 +48,9 @@ public:
 
     // Is compression enabled?
     bool isCompressed() const { return compressed; }
-
-    // Compresses channels and deletes original data
-    void compressChannels();
-
-    // Decompresses all channels and restores original data
+    // Compresses channels and deletes original data, using targetBits for mantissa
+    void compressChannels(int targetBits = 32);
     void decompressChannels();
-
 private:
     std::vector<std::shared_ptr<raw::RawR>> channels_; // original channels
     std::vector<float> baseChannelData_; // base channel data (stored after compression)

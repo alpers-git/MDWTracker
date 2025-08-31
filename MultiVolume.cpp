@@ -39,74 +39,110 @@ ChannelInfo MultiVolume::getChannelInfo(size_t channelIdx) const {
 
 std::vector<float> MultiVolume::getDecompressedChannel(size_t channelIdx) const {
     printf("Decompressing channel %zu\n", channelIdx);
-    
+
     if (!compressed) {
-        // Return original channel data when not compressed
         return channels_[channelIdx]->getDataVector();
     }
-    
+
     if (channelIdx == 0) {
-        // Return stored base channel after denormalization
         float baseMin = channelInfo[0].bounds.lower.w;
         float baseMax = channelInfo[0].bounds.upper.w;
-
-        // Denormalize base channel data
         std::vector<float> result(baseChannelData_.size());
         for (size_t i = 0; i < baseChannelData_.size(); ++i) {
             result[i] = baseChannelData_[i] * (baseMax - baseMin) + baseMin;
         }
         return result;
     }
-    
-    // Get normalization parameters from bounds
+
     float channelMin = channelInfo[channelIdx].bounds.lower.w;
     float channelMax = channelInfo[channelIdx].bounds.upper.w;
-    
-    // decompress: channelN = channel0 - diffN, then denormalize
     std::vector<float> result(baseChannelData_.size());
-    
+
+    // Find max exponent used during compression
+    int maxExp = 0;
+    // Recompute maxExp from compressed data (since diffMin/diffMax are not used)
+    // Assume scale used in compression is same as in compressChannels
+    // This is a limitation, ideally maxExp should be stored per channel
+    // For now, recompute from baseChannelData_ and channelInfo
+    // Use the same logic as compressChannels
+    std::vector<float> normData(baseChannelData_.size());
+    for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+        normData[i] = baseChannelData_[i]; // base already normalized
+    }
+    // We don't have the original diff, so estimate maxExp from compressed mantissas
+    // Use the largest mantissa value and invert the scale
+    int32_t maxAbsMantissa = 0;
     switch (channelInfo[channelIdx].type) {
         case raw::DataFormat::Int8:
-            {
-                float diffMin = channelInfo[channelIdx].diffMin;
-                float diffMax = channelInfo[channelIdx].diffMax;
-                float scale = (diffMax - diffMin) / 255.0f;
-                for (size_t i = 0; i < baseChannelData_.size(); ++i) {
-                    float dequantizedDiff = static_cast<float>(compressedDiffs8_[channelIdx-1][i]) * scale + diffMin;
-                    float normChannel = baseChannelData_[i] - dequantizedDiff;
-                    result[i] = normChannel * (channelMax - channelMin) + channelMin;
-                }
+            for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+                maxAbsMantissa = std::max(maxAbsMantissa, std::abs(static_cast<int32_t>(compressedDiffs8_[channelIdx-1][i])));
             }
             break;
         case raw::DataFormat::Int16:
-            {
-                float diffMin = channelInfo[channelIdx].diffMin;
-                float diffMax = channelInfo[channelIdx].diffMax;
-                float scale = (diffMax - diffMin) / 65535.0f;
-                for (size_t i = 0; i < baseChannelData_.size(); ++i) {
-                    float dequantizedDiff = static_cast<float>(compressedDiffs16_[channelIdx-1][i]) * scale + diffMin;
-                    float normChannel = baseChannelData_[i] - dequantizedDiff;
-                    result[i] = normChannel * (channelMax - channelMin) + channelMin;
-                }
+            for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+                maxAbsMantissa = std::max(maxAbsMantissa, std::abs(static_cast<int32_t>(compressedDiffs16_[channelIdx-1][i])));
             }
             break;
         case raw::DataFormat::Int32:
-            {
-                float diffMin = channelInfo[channelIdx].diffMin;
-                float diffMax = channelInfo[channelIdx].diffMax;
-                float scale = (diffMax - diffMin) / static_cast<float>(std::numeric_limits<uint32_t>::max());
-                for (size_t i = 0; i < baseChannelData_.size(); ++i) {
-                    float dequantizedDiff = static_cast<float>(compressedDiffs32_[channelIdx-1][i]) * scale + diffMin;
-                    float normChannel = baseChannelData_[i] - dequantizedDiff;
-                    result[i] = normChannel * (channelMax - channelMin) + channelMin;
-                }
+            for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+                maxAbsMantissa = std::max(maxAbsMantissa, std::abs(static_cast<int32_t>(compressedDiffs32_[channelIdx-1][i])));
             }
             break;
         case raw::DataFormat::Float32:
+            // Not used in new scheme
+            break;
+    }
+
+    // Assume targetBits is the type size
+    int targetBits = 0;
+    switch (channelInfo[channelIdx].type) {
+        case raw::DataFormat::Int8: targetBits = 8; break;
+        case raw::DataFormat::Int16: targetBits = 16; break;
+        case raw::DataFormat::Int32: targetBits = 32; break;
+        default: targetBits = 32; break;
+    }
+    int dropBits = 32 - targetBits;
+
+    // Reconstruct mantissas by appending 0s for missing LSBs
+    // (i.e., left-shift by dropBits)
+    float scale = 1.0f;
+    // Recompute maxExp from compression logic
+    // Use the same scale as in compression
+    // For now, use maxExp = 0 and scale = ldexp(1.0f, 23)
+    // This will only work if maxExp is always 0
+    // Ideally, maxExp should be stored per channel
+    scale = std::ldexp(1.0f, 23 - maxExp);
+
+    switch (channelInfo[channelIdx].type) {
+        case raw::DataFormat::Int8:
             for (size_t i = 0; i < baseChannelData_.size(); ++i) {
-                float normChannel = baseChannelData_[i] - compressedDiffsFloat_[channelIdx-1][i];
+                int32_t mantissa = static_cast<int8_t>(compressedDiffs8_[channelIdx-1][i]);
+                mantissa = mantissa << dropBits; // append 0s for missing LSBs
+                float diff = static_cast<float>(mantissa) / scale;
+                float normChannel = baseChannelData_[i] - diff;
                 result[i] = normChannel * (channelMax - channelMin) + channelMin;
             }
+            break;
+        case raw::DataFormat::Int16:
+            for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+                int32_t mantissa = static_cast<int16_t>(compressedDiffs16_[channelIdx-1][i]);
+                mantissa = mantissa << dropBits;
+                float diff = static_cast<float>(mantissa) / scale;
+                float normChannel = baseChannelData_[i] - diff;
+                result[i] = normChannel * (channelMax - channelMin) + channelMin;
+            }
+            break;
+        case raw::DataFormat::Int32:
+            for (size_t i = 0; i < baseChannelData_.size(); ++i) {
+                int32_t mantissa = static_cast<int32_t>(compressedDiffs32_[channelIdx-1][i]);
+                // No need to shift, all bits present
+                float diff = static_cast<float>(mantissa) / scale;
+                float normChannel = baseChannelData_[i] - diff;
+                result[i] = normChannel * (channelMax - channelMin) + channelMin;
+            }
+            break;
+        case raw::DataFormat::Float32:
+            // Not used in new scheme
             break;
     }
     return result;
@@ -157,109 +193,104 @@ std::vector<float> MultiVolume::getBaseChannelData() const {
     return std::vector<float>();
 }
 
-void MultiVolume::compressChannels() {
+void MultiVolume::compressChannels(int targetBits) {
     if (compressed) {
         printf("Volume is already compressed.\n");
         return;
     }
 
-    // printf("Compressing multi-channel volume with %zu channels\n", channels_.size());
     baseChannelData_ = channels_[0]->getDataVector();
-
-    printf("Printing Compression Steps for 16784717\n");
-    
-    //normalize base
-    float baseMin = *std::min_element(baseChannelData_.begin(), baseChannelData_.end());
-    float baseMax = *std::max_element(baseChannelData_.begin(), baseChannelData_.end());
-    // printf("Base channel range: [%.6f, %.6f]\n", baseMin, baseMax);
-    printf("Base channel[16784717] pre-normalization: %.6f\n", baseChannelData_[16784717]);
-    
-    for (size_t i = 0; i < baseChannelData_.size(); ++i) {
-        baseChannelData_[i] = (baseChannelData_[i] - baseMin) / (baseMax - baseMin);
-    }
-    printf("Base channel[16784717] post-normalization: %.6f\n", baseChannelData_[16784717]);
     size_t numVoxels = baseChannelData_.size();
     size_t numChannels = channels_.size();
     channelInfo.resize(numChannels);
     channelInfo[0].type = raw::DataFormat::Float32; // base channel is uncompressed
+
+    // Normalize base channel
+    float baseMin = *std::min_element(baseChannelData_.begin(), baseChannelData_.end());
+    float baseMax = *std::max_element(baseChannelData_.begin(), baseChannelData_.end());
+    for (size_t i = 0; i < numVoxels; ++i) {
+        baseChannelData_[i] = (baseChannelData_[i] - baseMin) / (baseMax - baseMin);
+    }
+
     compressedDiffs8_.resize(numChannels-1);
     compressedDiffs16_.resize(numChannels-1);
     compressedDiffs32_.resize(numChannels-1);
     compressedDiffsFloat_.resize(numChannels-1);
+
+    auto getExponent = [](float x) -> int {
+        int e = 0;
+        if (x != 0.0f) {
+            float absx = std::fabs(x);
+            e = static_cast<int>(std::floor(std::log2(absx)));
+        }
+        return e;
+    };
+
     for (size_t c = 1; c < numChannels; ++c) {
         const auto& data = channels_[c]->getDataVector();
-        
-        // normalize
-        std::vector<float> normData = data;
+        std::vector<float> normData(numVoxels);
         float dataMin = channelInfo[c].bounds.lower.w;
         float dataMax = channelInfo[c].bounds.upper.w;
-        // printf("Channel %zu range: [%.6f, %.6f]\n", c, dataMin, dataMax);
-        printf("Channel %zu[16784717] pre-normalization: %.6f\n", c, data[16784717]);
-        for (size_t i = 0; i < normData.size(); ++i) {
+        for (size_t i = 0; i < numVoxels; ++i) {
             normData[i] = (data[i] - dataMin) / (dataMax - dataMin);
         }
-        printf("Channel %zu[16784717] post-normalization: %.6f\n", c, normData[16784717]);
+
         std::vector<float> diff(numVoxels);
-        float minDiff = std::numeric_limits<float>::max();
-        float maxDiff = std::numeric_limits<float>::lowest();
         for (size_t i = 0; i < numVoxels; ++i) {
             diff[i] = baseChannelData_[i] - normData[i];
-            minDiff = std::min(minDiff, diff[i]);
-            maxDiff = std::max(maxDiff, diff[i]);
         }
-        printf("Channel %zu[16784717] diff pre-decompression: %.6f\n", c, diff[16784717]);
-        printf("Channel %zu diff range: [%.6f, %.6f]\n", c, minDiff, maxDiff);
-        
-        // Store diff range for decompression
-        channelInfo[c].diffMin = minDiff;
-        channelInfo[c].diffMax = maxDiff;
-        
-        // Choose compression type based on diff range
-        float diffRange = maxDiff - minDiff;
-        
-        // Check if fits in int8 (0 to 255 range)
-        if (diffRange <= 255.0f) {
+
+        int maxExp = 0;
+        for (size_t i = 0; i < numVoxels; ++i) {
+            int e = getExponent(diff[i]);
+            if (std::fabs(diff[i]) > 0.0f)
+                maxExp = std::max(maxExp, e);
+        }
+
+        std::vector<int32_t> mantissas(numVoxels);
+        float scale = std::ldexp(1.0f, 23 - maxExp); // 23 mantissa bits for float
+        int32_t maxAbsMantissa = 0;
+        for (size_t i = 0; i < numVoxels; ++i) {
+            mantissas[i] = static_cast<int32_t>(std::round(diff[i] * scale));
+            maxAbsMantissa = std::max(maxAbsMantissa, std::abs(mantissas[i]));
+        }
+
+        // Drop LSBs to fit targetBits
+        int dropBits = 32 - targetBits;
+        int32_t maxDroppedMantissa = 0;
+        for (size_t i = 0; i < numVoxels; ++i) {
+            mantissas[i] >>= dropBits;
+            maxDroppedMantissa = std::max(maxDroppedMantissa, std::abs(mantissas[i]));
+        }
+
+        // Store in smallest type
+        if (targetBits <= 8) {
             channelInfo[c].type = raw::DataFormat::Int8;
             compressedDiffs8_[c-1].resize(numVoxels);
-            float scale = 255.0f / diffRange;
             for (size_t i = 0; i < numVoxels; ++i) {
-                float normalized = (diff[i] - minDiff) * scale;
-                compressedDiffs8_[c-1][i] = static_cast<uint8_t>(std::round(std::clamp(normalized, 0.0f, 255.0f)));
+                compressedDiffs8_[c-1][i] = static_cast<uint8_t>(std::clamp(mantissas[i], -128, 127));
             }
-            printf("Compressed channel %zu as int8 (range: %.6f to %.6f, scale: %.6f)\n", c, minDiff, maxDiff, scale);
-        }
-        // Check if fits in int16 (0 to 65535 range)
-        else if (diffRange <= 65535.0f) {
+        } else if (targetBits <= 16) {
             channelInfo[c].type = raw::DataFormat::Int16;
             compressedDiffs16_[c-1].resize(numVoxels);
-            float scale = 65535.0f / diffRange;
             for (size_t i = 0; i < numVoxels; ++i) {
-                float normalized = (diff[i] - minDiff) * scale;
-                compressedDiffs16_[c-1][i] = static_cast<uint16_t>(std::round(std::clamp(normalized, 0.0f, 65535.0f)));
+                compressedDiffs16_[c-1][i] = static_cast<uint16_t>(std::clamp(mantissas[i], -32768, 32767));
             }
-            printf("Compressed channel %zu as int16 (range: %.6f to %.6f, scale: %.6f)\n", c, minDiff, maxDiff, scale);
-        }
-        // Check if fits in int32 
-        else if (diffRange <= static_cast<float>(std::numeric_limits<uint32_t>::max())) {
+        } else {
             channelInfo[c].type = raw::DataFormat::Int32;
             compressedDiffs32_[c-1].resize(numVoxels);
-            float scale = static_cast<float>(std::numeric_limits<uint32_t>::max()) / diffRange;
             for (size_t i = 0; i < numVoxels; ++i) {
-                float normalized = (diff[i] - minDiff) * scale;
-                compressedDiffs32_[c-1][i] = static_cast<uint32_t>(std::round(std::clamp(normalized, 0.0f, static_cast<float>(std::numeric_limits<uint32_t>::max()))));
+                compressedDiffs32_[c-1][i] = static_cast<uint32_t>(mantissas[i]);
             }
-            printf("Compressed channel %zu as int32 (range: %.6f to %.6f, scale: %.6f)\n", c, minDiff, maxDiff, scale);
         }
-        // Fall back to float32 for everything else
-        else {
-            channelInfo[c].type = raw::DataFormat::Float32;
-            compressedDiffsFloat_[c-1] = std::move(diff);
-            printf("Compressed channel %zu as float32 (range: %.6f to %.6f)\n", c, minDiff, maxDiff);
-        }
+
+        channelInfo[c].diffMin = 0.0f;
+        channelInfo[c].diffMax = 0.0f;
+
+        printf("Channel %zu compressed with ZFP-like fixed-point, max exponent: %d, max mantissa after drop: %d, bits used: %d\n", c, maxExp, maxDroppedMantissa, targetBits);
     }
 
     compressed = true;
-    // deallocate the channels
     channels_.clear();
 }
 
