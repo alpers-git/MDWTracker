@@ -371,8 +371,8 @@ void Viewer::TakeSnapshot(std::string filename, bool overlayColormap)
             
             // Get the data range for this file
             vec2f dataRange(
-                renderer->rawPtrs[fileIndex]->getMinValue(),
-                renderer->rawPtrs[fileIndex]->getMaxValue()
+                renderer->rawPtrs[fileIndex]->getBounds4f().lower.w,
+                renderer->rawPtrs[fileIndex]->getBounds4f().upper.w
             );
             
             // Overlay the colormap bar
