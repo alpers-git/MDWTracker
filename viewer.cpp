@@ -53,6 +53,10 @@ private:
     std::string outputFileName = "out";
     std::string modeString = "";
 
+    // Add framebuffer mirroring flag to Viewer
+    // This will be passed to renderer
+    bool mirrorFramebuffer = false;
+
     friend class dtracker::Renderer;
 };
 
@@ -349,11 +353,9 @@ void Viewer::TakeSnapshot(std::string filename, bool overlayColormap)
 {
     const uint32_t *fb = (const uint32_t *)
         owlBufferGetPointer(renderer->frameBuffer, 0);
-    
     // Create a copy of the framebuffer for modification
     std::vector<uint32_t> modifiedFb(renderer->fbSize.x * renderer->fbSize.y);
     std::copy(fb, fb + renderer->fbSize.x * renderer->fbSize.y, modifiedFb.begin());
-    
 
     // Add colormap overlays using the transfer function widget utility
     if (numFiles > 0 && overlayColormap) {
@@ -361,26 +363,22 @@ void Viewer::TakeSnapshot(std::string filename, bool overlayColormap)
         const int marginBottom = renderer->fbSize.y - 250;
         const int barSpacing = 85; // Spacing between bars
         const int marginLeft = renderer->fbSize.x - barSpacing * numFiles - 25;
-        
         for (int fileIndex = 0; fileIndex < numFiles; ++fileIndex) {
             // Calculate position for this colormap bar using distance from bottom-left corner
             vec2f pos(
                 marginLeft + fileIndex * barSpacing,  // Distance from left edge
                 marginBottom  // Distance from bottom of image
             );
-            
             // Get the data range for this file
             vec2f dataRange(
                 renderer->rawPtrs[fileIndex]->getBounds4f().lower.w,
                 renderer->rawPtrs[fileIndex]->getBounds4f().upper.w
             );
-            
             // Overlay the colormap bar
             tfnWidgets[fileIndex].OverlayColormapBar(modifiedFb, renderer->fbSize.x, renderer->fbSize.y,
                                                     {pos.x, pos.y}, {dataRange.x, dataRange.y}, scale, true);
         }
     }
-    
     stbi_write_png(filename.c_str(),
                    renderer->fbSize.x, renderer->fbSize.y, 4,
                    modifiedFb.data(), renderer->fbSize.x * sizeof(uint32_t));
@@ -403,8 +401,10 @@ void Viewer::printCameraParameters()
 void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
     auto glfw = GLFWHandler::getInstance();
-    const owl::vec2f fraction = owl::vec2f(delta) /
+    owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
+    // Invert X drag if mirroring is enabled
+    if (this->mirrorFramebuffer) fraction.x = -fraction.x;
     manipulator->rotate(fraction.x * degrees_per_drag_fraction,
                         fraction.y * degrees_per_drag_fraction);
     renderer->UpdateCamera();
@@ -413,8 +413,10 @@ void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
     auto glfw = GLFWHandler::getInstance();
-    const owl::vec2f fraction = owl::vec2f(delta) /
+    owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
+    // Invert X drag if mirroring is enabled
+    if (this->mirrorFramebuffer) fraction.x = -fraction.x;
     manipulator->move(fraction.y * pixels_per_move);
     renderer->UpdateCamera();
 }
@@ -422,8 +424,10 @@ void Viewer::RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 void Viewer::CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 {
     auto glfw = GLFWHandler::getInstance();
-    const owl::vec2f fraction = owl::vec2f(delta) /
+    owl::vec2f fraction = owl::vec2f(delta) /
                                 owl::vec2f(glfw->getWindowSize());
+    // Invert X drag if mirroring is enabled
+    if (this->mirrorFramebuffer) fraction.x = -fraction.x;
     manipulator->strafe(fraction * pixels_per_move);
     renderer->UpdateCamera();
 }
@@ -451,6 +455,9 @@ void Viewer::RenderImGuiFrame()
 const ImVec4 red = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 const ImVec4 orange = ImVec4(1.0f, 0.65f, 0.0f, 1.0f);
 const ImVec4 green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+    // Add framebuffer mirroring flag to Viewer
+    // This will be passed to renderer
+    bool mirrorFramebuffer = false;
 
 void Viewer::Run()
 {
@@ -523,6 +530,8 @@ void Viewer::Run()
                 if (ImGui::BeginTabItem(std::string("TF"+std::to_string(i)).c_str()))
                 {
                     tfnWidgets[i].DrawColorMap(false);
+                    tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getBounds4f().lower.w,
+                                            renderer->rawPtrs[i]->getBounds4f().upper.w});
                     tfnWidgets[i].DrawOpacityScale();
                     tfnWidgets[i].DrawRanges();
                     ImGui::EndTabItem();
@@ -562,6 +571,11 @@ void Viewer::Run()
             renderer->ResetAccumulation();
             renderer->spp = std::max(1,renderer->spp);
         }
+        // Add checkbox to toggle framebuffer mirroring
+        if(ImGui::Checkbox("Mirror Framebuffer", &mirrorFramebuffer)) {
+            renderer->ResetAccumulation();
+        }
+        renderer->mirrorFramebuffer = mirrorFramebuffer;
         //render radio button group for heatmap mode
         ImGui::Text("Heatmap Mode");
         ImGui::BeginGroup();
@@ -589,6 +603,7 @@ void Viewer::Run()
         if(tfnWidgets[selectedTF].ColorMapChanged())
         {
             auto cm = tfnWidgets[selectedTF].GetColormapf();
+
             std::vector<owl::vec4f> colorMapVec;
             for (int i = 0; i < cm.size(); i += 4)
             {

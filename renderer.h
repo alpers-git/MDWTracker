@@ -137,8 +137,11 @@ public:
 
     /*! initializes renderer */
     void Init(const unsigned int mode = 0, bool autoSetCamera = true);
-    /*! renders the scene, visualizes heatmaps if param is true*/
-    void Render(short heatMapMode= 0);
+  /*! renders the scene, visualizes heatmaps if param is true*/
+  void Render(short heatMapMode= 0);
+
+  // Framebuffer mirroring flag
+  bool mirrorFramebuffer = false;
     /*! updates the launch params on device */
     void Update();
     /*! terminates the renderer*/

@@ -890,6 +890,18 @@ namespace dtracker
     owlParamsSet1i(lp, "frameID", frameID++);
     owlParamsSet1s(lp, "heatMapMode", heatMapMode);
     owlParamsSet1f(lp, "heatMapScale", heatMapScale);
+
+  // Mirror framebuffer horizontally if enabled
+  if (mirrorFramebuffer) {
+    uint32_t* fb = (uint32_t*)owlBufferGetPointer(frameBuffer, 0);
+    int width = fbSize.x;
+    int height = fbSize.y;
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width / 2; ++x) {
+        std::swap(fb[y * width + x], fb[y * width + (width - 1 - x)]);
+      }
+    }
+  }
   }
 
   void Renderer::Update()
