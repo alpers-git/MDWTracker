@@ -27,6 +27,7 @@ public:
     void RightMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta);
     void printCameraParameters();
+    void printLightParameters();
 
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
@@ -123,6 +124,10 @@ Viewer::Viewer(int argc, char *argv[])
     program.add_argument("-acc", "--accumulation")
         .help("enable accumulation")
         .default_value(true)
+        .scan<'i', int>();
+    program.add_argument("--mirror-frame", "-mf")
+        .help("Flip frame buffer vertically")
+        .default_value(false)
         .scan<'i', int>();
 
 #if OFFLINE_VIEWER
@@ -239,10 +244,10 @@ Viewer::Viewer(int argc, char *argv[])
         modeString = "MMB"; //multiple Majorant Buffers
         break;
     case 2:
-        modeString = "AMMB"; //alternative multiple Majorant Buffer
+        modeString = "AMMB"; //alternative multiple Majorant Buffer(Used in the paper)
         break;
     case 3:
-        modeString = "CMB"; //cummulative Majorant Buffer
+        modeString = "CMB"; //cummulative Majorant Buffer(Method in supplement)
         break;
     case 4:
         modeString = "MAX"; //MAX blending for Woodcock tracking
@@ -325,6 +330,12 @@ Viewer::Viewer(int argc, char *argv[])
         std::cerr << "No data file given" << std::endl;
         std::exit(1);
     }
+
+    if (program.is_used("--mirror-frame"))
+    {
+        mirrorFramebuffer = program.get<int>("--mirror-frame");
+        renderer->mirrorFramebuffer = (bool)mirrorFramebuffer;
+    }
     
     // init transfer function widgets
     tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles, OFFLINE_VIEWER);
@@ -396,6 +407,19 @@ void Viewer::printCameraParameters()
         gaze.x, gaze.y, gaze.z,
         up.x, up.y, up.z,
         cosfovy);
+}
+
+void Viewer::printLightParameters()
+{
+    vec3f dir = renderer->lightDir;
+    float intensity = renderer->lightIntensity;
+    float ambient = renderer->ambient;
+    int shadows = renderer->enableShadows ? 1 : 0;
+    int gradient = renderer->enableGradientShading ? 1 : 0;
+    printf("-l %d %d %f %f %f %f %f\n", 
+        shadows, gradient,
+        dir.x, dir.y, dir.z,
+        intensity, ambient);
 }
 
 void Viewer::LeftMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
@@ -566,12 +590,16 @@ void Viewer::Run()
             renderer->Setdt(dt);
         if(ImGui::Button("Reset dt/G.O."))
             renderer->Resetdt();
+        //Push half width buttons for spp
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
         if(ImGui::InputInt("SPP", &(renderer->spp),1,100,0))
         {
             renderer->ResetAccumulation();
             renderer->spp = std::max(1,renderer->spp);
         }
+        ImGui::PopItemWidth();
         // Add checkbox to toggle framebuffer mirroring
+        ImGui::SameLine();
         if(ImGui::Checkbox("Mirror Framebuffer", &mirrorFramebuffer)) {
             renderer->ResetAccumulation();
         }
@@ -649,6 +677,10 @@ void Viewer::Run()
         if(glfw->key.isPressed(GLFW_KEY_C) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"C"
             printCameraParameters();
+        if(glfw->key.isPressed(GLFW_KEY_L) && 
+            glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"L"
+            printLightParameters();
+
         if(glfw->key.isPressed(GLFW_KEY_X)) //switch up vector to x/-x
         {
             vec3f up = vec3f(-1.f, .0f, .0f) * renderer->camera.getUp();
