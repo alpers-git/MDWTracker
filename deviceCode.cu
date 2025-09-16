@@ -243,19 +243,73 @@ vec4f blendChannels(const vec3f texSpacePos)
 __device__
 vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon = 0.001f, size_t tfID = 0)
 {
-    vec3f gradient = vec3f(0.0f,0.0f,0.0f);
+    vec3f gradient = vec3f(0.0f, 0.0f, 0.0f);
+    
+    // Check if the center position is valid
+    if (texSpacePos.x < 0.0f || texSpacePos.x > 1.0f ||
+        texSpacePos.y < 0.0f || texSpacePos.y > 1.0f ||
+        texSpacePos.z < 0.0f || texSpacePos.z > 1.0f) {
+        return gradient; // Return zero gradient for invalid positions
+    }
+    
     for(int i = 0; i < 3; i++)
     {
         vec3f pos1 = texSpacePos;
         vec3f pos2 = texSpacePos;
-        pos1[i] -= epsilon;
-        pos2[i] += epsilon;
-        float val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
-        float val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
-        gradient[i] = (val2 - val1) / (2.0f * epsilon);
-        //handle boundary conditions if any of the coordinates are outside the volume
         
+        // Adjust epsilon to ensure we stay within bounds
+        float actualEpsilon = epsilon;
+        
+        // For position 1 (backward difference)
+        pos1[i] -= actualEpsilon;
+        if (pos1[i] < 0.0f) {
+            pos1[i] = 0.0f;
+            actualEpsilon = texSpacePos[i]; // Use forward difference only
+        }
+        
+        // For position 2 (forward difference)
+        pos2[i] += actualEpsilon;
+        if (pos2[i] > 1.0f) {
+            pos2[i] = 1.0f;
+            actualEpsilon = 1.0f - texSpacePos[i]; // Use backward difference only
+        }
+        
+        // If we're at the boundary and can't take differences in both directions
+        if (actualEpsilon <= 0.0f) {
+            gradient[i] = 0.0f;
+            continue;
+        }
+        
+        // Sample the volume at both positions
+        float sample1 = sampleVolumeTexture(pos1, tfID);
+        float sample2 = sampleVolumeTexture(pos2, tfID);
+        
+        // Check for invalid samples (NaN)
+        if (isnan(sample1) || isnan(sample2)) {
+            gradient[i] = 0.0f;
+            continue;
+        }
+        
+        // Apply transfer function and get opacity values
+        float val1 = transferFunction(sample1, tfID).w;
+        float val2 = transferFunction(sample2, tfID).w;
+        
+        // Calculate gradient component using central, forward, or backward difference
+        float denominator = 2.0f * actualEpsilon;
+        if (pos1[i] == 0.0f) {
+            // Forward difference only
+            denominator = actualEpsilon;
+            gradient[i] = (val2 - transferFunction(sampleVolumeTexture(texSpacePos, tfID), tfID).w) / denominator;
+        } else if (pos2[i] == 1.0f) {
+            // Backward difference only
+            denominator = actualEpsilon;
+            gradient[i] = (transferFunction(sampleVolumeTexture(texSpacePos, tfID), tfID).w - val1) / denominator;
+        } else {
+            // Central difference
+            gradient[i] = (val2 - val1) / denominator;
+        }
     }
+    
     return gradient;
 }
 
