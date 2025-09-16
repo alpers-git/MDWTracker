@@ -30,12 +30,12 @@ for index in {0..2}; do
     output_filename="zebrafish_channel_$index"
     
     # Run with light parameters, file pair, output filename, and -m 1
-    ./build/mdwtViewer -fr "${zebrafish_path}$fr_param" \
+    ./build/dTViewer -fr "${zebrafish_path}$fr_param" \
                -t "${zebrafish_path}$t_param" \
                -cb 3.0 3.0 1.25 -r 2560 1440 $zebrafish_light -dt 0.012 -bg 0.3 0.3 0.3 $zebrafish_camera \
                -o "$output_filename" -m 2 -wu 25 -n 500 -nt 500 -mc 80 80 15
     # Run with light parameters, file pair, output filename, and -m 1
-    ./build/mdwtViewer -fr "${zebrafish_path}$fr_param" \
+    ./build/dTViewer -fr "${zebrafish_path}$fr_param" \
                -t "${zebrafish_path}$t_param" \
                -cb 3.0 3.0 1.25 -r 2560 1440 $zebrafish_light -dt 0.012 -bg 0.3 0.3 0.3 $zebrafish_camera \
                -o "$output_filename" -m 2 -wu 25 -n 1000 -hm 1e16 -mc 80 80 15
@@ -43,7 +43,7 @@ done
 
 # Run the last execution with all channels together
 output_filename="zebrafish_all_channels"
-./build/mdwtViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
+./build/dTViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_2_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_3_640x640x121_uint8.raw" \
            -t "${zebrafish_path}teaser_0.tf" \
@@ -52,7 +52,7 @@ output_filename="zebrafish_all_channels"
            -cb 3.0 3.0 1.25 -r 2560 1440 $zebrafish_light -dt 0.012 -bg 0.3 0.3 0.3 $zebrafish_camera \
            -o "$output_filename" -m 2 -wu 25 -n 500 -nt 500 -mc 80 80 15
            
-./build/mdwtViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
+./build/dTViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_2_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_3_640x640x121_uint8.raw" \
            -t "${zebrafish_path}teaser_0.tf" \
@@ -61,7 +61,7 @@ output_filename="zebrafish_all_channels"
            -cb 3.0 3.0 1.25 -r 2560 1440 $zebrafish_light -dt 0.012 -bg 0.3 0.3 0.3 $zebrafish_camera \
            -o "$output_filename" -m 2 -wu 25 -n 1000 -hm 1e16 -mc 80 80 15
 
-./build/mdwtViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
+./build/dTViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_2_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_3_640x640x121_uint8.raw" \
            -t "${zebrafish_path}teaser_0.tf" \
@@ -70,7 +70,7 @@ output_filename="zebrafish_all_channels"
            -cb 3.0 3.0 1.25 -r 2560 1440 $zebrafish_light -dt 0.012 -bg 0.3 0.3 0.3 $zebrafish_camera \
            -o "$output_filename" -m 4 -wu 25 -n 500 -mc 80 80 15
            
-./build/mdwtViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
+./build/dTViewer -fr "${zebrafish_path}isl1actinTop3_D_channel_1_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_2_640x640x121_uint8.raw" \
            "${zebrafish_path}isl1actinTop3_D_channel_3_640x640x121_uint8.raw" \
            -t "${zebrafish_path}teaser_0.tf" \
