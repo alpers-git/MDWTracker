@@ -130,6 +130,17 @@ public:
 
     std::vector<TFData> tfdatas;
 
+    /* material properties per channel */
+    struct MaterialData
+    {
+        float diffuse = 0.8f;     // Diffuse coefficient [0,1]
+        float specular = 0.3f;    // Specular coefficient [0,1] 
+        float shininess = 8.0f;   // Specular exponent [1,128]
+        float gradientStep = 0.01f; // Gradient calculation step multiplier [0.001,0.1]
+        vec3f specularColor = vec3f(1.0f, 1.0f, 1.0f); // RGB color for specular highlights
+    };
+    std::vector<MaterialData> materials;
+
     /* density majorants */
     uint32_t numClusters = 1;
     vec3ui macrocellDims = {0,0,0}; // 4096 exceeds the size of a uint32_t when squared...
@@ -160,6 +171,14 @@ public:
     void SetXFOpacityScale(float opacityScale, size_t tfID = 0);
     /*! sets the transfer function domain*/
     void SetXFRange(vec2f xfDomain, size_t tfID = 0);
+    /*! sets material properties for a channel*/
+    void SetMaterialDiffuse(float diffuse, size_t channelID = 0);
+    void SetMaterialSpecular(float specular, size_t channelID = 0);
+    void SetMaterialShininess(float shininess, size_t channelID = 0);
+    void SetMaterialGradientStep(float gradientStep, size_t channelID = 0);
+    void SetMaterialSpecularColor(vec3f specularColor, size_t channelID = 0);
+    /*! applies material preset to a channel*/
+    void ApplyMaterialPreset(const std::string& presetName, size_t channelID = 0);
     /*! recalculates the majorants*/
     void RecalculateDensityRanges();
     /*! sets the globalOpacity/dt to avg span /2 of bounding boxes of elements*/

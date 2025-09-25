@@ -119,6 +119,15 @@ struct LaunchParams
 
   struct
   {
+    float diffuse;     // Diffuse coefficient [0,1]
+    float specular;    // Specular coefficient [0,1]
+    float shininess;   // Specular exponent [1,128]
+    float gradientStep; // Gradient calculation step multiplier [0.001,0.1]
+    float3 specularColor; // RGB color for specular highlights
+  } material[MAX_CHANNELS];
+
+  struct
+  {
     vec3f origin;
     vec3f lower_left_corner;
     vec3f horizontal;

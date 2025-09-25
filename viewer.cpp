@@ -553,11 +553,83 @@ void Viewer::Run()
             {
                 if (ImGui::BeginTabItem(std::string("TF"+std::to_string(i)).c_str()))
                 {
-                    tfnWidgets[i].DrawColorMap(false);
-                    tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getBounds4f().lower.w,
-                                            renderer->rawPtrs[i]->getBounds4f().upper.w});
-                    tfnWidgets[i].DrawOpacityScale();
-                    tfnWidgets[i].DrawRanges();
+                    // Create sub-tabs for transfer function and material
+                    ImGui::BeginTabBar(std::string("##subtabs_" + std::to_string(i)).c_str());
+                    
+                    if (ImGui::BeginTabItem("Transfer Function"))
+                    {
+                        tfnWidgets[i].DrawColorMap(false);
+                        tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getBounds4f().lower.w,
+                                                renderer->rawPtrs[i]->getBounds4f().upper.w});
+                        tfnWidgets[i].DrawOpacityScale();
+                        tfnWidgets[i].DrawRanges();
+                        ImGui::EndTabItem();
+                    }
+                    
+                    // Only show Material tab when gradient shading is enabled
+                    if (renderer->enableGradientShading && ImGui::BeginTabItem("Material"))
+                    {
+                        // Material properties UI
+                        ImGui::Text("Material Properties for Channel %d", i);
+                        ImGui::Separator();
+                        
+                        // Material presets
+                        ImGui::Text("Presets:");
+                        ImGui::SameLine();
+                        if (ImGui::Button("Plastic")) {
+                            renderer->ApplyMaterialPreset("Plastic", i);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Iron")) {
+                            renderer->ApplyMaterialPreset("Iron", i);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Chrome")) {
+                            renderer->ApplyMaterialPreset("Chrome", i);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Emerald")) {
+                            renderer->ApplyMaterialPreset("Emerald", i);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Default")) {
+                            renderer->ApplyMaterialPreset("Default", i);
+                        }
+                        ImGui::Separator();
+                        
+                        float diffuse = renderer->materials[i].diffuse;
+                        if (ImGui::SliderFloat("Diffuse", &diffuse, 0.0f, 1.0f, "%.3f"))
+                        {
+                            renderer->SetMaterialDiffuse(diffuse, i);
+                        }
+                        
+                        float specular = renderer->materials[i].specular;
+                        if (ImGui::SliderFloat("Specular", &specular, 0.0f, 1.0f, "%.3f"))
+                        {
+                            renderer->SetMaterialSpecular(specular, i);
+                        }
+                        
+                        float shininess = renderer->materials[i].shininess;
+                        if (ImGui::SliderFloat("Shininess", &shininess, 1.0f, 64.0f, "%.1f"))
+                        {
+                            renderer->SetMaterialShininess(shininess, i);
+                        }
+                        
+                        float gradientStep = renderer->materials[i].gradientStep;
+                        if (ImGui::SliderFloat("Gradient Step", &gradientStep, 0.001f, 0.1f, "%.4f"))
+                        {
+                            renderer->SetMaterialGradientStep(gradientStep, i);
+                        }
+                        
+                        ImGui::Separator();
+                        ImGui::Text("Energy-conserving Phong lighting model:");
+                        ImGui::Text("Diffuse controls how much surface reflects light");
+                        ImGui::Text("Specular controls intensity of reflective highlights");
+                        ImGui::Text("Shininess: Low=wide highlights, High=sharp highlights");
+                        ImGui::Text("Gradient Step controls gradient calculation precision");                        ImGui::EndTabItem();
+                    }
+                    
+                    ImGui::EndTabBar();
                     ImGui::EndTabItem();
                     //tabChanged = selectedTF != i;
                     selectedTF = i;

@@ -184,6 +184,68 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction[11].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].volumeDomain)},
     {"transferFunction[11].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[11].opacityScale)},
     {"transferFunction[11].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].xfDomain)},
+    
+    // Material properties for all channels
+    {"material[0].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[0].diffuse)},
+    {"material[0].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[0].specular)},
+    {"material[0].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[0].shininess)},
+    {"material[0].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[0].gradientStep)},
+    {"material[0].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[0].specularColor)},
+    {"material[1].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[1].diffuse)},
+    {"material[1].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[1].specular)},
+    {"material[1].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[1].shininess)},
+    {"material[1].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[1].gradientStep)},
+    {"material[1].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[1].specularColor)},
+    {"material[2].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[2].diffuse)},
+    {"material[2].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[2].specular)},
+    {"material[2].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[2].shininess)},
+    {"material[2].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[2].gradientStep)},
+    {"material[2].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[2].specularColor)},
+    {"material[3].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[3].diffuse)},
+    {"material[3].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[3].specular)},
+    {"material[3].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[3].shininess)},
+    {"material[3].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[3].gradientStep)},
+    {"material[3].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[3].specularColor)},
+    {"material[4].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[4].diffuse)},
+    {"material[4].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[4].specular)},
+    {"material[4].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[4].shininess)},
+    {"material[4].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[4].gradientStep)},
+    {"material[4].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[4].specularColor)},
+    {"material[5].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[5].diffuse)},
+    {"material[5].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[5].specular)},
+    {"material[5].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[5].shininess)},
+    {"material[5].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[5].gradientStep)},
+    {"material[5].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[5].specularColor)},
+    {"material[6].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[6].diffuse)},
+    {"material[6].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[6].specular)},
+    {"material[6].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[6].shininess)},
+    {"material[6].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[6].gradientStep)},
+    {"material[6].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[6].specularColor)},
+    {"material[7].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[7].diffuse)},
+    {"material[7].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[7].specular)},
+    {"material[7].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[7].shininess)},
+    {"material[7].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[7].gradientStep)},
+    {"material[7].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[7].specularColor)},
+    {"material[8].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[8].diffuse)},
+    {"material[8].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[8].specular)},
+    {"material[8].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[8].shininess)},
+    {"material[8].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[8].gradientStep)},
+    {"material[8].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[8].specularColor)},
+    {"material[9].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[9].diffuse)},
+    {"material[9].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[9].specular)},
+    {"material[9].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[9].shininess)},
+    {"material[9].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[9].gradientStep)},
+    {"material[9].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[9].specularColor)},
+    {"material[10].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[10].diffuse)},
+    {"material[10].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[10].specular)},
+    {"material[10].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[10].shininess)},
+    {"material[10].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[10].gradientStep)},
+    {"material[10].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[10].specularColor)},
+    {"material[11].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[11].diffuse)},
+    {"material[11].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[11].specular)},
+    {"material[11].shininess", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[11].shininess)},
+    {"material[11].gradientStep", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[11].gradientStep)},
+    {"material[11].specularColor", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, material[11].specularColor)},
     {/* sentinel to mark end of list */}};
 
     cudaTextureObject_t create3DTexture(float* data, vec3i dims)
@@ -379,6 +441,9 @@ namespace dtracker
       tfdatas.push_back(TFData());// push one empty transfer function
       tfdatas[0].volDomain = interval<float>({umeshPtrs[0]->getBounds4f().lower.w, umeshPtrs[0]->getBounds4f().upper.w});
       printf("volume domain: %f %f\n", tfdatas[0].volDomain.lower, tfdatas[0].volDomain.upper);
+      
+      // Initialize materials with default values
+      materials.push_back(MaterialData());
       owlParamsSet4f(lp, "volume.globalBoundsLo",
                     owl4f{umeshPtrs[0]->getBounds4f().lower.x, umeshPtrs[0]->getBounds4f().lower.y,
                           umeshPtrs[0]->getBounds4f().lower.z, umeshPtrs[0]->getBounds4f().lower.w});
@@ -679,6 +744,9 @@ namespace dtracker
         tfdatas.push_back(TFData());// push one empty transfer function
         tfdatas[i].volDomain = interval<float>({rawPtrs[i]->getBounds4f().lower.w, rawPtrs[i]->getBounds4f().upper.w});
         printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
+        
+        // Initialize materials with default values
+        materials.push_back(MaterialData());
         owlParamsSet4f(lp, "volume.globalBoundsLo",
                       owl4f{rawPtrs[i]->getBounds4f().lower.x, rawPtrs[i]->getBounds4f().lower.y,
                             rawPtrs[i]->getBounds4f().lower.z, rawPtrs[i]->getBounds4f().lower.w});
@@ -917,6 +985,26 @@ namespace dtracker
     owlParamsSet1b(lp, "enableAccumulation", enableAccumulation);
     owlParamsSet1i(lp, "spp", spp);
     owlParamsSet1b(lp, "enableGradientShading", enableGradientShading);
+    
+    // Update material properties for all channels
+    for(size_t i = 0; i < materials.size(); ++i)
+    {
+      owlParamsSet1f(lp, 
+        std::string("material[" + std::to_string(i) + "].diffuse").c_str(),
+        materials[i].diffuse);
+      owlParamsSet1f(lp, 
+        std::string("material[" + std::to_string(i) + "].specular").c_str(),
+        materials[i].specular);
+      owlParamsSet1f(lp, 
+        std::string("material[" + std::to_string(i) + "].shininess").c_str(),
+        materials[i].shininess);
+      owlParamsSet1f(lp, 
+        std::string("material[" + std::to_string(i) + "].gradientStep").c_str(),
+        materials[i].gradientStep);
+      owlParamsSet3f(lp, 
+        std::string("material[" + std::to_string(i) + "].specularColor").c_str(),
+        (const owl3f&)materials[i].specularColor);
+    }
   }
 
   void Renderer::Terminate()
@@ -1102,6 +1190,128 @@ namespace dtracker
     ResetAccumulation();
     if(mode < Mode::MARCHER_MULTI)
       RecalculateDensityRanges();
+  }
+
+  void Renderer::SetMaterialDiffuse(float diffuse, size_t channelID)
+  {
+    if (channelID >= materials.size())
+      return; // safely return if this does not exist
+    materials[channelID].diffuse = diffuse;
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].diffuse").c_str(),
+      materials[channelID].diffuse);
+    ResetAccumulation();
+  }
+
+  void Renderer::SetMaterialSpecular(float specular, size_t channelID)
+  {
+    if (channelID >= materials.size())
+      return; // safely return if this does not exist
+    materials[channelID].specular = specular;
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].specular").c_str(),
+      materials[channelID].specular);
+    ResetAccumulation();
+  }
+
+  void Renderer::SetMaterialShininess(float shininess, size_t channelID)
+  {
+    if (channelID >= materials.size())
+      return; // safely return if this does not exist
+    materials[channelID].shininess = shininess;
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].shininess").c_str(),
+      materials[channelID].shininess);
+    ResetAccumulation();
+  }
+
+  void Renderer::SetMaterialGradientStep(float gradientStep, size_t channelID)
+  {
+    if (channelID >= materials.size())
+      return; // safely return if this does not exist
+    materials[channelID].gradientStep = gradientStep;
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].gradientStep").c_str(),
+      materials[channelID].gradientStep);
+    ResetAccumulation();
+  }
+
+  void Renderer::SetMaterialSpecularColor(vec3f specularColor, size_t channelID)
+  {
+    if (channelID >= materials.size())
+      return; // safely return if this does not exist
+    materials[channelID].specularColor = specularColor;
+    owlParamsSet3f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].specularColor").c_str(),
+      (const owl3f&)materials[channelID].specularColor);
+    ResetAccumulation();
+  }
+
+  void Renderer::ApplyMaterialPreset(const std::string& presetName, size_t channelID)
+  {
+    if (channelID >= materials.size())
+      return; // safely return if this does not exist
+
+    // Material presets with physically plausible values from the table
+    if (presetName == "Plastic") {
+      // Black Plastic: kd=(0.01,0.01,0.01) avg=0.01, ks=(0.50,0.50,0.50), m=32
+      materials[channelID].diffuse = 0.1f; // Increased from 0.01 for better visibility
+      materials[channelID].specular = 0.50f;
+      materials[channelID].shininess = 32.0f;
+      materials[channelID].gradientStep = 0.01f;
+      materials[channelID].specularColor = vec3f(0.5f, 0.5f, 0.5f); // Gray specular from table
+    }
+    else if (presetName == "Iron") {
+      // Using Silver values: kd=(0.50754,0.50754,0.50754) avg=0.51, ks=(0.508273,0.508273,0.508273), m=51.2
+      materials[channelID].diffuse = 0.51f; // Average of RGB diffuse  
+      materials[channelID].specular = 0.51f;
+      materials[channelID].shininess = 51.0f;
+      materials[channelID].gradientStep = 0.01f;
+      materials[channelID].specularColor = vec3f(0.51f, 0.51f, 0.51f); // Metallic silver specular
+    }
+    else if (presetName == "Chrome") {
+      // Chrome: kd=(0.4,0.4,0.4) avg=0.4, ks=(0.774597,0.774597,0.774597), m=76.8
+      materials[channelID].diffuse = 0.4f; // Average of RGB diffuse
+      materials[channelID].specular = 0.77f;
+      materials[channelID].shininess = 77.0f;
+      materials[channelID].gradientStep = 0.01f;
+      materials[channelID].specularColor = vec3f(0.77f, 0.77f, 0.77f); // Chrome specular from table
+    }
+    else if (presetName == "Emerald") {
+      // Emerald: kd=(0.07568,0.61424,0.07568) avg=0.255, ks=(0.633,0.727811,0.633), m=76.8
+      materials[channelID].diffuse = 0.255f; // Average of RGB diffuse (0.07568+0.61424+0.07568)/3
+      materials[channelID].specular = 0.66f; // Average of RGB specular (0.633+0.727811+0.633)/3
+      materials[channelID].shininess = 77.0f;
+      materials[channelID].gradientStep = 0.005f; // Finer gradient for gemstone
+      materials[channelID].specularColor = vec3f(0.63f, 0.73f, 0.63f); // Green-tinted specular from table
+    }
+    else {
+      // Default material
+      materials[channelID].diffuse = 0.8f;
+      materials[channelID].specular = 0.3f;
+      materials[channelID].shininess = 8.0f;
+      materials[channelID].gradientStep = 0.01f;
+      materials[channelID].specularColor = vec3f(1.0f, 1.0f, 1.0f); // White specular
+    }
+
+    // Update all material parameters on GPU
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].diffuse").c_str(),
+      materials[channelID].diffuse);
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].specular").c_str(),
+      materials[channelID].specular);
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].shininess").c_str(),
+      materials[channelID].shininess);
+    owlParamsSet1f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].gradientStep").c_str(),
+      materials[channelID].gradientStep);
+    owlParamsSet3f(lp, 
+      std::string("material[" + std::to_string(channelID) + "].specularColor").c_str(),
+      (const owl3f&)materials[channelID].specularColor);
+    
+    ResetAccumulation();
   }
 
   vec3ui Renderer::CalculateMCGridDims(int estimatedElementPerMc)

@@ -241,72 +241,39 @@ vec4f blendChannels(const vec3f texSpacePos)
 }
 
 __device__
-vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon = 0.001f, size_t tfID = 0)
+vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon, size_t tfID = 0)
 {
+    auto &lp = optixLaunchParams;
     vec3f gradient = vec3f(0.0f, 0.0f, 0.0f);
-    
-    // Check if the center position is valid
-    if (texSpacePos.x < 0.0f || texSpacePos.x > 1.0f ||
-        texSpacePos.y < 0.0f || texSpacePos.y > 1.0f ||
-        texSpacePos.z < 0.0f || texSpacePos.z > 1.0f) {
-        return gradient; // Return zero gradient for invalid positions
-    }
     
     for(int i = 0; i < 3; i++)
     {
         vec3f pos1 = texSpacePos;
         vec3f pos2 = texSpacePos;
+        pos1[i] -= epsilon;
+        pos2[i] += epsilon;
         
-        // Adjust epsilon to ensure we stay within bounds
-        float actualEpsilon = epsilon;
-        
-        // For position 1 (backward difference)
-        pos1[i] -= actualEpsilon;
+        // Handle boundary conditions - use forward/backward differences at boundaries
+        float val1, val2;
         if (pos1[i] < 0.0f) {
-            pos1[i] = 0.0f;
-            actualEpsilon = texSpacePos[i]; // Use forward difference only
-        }
-        
-        // For position 2 (forward difference)
-        pos2[i] += actualEpsilon;
-        if (pos2[i] > 1.0f) {
-            pos2[i] = 1.0f;
-            actualEpsilon = 1.0f - texSpacePos[i]; // Use backward difference only
-        }
-        
-        // If we're at the boundary and can't take differences in both directions
-        if (actualEpsilon <= 0.0f) {
-            gradient[i] = 0.0f;
-            continue;
-        }
-        
-        // Sample the volume at both positions
-        float sample1 = sampleVolumeTexture(pos1, tfID);
-        float sample2 = sampleVolumeTexture(pos2, tfID);
-        
-        // Check for invalid samples (NaN)
-        if (isnan(sample1) || isnan(sample2)) {
-            gradient[i] = 0.0f;
-            continue;
-        }
-        
-        // Apply transfer function and get opacity values
-        float val1 = transferFunction(sample1, tfID).w;
-        float val2 = transferFunction(sample2, tfID).w;
-        
-        // Calculate gradient component using central, forward, or backward difference
-        float denominator = 2.0f * actualEpsilon;
-        if (pos1[i] == 0.0f) {
-            // Forward difference only
-            denominator = actualEpsilon;
-            gradient[i] = (val2 - transferFunction(sampleVolumeTexture(texSpacePos, tfID), tfID).w) / denominator;
-        } else if (pos2[i] == 1.0f) {
-            // Backward difference only
-            denominator = actualEpsilon;
-            gradient[i] = (transferFunction(sampleVolumeTexture(texSpacePos, tfID), tfID).w - val1) / denominator;
+            // Use forward difference at lower boundary
+            pos1 = texSpacePos;
+            pos2[i] = texSpacePos[i] + epsilon;
+            val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
+            val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
+            gradient[i] = (val2 - val1) / epsilon;
+        } else if (pos2[i] > 1.0f) {
+            // Use backward difference at upper boundary
+            pos1[i] = texSpacePos[i] - epsilon;
+            pos2 = texSpacePos;
+            val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
+            val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
+            gradient[i] = (val2 - val1) / epsilon;
         } else {
-            // Central difference
-            gradient[i] = (val2 - val1) / denominator;
+            // Use central difference in the interior
+            val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
+            val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
+            gradient[i] = (val2 - val1) / (2.0f * epsilon);
         }
     }
     
@@ -371,15 +338,45 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
                 const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
                 const vec3f texSpacePos = (ray.origin + volumePrd.tHit * ray.direction) * worldToUnit;
 
-                vec3f gradient = calculateGradient(texSpacePos, lp.volume.dt * 0.01f, volumePrd.channelID);
-                //Shade the particle using Blinn-Phong model
-                vec3f N = normalize(gradient);
-                vec3f L = normalize(lp.lightDir);
-                vec3f V = normalize(-ray.direction);
-                vec3f H = normalize(L + V);
+                // Use per-channel material properties
+                int matID = volumePrd.channelID;
+                float diffuseCoeff = lp.material[matID].diffuse;
+                float specularCoeff = lp.material[matID].specular;
+                float shininess = lp.material[matID].shininess;
+                float gradientStep = lp.material[matID].gradientStep;
+                vec3f specularColor = vec3f(lp.material[matID].specularColor.x, 
+                                          lp.material[matID].specularColor.y, 
+                                          lp.material[matID].specularColor.z);
 
-                diffuse = max(dot(L, N), 0.0f);
-                specular = pow(max(dot(H, N), 0.0f), 6.f);
+                vec3f gradient = calculateGradient(texSpacePos, gradientStep, volumePrd.channelID);
+                //Shade the particle using Blinn-Phong model with per-channel material properties
+                vec3f N = normalize(gradient);
+                
+                // Only proceed if we have a valid normal
+                if (length(gradient) > 1e-6f) {
+                    vec3f L = normalize(lp.lightDir);
+                    vec3f V = normalize(-ray.direction);
+                    vec3f H = normalize(L + V);
+
+                    float NdotL = max(dot(L, N), 0.0f);
+                    float NdotH = max(dot(H, N), 0.0f);
+                    
+                    diffuse = diffuseCoeff * NdotL;
+                    
+                    // Energy-conserving Phong specular with colored highlights
+                    if (NdotH > 0.01f && NdotL > 0.0f) {
+                        // Normalization term for energy conservation: (shininess + 2) / (2 * pi)
+                        float normalization = (shininess + 2.0f) / (2.0f * 3.14159265f);
+                        float specularIntensity = specularCoeff * normalization * pow(NdotH, shininess) * NdotL;
+                        specular = specularIntensity;
+                    } else {
+                        specular = 0.0f;
+                    }
+                } else {
+                    // No gradient, use basic lighting
+                    diffuse = diffuseCoeff;
+                    specular = 0.0f;
+                }
             }
             if (calculateShadows)
             {
@@ -403,12 +400,25 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
                 volumePrd.samples += shadowbyVolPrd.samples;       // for heatmap
                 volumePrd.rejections += shadowbyVolPrd.rejections; // for heatmap
             }
-            // --- Final Shading ---
-            float direct = (diffuse + specular);
-            float directLit = direct * shadow * lp.lightIntensity; // Only direct light is shadowed and scaled
-            float totalLight = directLit + lp.ambient; // Ambient is always present
-
-            vec3f shadedColor = totalLight * albedo;
+            // --- Final Shading with Mixed Specular Colors ---
+            // Get material properties for colored specular
+            int matID = volumePrd.channelID;
+            vec3f materialSpecularColor = vec3f(lp.material[matID].specularColor.x, 
+                                              lp.material[matID].specularColor.y, 
+                                              lp.material[matID].specularColor.z);
+            
+            // Mix albedo (from transfer function) with material specular color (up to 25% influence)
+            vec3f mixedSpecularColor = albedo * 0.75f + materialSpecularColor * 0.25f;
+            
+            // Apply subtle material color influence to ambient (up to 25%)
+            vec3f ambientColor = albedo * 0.75f + materialSpecularColor * 0.25f;
+            
+            // Apply lighting with mixed colored specular highlights
+            vec3f diffuseContrib = diffuse * shadow * lp.lightIntensity * albedo; // Pure albedo for diffuse
+            vec3f specularContrib = specular * shadow * lp.lightIntensity * mixedSpecularColor;
+            vec3f ambientContrib = lp.ambient * ambientColor;
+            
+            vec3f shadedColor = diffuseContrib + specularContrib + ambientContrib;
             color = vec4f(shadedColor, transparency);
             if (dbg())
                 printf("col: %f %f %f %f\n", color.x, color.y, color.z, color.w);
