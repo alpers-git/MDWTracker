@@ -350,24 +350,25 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 
                 vec3f gradient = calculateGradient(texSpacePos, gradientStep, volumePrd.channelID);
                 //Shade the particle using Blinn-Phong model with per-channel material properties
-                vec3f N = normalize(gradient);
                 
                 // Only proceed if we have a valid normal
                 if (length(gradient) > 1e-6f) {
+                    // Ensure normal points towards the camera (outward from surface)
+                    vec3f N = normalize(-gradient); // Negate gradient to get outward normal
                     vec3f L = normalize(lp.lightDir);
                     vec3f V = normalize(-ray.direction);
                     vec3f H = normalize(L + V);
 
-                    float NdotL = max(dot(L, N), 0.0f);
-                    float NdotH = max(dot(H, N), 0.0f);
+                    float NdotL = max(dot(N, L), 0.0f);
+                    float NdotH = max(dot(N, H), 0.0f);
                     
                     diffuse = diffuseCoeff * NdotL;
                     
-                    // Energy-conserving Phong specular with colored highlights
-                    if (NdotH > 0.01f && NdotL > 0.0f) {
-                        // Normalization term for energy conservation: (shininess + 2) / (2 * pi)
-                        float normalization = (shininess + 2.0f) / (2.0f * 3.14159265f);
-                        float specularIntensity = specularCoeff * normalization * pow(NdotH, shininess) * NdotL;
+                    // Blinn-Phong specular model (correct implementation)
+                    if (NdotL > 0.0f && NdotH > 0.001f) {
+                        // Normalization term for energy conservation in Blinn-Phong: (shininess + 8) / (8 * pi)
+                        float normalization = (shininess + 8.0f) / (8.0f * 3.14159265f);
+                        float specularIntensity = specularCoeff * normalization * pow(NdotH, shininess);
                         specular = specularIntensity;
                     } else {
                         specular = 0.0f;
