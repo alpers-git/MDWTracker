@@ -1,5 +1,10 @@
-# Multi-Density Woodcock Tracking: Efficient & High-Quality Rendering for Multi-Channel Volumes 
+# Repository for the papers:
+
+## Multi-Density Woodcock Tracking: Efficient & High-Quality Rendering for Multi-Channel Volumes 
 #### Alper Sahistan, Stefan Zellmann, Nate Morrical, Valerio Pascucci, and Ingo Wald
+
+## Materializing Inter-Channel Relationships with Multi-Density Woodcock Tracking
+#### Alper Sahistan, Stefan Zellmann, Haichao Miao, Nate Morrical, Valerio Pascucci, and Ingo Wald
 
 <!-- Insert two images of equal height here they need to stay on the same line-->
 <img src="png/teaser_1.png" height="300"> <img src="png/teaser_2_alt.png" height="300">
@@ -37,7 +42,8 @@ make -j  # If you use Windows, you need to use cmake --build instead
 
 - Although the viewer seems to accept unstructured grids, it is not fully implemented/broken do not use ```-fu``` parameter when calling the viewer. Use ```-fr``` for structured grids. The file name is used to determine the parameters of the dataset. Format is as follows:
   - ``` <dataset_name>_<dimensionx>x<dimensiony>x<dimensionz>_<number_formant: uint8, float32, double64...>.raw ```
-    - For example, ```-fr zebrafish_256x256x256_uint8.raw``` will load a binary 3D volume of size 256x256x256 with of uint8 format. The viewer will automatically detect the number of channels and the format of the data.
+    - For example, ```-fr zebrafish_256x256x256_uint8.raw``` will load a binary 3D volume of size 256x256x256 with of uint8 format.
+    - You may list more than 1 channel under this argument.
 
 - The rest of the parameters are explained in the help message. You can run the viewer with ```./mdwtViewer -h``` to see all the parameters. 
 - Users may use ```!``` to take screenshots ```-/+``` keys to change dt during WT or marching, ```x/y/z``` to change camera up vector, ```r_shift+t``` to save transfer function and ```r_shift+c``` to print out the current camera parameters as a command for the next run.
