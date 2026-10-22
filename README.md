@@ -4,7 +4,7 @@
 #### Alper Sahistan, Stefan Zellmann, Nate Morrical, Valerio Pascucci, and Ingo Wald
 
 ## Materializing Inter-Channel Relationships with Multi-Density Woodcock Tracking
-#### Alper Sahistan, Stefan Zellmann, Haichao Miao, Nate Morrical, Valerio Pascucci, and Ingo Wald
+#### Alper Sahistan, Stefan Zellmann, Haichao Miao, Nate Morrical, Ingo Wald, and Valerio Pascucci
 
 <!-- Insert two images of equal height here they need to stay on the same line-->
 <img src="png/teaser_1.png" height="200"> <img src="png/teaser_2_alt.png" height="200"> <img src="png/teaser_pt2.png" height="200">
