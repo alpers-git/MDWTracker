@@ -458,7 +458,16 @@ void Viewer::CenterMouseDrag(const owl::vec2i &where, const owl::vec2i &delta)
 
 void Viewer::InitImGui()
 {
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    // windows dragged out of the main window become their own OS windows (platform windows)
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark(); //We always want dark mode
+    // make platform windows look the same as windows inside the main window
+    ImGui::GetStyle().WindowRounding = 0.0f;
+    ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 1.0f;
+    // install_callbacks chains to GLFWHandler's callbacks for the main window only, so input
+    // in a detached window doesn't reach the camera controls
     ImGui_ImplGlfw_InitForOpenGL(GLFWHandler::getInstance()->getWindow(), true);
     ImGui_ImplOpenGL3_Init("#version 130");
 }
@@ -468,12 +477,23 @@ void Viewer::RequestImGuiFrame()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    // windows can dock to the screen edges; the empty center lets the render and mouse input through
+    ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 }
 
 void Viewer::RenderImGuiFrame()
 {
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        // renders the windows that live outside the main window, each in its own GL context
+        // (shared with the main one, so the TF widget textures work there too)
+        GLFWwindow *mainContext = glfwGetCurrentContext();
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(mainContext); // the frame is swapped and drawn on the main context
+    }
 }
 
 const ImVec4 red = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);

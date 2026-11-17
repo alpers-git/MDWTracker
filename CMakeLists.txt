@@ -72,6 +72,9 @@ add_library("ImGui" STATIC ${IMGUI_SOURCES}
             ${IMGUI_PATH}/backends/imgui_impl_glfw.cpp
             ${IMGUI_PATH}/backends/imgui_impl_opengl3.cpp)
 target_include_directories("ImGui" PUBLIC ${IMGUI_PATH} ${IMGUI_PATH}/backends glfw)
+# ImGui >= 1.91.4 defaults ImTextureID to ImU64. The transfer function widgets
+# pass GL texture handles as pointers, so keep ImTextureID a pointer type.
+target_compile_definitions("ImGui" PUBLIC "ImTextureID=void*")
 #link with glfw and opengl
 target_link_libraries("ImGui" PUBLIC glfw)
 include_directories(submodules/imgui)
@@ -83,6 +86,8 @@ set(IMGUI_TFN_PATH  submodules/imgui-transfer-function)
 file(GLOB IMGUI_TFN_SOURCES ${IMGUI_TFN_PATH}/*.cpp ${IMGUI_TFN_PATH}/*.c)
 add_library("ImGuiTFN" STATIC ${IMGUI_TFN_SOURCES})
 target_include_directories("ImGuiTFN" PUBLIC ${IMGUI_TFN_PATH})
+# picks up ImGui's include paths and ImTextureID definition
+target_link_libraries("ImGuiTFN" PUBLIC ImGui)
 include_directories(submodules/imgui-transfer-function)
 #----------------------------------------------------
 
