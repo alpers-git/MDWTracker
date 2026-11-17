@@ -54,7 +54,7 @@ private:
     const float degrees_per_drag_fraction = 250;
     const float pixels_per_move = 90.f;
     bool camGivenAsParam = false;
-    unsigned int rendererMode = 0;
+    unsigned int rendererMode = 2; // MULTI_ALT (AMMB)
     int heatMapMode = 0;
     float dt = -1.f;
     unsigned int offlineFrames = 100;
@@ -125,7 +125,7 @@ Viewer::Viewer(int argc, char *argv[])
     program.add_argument("-m", "--mode")
         .help(modeHelpText)
         .scan<'u', unsigned int>()
-        .default_value(0);
+        .default_value(2);
     program.add_argument("-spp", "--samples-per-pixel")
         .help("number of samples per pixel")
         .default_value(1)
