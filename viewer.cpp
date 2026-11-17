@@ -88,7 +88,7 @@ Viewer::Viewer(int argc, char *argv[])
         .nargs(10)
         .scan<'g', float>();
     program.add_argument("-t", "--transfer-function")
-        .help("path to the .tf file")
+        .help("transfer function state file(s), one per channel: .tf, or .tf2d with --tf-dim 2 (r_shift+t saves them)")
         .nargs(argparse::nargs_pattern::any);
     program.add_argument("-mc", "--macrocells")
         .help("number of macrocells per side")
@@ -408,7 +408,11 @@ Viewer::Viewer(int argc, char *argv[])
             tfnWidgets2D[i]->SetDerivatives(gradients);
         }
         if (program.is_used("-t"))
-            std::cerr << "-t is ignored with --tf-dim " << tfDim << std::endl;
+        {
+            auto tfStates = program.get<std::vector<std::string>>("-t");
+            for (size_t i = 0; i < tfStates.size() && i < numFiles; i++)
+                tfnWidgets2D[i]->LoadState(tfStates[i]);
+        }
     }
     if(program.is_used("-dt"))
     {
@@ -569,6 +573,8 @@ void Viewer::Sync2DTF(size_t channelID, bool force)
         renderer->SetXFDomainND(0, vec2f(valueRange.x, valueRange.y), channelID);
         renderer->SetXFDomainND(1, vec2f(derivativeRange.x, derivativeRange.y), channelID);
     }
+    if (force || widget.OpacityScaleChanged())
+        renderer->SetXFOpacityScaleND(widget.GetOpacityScale(), channelID);
     if (force || widget.ColorMapChanged())
     {
         const auto cm = widget.GetColormapf(); // RGBA, value axis fastest, row 0 = zero derivative
@@ -702,9 +708,7 @@ void Viewer::Run()
                         else
                         {
                             drawTFGizmo2D(i, *tfnWidgets2D[i]);
-                            float opacityScale = renderer->tfdatasND[i].opacityScale;
-                            if (ImGui::DragFloat("Opacity scale", &opacityScale, 0.01f, 0.0f, 1e20f))
-                                renderer->SetXFOpacityScaleND(opacityScale, i);
+                            tfnWidgets2D[i]->DrawOpacityScale();
                         }
                         ImGui::EndTabItem();
                     }
@@ -891,9 +895,14 @@ void Viewer::Run()
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"-"
             renderer->Setdt(renderer->dt - 0.04f);
 
-        if(tfDim == 1 && glfw->key.isPressed(GLFW_KEY_T) &&
+        if(glfw->key.isPressed(GLFW_KEY_T) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
-            tfnWidgets[selectedTF].SaveState("tfn_state_" + std::to_string(selectedTF) + ".tf");
+        {
+            if (tfDim == 1)
+                tfnWidgets[selectedTF].SaveState("tfn_state_" + std::to_string(selectedTF) + ".tf");
+            else
+                tfnWidgets2D[selectedTF]->SaveState("tfn_state_" + std::to_string(selectedTF) + ".tf2d");
+        }
         if(glfw->key.isPressed(GLFW_KEY_C) && 
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"C"
             printCameraParameters();
