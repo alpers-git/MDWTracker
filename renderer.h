@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <iostream>
 
 #include "camera.h"
@@ -47,6 +48,33 @@ struct TFData
   std::vector<vec4f> colorMap;
   int numTexels = 0;
   float opacityScale = 1.0f;
+};
+
+/* N-dimensional transfer function (--tf-dim N > 1), host side of TransferFunctionND */
+struct TFDataND
+{
+  cudaArray_t colorMapArray{0};
+  cudaTextureObject_t colorMapTexture{0};
+
+  // numTexels[0] * numTexels[1] * ... RGBA texels, axis 0 (value) varies fastest
+  std::vector<vec4f> colorMap;
+  int numTexels[MAX_TF_DIM] = {};
+  // data-space range of each axis: 0 = value, 1 = gradient magnitude
+  interval<float> domain[MAX_TF_DIM];
+  float opacityScale = 1.0f;
+
+  TransferFunctionND toDevice() const
+  {
+    TransferFunctionND d{};
+    d.xf = colorMapTexture;
+    for (int a = 0; a < MAX_TF_DIM; ++a)
+    {
+      d.domain[a] = make_float2(domain[a].lower, domain[a].upper);
+      d.numTexels[a] = numTexels[a];
+    }
+    d.opacityScale = opacityScale;
+    return d;
+  }
 };
 
 class Renderer
@@ -130,6 +158,9 @@ public:
 
     std::vector<TFData> tfdatas;
 
+    int tfDim = 1; // --tf-dim, set before Init
+    std::vector<TFDataND> tfdatasND; // one per channel, only filled when tfDim > 1
+
     /* material properties per channel */
     struct MaterialData
     {
@@ -171,6 +202,13 @@ public:
     void SetXFOpacityScale(float opacityScale, size_t tfID = 0);
     /*! sets the transfer function domain*/
     void SetXFRange(vec2f xfDomain, size_t tfID = 0);
+    /*! N-D transfer function (tfDim > 1): uploads the RGBA lookup table, axis 0 fastest */
+    void SetXFColormapND(const std::vector<vec4f> &texels,
+                         const std::array<int, MAX_TF_DIM> &numTexels, size_t tfID = 0);
+    /*! N-D transfer function: sets the data-space range of one axis (0 = value, 1 = gradient magnitude) */
+    void SetXFDomainND(int axis, vec2f domain, size_t tfID = 0);
+    /*! N-D transfer function: sets the opacity scale */
+    void SetXFOpacityScaleND(float opacityScale, size_t tfID = 0);
     /*! sets material properties for a channel*/
     void SetMaterialDiffuse(float diffuse, size_t channelID = 0);
     void SetMaterialSpecular(float specular, size_t channelID = 0);
@@ -201,6 +239,17 @@ public:
     // storing a per-channel scalar range in each cell.
     OWLBuffer buildSpatialMacrocells(const vec3i &dims, const box3f &bounds);
 
+    // N-D transfer function (tfDim > 1) versions, dispatching on tfDim to the kernels in renderer.cu
+    OWLBuffer buildSpatialMacrocellsND(const vec3i &dims, const box3f &bounds);
+    void RecalculateDensityRangesND();
+    /*! gradient magnitude of every stride-th voxel of raw channel channelID, as the 2D TF sees it */
+    std::vector<float> VoxelGradientMagnitudes(size_t channelID, size_t stride = 1) const;
+
+private:
+    /*! name of the OptiX program to use for the current tfDim: <name> or <name>_tf<tfDim> */
+    std::string TFProgramName(const std::string &name) const;
+    /*! pushes tfdatasND to the transferFunctionND launch params */
+    void UploadTFParamsND();
 };
 
 } // namespace dtracker

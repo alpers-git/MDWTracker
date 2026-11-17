@@ -42,6 +42,19 @@ inline __both__ float4 transferFunction(float f, size_t tfID = 0)
     return xf;
 }
 
+// not an overload of transferFunction(): an int tfID would make transferFunction(f, tfID) ambiguous
+inline __device__ float4 transferFunction2D(float f, float g, size_t tfID = 0)
+{
+    const TransferFunctionND &tf = optixLaunchParams.transferFunctionND[tfID];
+    const float u = normalizeToDomain(f, tf.domain[0]); // value axis
+    const float v = normalizeToDomain(g, tf.domain[1]); // gradient magnitude axis, v = 0 is zero gradient
+
+    float4 xf = tex2D<float4>(tf.xf, u, v); // clamps to the edge texels, like TransferFunctionWidget2D::Sample
+    xf.w *= tf.opacityScale;
+
+    return xf;
+}
+
 inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
 {
     auto &lp = optixLaunchParams;
@@ -146,7 +159,60 @@ float sampleVolume(const vec3f& pos, const int channelID = 0)
         return sampleVolumeTexture(normalizedPos, channelID);
     }
 }
+
+//============================ transfer function lookups ============================//
+
+// samples and classifies channel channelID at texSpacePos, false when it misses the volume
+template <int TF_DIM>
+__device__ bool classify(const vec3f &texSpacePos, const int channelID, float4 &rgba);
+
+template <>
+inline __device__ bool classify<1>(const vec3f &texSpacePos, const int channelID, float4 &rgba)
+{
+    const float value = sampleVolumeTexture(texSpacePos, channelID);
+    if (isnan(value))
+        return false;
+    rgba = transferFunction(value, channelID);
+    return true;
+}
+
+// data value gradient in data units per voxel, the derivative axis of the 2D transfer function
+inline __device__ vec3f scalarGradient(const vec3f &texSpacePos, const int channelID)
+{
+    const vec3f voxel = 1.f / vec3f(optixLaunchParams.volume.sGrid[channelID].dims);
+    return voxel * finiteDifferenceGradient(texSpacePos, voxel, box3f(vec3f(0.f), vec3f(1.f)),
+        [&](const vec3f &p) { return sampleVolumeTexture(p, channelID); });
+}
+
+// 2D transfer function lookup: value x gradient magnitude (Kniss et al. 2002).
+template <>
+inline __device__ bool classify<2>(const vec3f &texSpacePos, const int channelID, float4 &rgba)
+{
+    const float value = sampleVolumeTexture(texSpacePos, channelID);
+    if (isnan(value))
+        return false;
+    const float gradientMagnitude = length(scalarGradient(texSpacePos, channelID));
+    rgba = transferFunction2D(value, gradientMagnitude, channelID);
+    return true;
+}
+
+// classify() for callers that want a transparent sample on a miss
+template <int TF_DIM>
+inline __device__ vec4f classifyOrEmpty(const vec3f &texSpacePos, const int channelID)
+{
+    float4 rgba;
+    return classify<TF_DIM>(texSpacePos, channelID, rgba) ? vec4f(rgba) : vec4f(0.f);
+}
+
+// 1D keeps its original form (no miss check) so existing renders stay unchanged
+template <>
+inline __device__ vec4f classifyOrEmpty<1>(const vec3f &texSpacePos, const int channelID)
+{
+    return transferFunction(sampleVolumeTexture(texSpacePos, channelID), channelID);
+}
+
 //max opacity blending func
+template <int TF_DIM>
 __forceinline__ __device__
 static vec4f maxOpacityBlend(vec3f texSpacePos)
 {
@@ -154,8 +220,7 @@ static vec4f maxOpacityBlend(vec3f texSpacePos)
     vec4f maxOpacitySample = vec4f(0.0f,0.0f,0.0f,0.0f);
     for(int channelID = 0; channelID < optixLaunchParams.volume.numChannels; channelID++)
     {
-        vec4f sample = transferFunction(
-            sampleVolumeTexture(texSpacePos, channelID), channelID);
+        vec4f sample = classifyOrEmpty<TF_DIM>(texSpacePos, channelID);
         if(sample.w > maxOpacitySample.w)
             maxOpacitySample = sample;
     }
@@ -163,6 +228,7 @@ static vec4f maxOpacityBlend(vec3f texSpacePos)
 }
 
 //mix with equal weights blending func
+template <int TF_DIM>
 __forceinline__ __device__
     static vec4f mixBlend(vec3f texSpacePos)
 {
@@ -170,8 +236,7 @@ __forceinline__ __device__
     float maxOpacity = 0.0f;
     for(int channelID = 0; channelID < optixLaunchParams.volume.numChannels; channelID++)
     {
-        vec4f curColor = transferFunction(
-            sampleVolumeTexture(texSpacePos, channelID), channelID);
+        vec4f curColor = classifyOrEmpty<TF_DIM>(texSpacePos, channelID);
         color += vec3f(curColor) * curColor.w;
         if(curColor.w > maxOpacity)
             maxOpacity = curColor.w;
@@ -183,6 +248,7 @@ __forceinline__ __device__
 }
 
 //majorant based blending func
+template <int TF_DIM>
 __forceinline__ __device__
 static vec4f densityBlend(vec3f texSpacePos)
 {
@@ -192,8 +258,7 @@ static vec4f densityBlend(vec3f texSpacePos)
     vec4f color = vec4f(0.0f,0.0f,0.0f,0.0f);
     for (int i = 0; i < lp.volume.numChannels; i++)
     {
-        vec4f sample = transferFunction(
-            sampleVolumeTexture(texSpacePos, i), i);
+        vec4f sample = classifyOrEmpty<TF_DIM>(texSpacePos, i);
         color += sample * sample.w;
         densitySum += sample.w;
     }
@@ -202,7 +267,8 @@ static vec4f densityBlend(vec3f texSpacePos)
     color /= densitySum;
     return color;
 }
-__device__ 
+template <int TF_DIM>
+__device__
 vec4f blendChannels(const vec3f texSpacePos)
 {
     if (texSpacePos.x < 0.0f || texSpacePos.x > 1.0f ||
@@ -212,27 +278,37 @@ vec4f blendChannels(const vec3f texSpacePos)
     switch (optixLaunchParams.mode)
     {
     case Mode::MARCHER_MULTI: // majorant based blending
-        return densityBlend(texSpacePos);
+        return densityBlend<TF_DIM>(texSpacePos);
     case Mode::MAX:
     case Mode::MARCHER_MAX: // max opacity blending
-        return maxOpacityBlend(texSpacePos);
+        return maxOpacityBlend<TF_DIM>(texSpacePos);
     case Mode::MIX:
     case Mode::MARCHER_MIX: // mix blending with equal weights
-        return mixBlend(texSpacePos);
+        return mixBlend<TF_DIM>(texSpacePos);
     default:
         break;
     }
 }
 
+template <int TF_DIM>
 __device__
 vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon, size_t tfID = 0)
 {
-    return finiteDifferenceGradient(texSpacePos, vec3f(epsilon),
-        [&](const vec3f &p) { return transferFunction(sampleVolumeTexture(p, tfID), tfID).w; });
+    return finiteDifferenceGradient(texSpacePos, vec3f(epsilon), box3f(vec3f(0.f), vec3f(1.f)),
+        [&](const vec3f &p) { return classifyOrEmpty<TF_DIM>(p, tfID).w; });
 }
 
-OPTIX_RAYGEN_PROGRAM(mainRG)
-()
+// one OptiX entry point per TF dimensionality: <name> (1D) and <name>_tf2 (2D), picked by Renderer::Init
+#define TF_CLOSEST_HIT_PROGRAMS(name, impl)                \
+    OPTIX_CLOSEST_HIT_PROGRAM(name)() { impl<1>(); }       \
+    OPTIX_CLOSEST_HIT_PROGRAM(name##_tf2)() { impl<2>(); }
+
+#define TF_RAYGEN_PROGRAMS(name, impl)                     \
+    OPTIX_RAYGEN_PROGRAM(name)() { impl<1>(); }            \
+    OPTIX_RAYGEN_PROGRAM(name##_tf2)() { impl<2>(); }
+
+template <int TF_DIM>
+inline __device__ void mainRGImpl()
 {
     auto &lp = optixLaunchParams;
     const vec2i pixelID = owl::getLaunchIndex();
@@ -298,7 +374,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
                                           lp.material[matID].specularColor.y, 
                                           lp.material[matID].specularColor.z);
 
-                vec3f gradient = calculateGradient(texSpacePos, gradientStep, volumePrd.channelID);
+                vec3f gradient = calculateGradient<TF_DIM>(texSpacePos, gradientStep, volumePrd.channelID);
                 //Shade the particle using Blinn-Phong model with per-channel material properties
                 
                 // Only proceed if we have a valid normal
@@ -427,6 +503,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
 #endif
     }
 }
+TF_RAYGEN_PROGRAMS(mainRG, mainRGImpl)
 
 OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
 ()
@@ -460,8 +537,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(triangleCH)
 //     SCATTERING,
 //     NULL_COLLISION // also used as no collision
 // };
-OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
-()
+template <int TF_DIM>
+inline __device__ void cummilativeDT()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
@@ -522,14 +599,14 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
 
             for(int channelID = 0; channelID < lp.volume.numChannels; channelID++)
             {
-                const float value = sampleVolumeTexture(xTexture, channelID);
+                float4 curSample;
+                const bool inVolume = classify<TF_DIM>(xTexture, channelID, curSample);
                 prd.samples++;
-                if(isnan(value)) // miss: this shouldnt happen in structured volumes
+                if(!inVolume) // miss: this shouldnt happen in structured volumes
                 {
                     //event = NULL_COLLISION;
                     continue;
                 }
-                const float4 curSample = transferFunction(value, channelID);
                 if(curSample.w > 0.0f && nullColThreshold < curSample.w)
                 {
                     //event = ABSORPTION;
@@ -551,9 +628,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
     };
     dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
+TF_CLOSEST_HIT_PROGRAMS(cummilativeDTCH, cummilativeDT)
 
-OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
-()
+template <int TF_DIM>
+inline __device__ void multiMajDT()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
@@ -638,11 +716,11 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
             float nullColThreshold = prd.rng() * (majorants[selectedChannel]);
-            const float value = sampleVolumeTexture(xTexture, selectedChannel);
+            float4 curSample;
+            const bool inVolume = classify<TF_DIM>(xTexture, selectedChannel, curSample);
             prd.samples++;
-            if(!isnan(value))//event = NULL_COLLISION
+            if(inVolume)//event = NULL_COLLISION
             {
-                const float4 curSample = transferFunction(value, selectedChannel);
                 //sample a mesh based on its opacity
                 if(curSample.w > 0.0f && nullColThreshold < curSample.w)
                 {
@@ -665,9 +743,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
     };
     dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
+TF_CLOSEST_HIT_PROGRAMS(multiMajDTCH, multiMajDT)
 
-OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
-()
+template <int TF_DIM>
+inline __device__ void altMultiMajDT()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
@@ -733,11 +812,11 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
                 //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
                 //get values from all meshes and decide which one the sample is gonna come from
                 float nullColThreshold = prd.rng() * majorant;
-                const float value = sampleVolumeTexture(xTexture, channelID);
+                float4 curSample;
+                const bool inVolume = classify<TF_DIM>(xTexture, channelID, curSample);
                 prd.samples++;
-                if(!isnan(value))//event = NULL_COLLISION
+                if(inVolume)//event = NULL_COLLISION
                 {
-                    const float4 curSample = transferFunction(value, channelID);
                     //sample a mesh based on its opacity
                     if(curSample.w > 0.0f && nullColThreshold < curSample.w)
                     {
@@ -762,9 +841,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
     };
     dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
+TF_CLOSEST_HIT_PROGRAMS(altMultiMajDTCH, altMultiMajDT)
 
-OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
-()
+template <int TF_DIM>
+inline __device__ void baseLineDT()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
@@ -828,14 +908,14 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
             float nullColThreshold = prd.rng() * majorant;
-            const float value = sampleVolumeTexture(xTexture, curMesh);
+            float4 curSample;
+            const bool inVolume = classify<TF_DIM>(xTexture, curMesh, curSample);
             prd.samples++;
-            if(isnan(value)) // miss: this shouldnt happen in structured volumes
+            if(!inVolume) // miss: this shouldnt happen in structured volumes
             {
                 //event = NULL_COLLISION;
                 continue;
             }
-            const float4 curSample = transferFunction(value, curMesh);
             //sample a mesh based on its opacity
             if(curSample.w > 0.0f && nullColThreshold < curSample.w)
             {
@@ -861,9 +941,10 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
         dda::dda3(grid.org, grid.dir, 1e20,mcDim,lambda,false);
     }
 }
+TF_CLOSEST_HIT_PROGRAMS(baseLineDTCH, baseLineDT)
 
-OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
-()
+template <int TF_DIM>
+inline __device__ void blendDT()
 {
     RayPayload &prd = owl::getPRD<RayPayload>();
     auto &lp = optixLaunchParams;
@@ -920,7 +1001,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
             
             //density(w component of float4) at TF(ray(t)) similar to spectrum(TR * 1 - max(0, density * invMaxDensity)) in pbrt
             //get values from all meshes and decide which one the sample is gonna come from
-            vec4f blendedSample = blendChannels(xTexture);
+            vec4f blendedSample = blendChannels<TF_DIM>(xTexture);
             prd.samples++;
             
             if(blendedSample.w > 0.0f && prd.rng() * majorant < blendedSample.w)
@@ -942,7 +1023,9 @@ OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
     };
     dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
+TF_CLOSEST_HIT_PROGRAMS(blendDTCH, blendDT)
 
+// Ray marcher programs are 1D only (--tf-dim 2 rejects modes 6-9)
 OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
 ()
 {
@@ -974,7 +1057,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
     {
         //vec3f shadow = 1.0f;
         const vec3f posTex = pos * worldToUnit;
-        vec4f blendedColor = blendChannels(posTex);
+        vec4f blendedColor = blendChannels<1>(posTex);
         prd.samples += lp.volume.numChannels;
         // blendedColor.w = 1.f - pow(1.f-blendedColor.w,dt);
         color = over(color, vec3f(blendedColor) /** shadow*/, alpha, blendedColor.w);
@@ -1011,7 +1094,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
                 thit0 = thit1;
             for(float tSh = thit0; (tSh < thit1) && (alphaSh < 0.99f); tSh += dt){
                 const vec3f posTexSh = posSh * worldToUnit;
-                float opacitySh = blendChannels(posTexSh).w;
+                float opacitySh = blendChannels<1>(posTexSh).w;
                 alphaSh = over(alphaSh, opacitySh);
                 posSh = orgSh + dirSh * tSh;//take a step
             }

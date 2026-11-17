@@ -49,9 +49,10 @@ inline __device__ void intersectBox(const vec3f &org, const vec3f &dir, const bo
     t1 = min(min(max(tLo.x, tHi.x), max(tLo.y, tHi.y)), max(tLo.z, tHi.z));
 }
 
-// gradient of f(pos) by central differences, one-sided where a step leaves [0, 1]
+// gradient of f(pos) by central differences, one-sided where a step leaves domain
 template <typename SampleFn>
-inline __device__ vec3f finiteDifferenceGradient(const vec3f &pos, const vec3f &step, const SampleFn &f)
+inline __device__ vec3f finiteDifferenceGradient(const vec3f &pos, const vec3f &step, const box3f &domain,
+                                                 const SampleFn &f)
 {
     vec3f gradient(0.f);
     for (int i = 0; i < 3; i++)
@@ -59,8 +60,8 @@ inline __device__ vec3f finiteDifferenceGradient(const vec3f &pos, const vec3f &
         vec3f lo = pos, hi = pos;
         lo[i] -= step[i];
         hi[i] += step[i];
-        const bool loInside = lo[i] >= 0.f;
-        const bool hiInside = hi[i] <= 1.f;
+        const bool loInside = lo[i] >= domain.lower[i];
+        const bool hiInside = hi[i] <= domain.upper[i];
         if (loInside && hiInside)
             gradient[i] = (f(hi) - f(lo)) / (2.f * step[i]);
         else if (hiInside)
@@ -69,6 +70,24 @@ inline __device__ vec3f finiteDifferenceGradient(const vec3f &pos, const vec3f &
             gradient[i] = (f(pos) - f(lo)) / step[i];
     }
     return gradient;
+}
+
+// gradient of voxel idx of a dims grid (x fastest), in data units per voxel; the stencil of scalarGradient
+inline __device__ vec3f voxelGradient(const float *scalars, const vec3i &dims, const vec3i &idx)
+{
+    return finiteDifferenceGradient(vec3f(idx), vec3f(1.f), box3f(vec3f(0.f), vec3f(dims - vec3i(1))),
+        [&](const vec3f &p) {
+            return scalars[uint64_t(p.x) + uint64_t(p.y) * uint64_t(dims.x) +
+                           uint64_t(p.z) * uint64_t(dims.x) * uint64_t(dims.y)];
+        });
+}
+
+// [min, max] length of the vectors inside box b
+inline __both__ float2 lengthRange(const box3f &b)
+{
+    const vec3f nearest = max(b.lower, min(vec3f(0.f), b.upper));
+    const vec3f farthest = max(abs(b.lower), abs(b.upper));
+    return make_float2(length(nearest), length(farthest));
 }
 
 // a world-space ray in the cell coordinates of a mcDim macrocell grid spanning bounds, for dda::dda3

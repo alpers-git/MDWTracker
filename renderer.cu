@@ -1,5 +1,6 @@
 // source:  https://gitlab.com/n8vm/owlptdvr/-/blob/master/renderer.cu?ref_type=heads
 #include "renderer.h"
+#include "deviceUtils.h"
 #include "mathHelper.h"
 
 #include "cuda_fp16.h"
@@ -173,6 +174,11 @@ namespace dtracker
 {
   void Renderer::RecalculateDensityRanges()
   {
+    if (tfDim > 1)
+    {
+      RecalculateDensityRangesND();
+      return;
+    }
     size_t numChannels = meshType != MeshType::UNDEFINED ? (meshType == MeshType::UMESH ? umeshPtrs.size() : rawPtrs.size()) : 0;
     if (numChannels == 0)
       throw std::runtime_error("No mesh data found");
@@ -491,6 +497,317 @@ namespace dtracker
     }
     CUDA_SYNC_CHECK();
     return MacrocellBuffer;
+  }
+
+  //============================ N-D transfer functions ============================//
+
+  // empty range (min > max) on every axis
+  template <int TF_DIM>
+  __global__ void clearMacrocellsND(MacrocellND<TF_DIM> *d_mcGrid, const uint64_t numEntries)
+  {
+    const uint64_t index = uint64_t(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (index >= numEntries)
+      return;
+    for (int a = 0; a < TF_DIM; ++a)
+      d_mcGrid[index].range[a] = make_float2(1e20f, -1e20f);
+  }
+
+  // grows channel channelID's macrocells by the value and gradient magnitude ranges of each voxel's neighbourhood
+  template <int TF_DIM>
+  __global__ void rasterMacrocellsND(MacrocellND<TF_DIM> *d_mcGrid,
+                                     const vec3i mcDims,
+                                     const box3f worldBounds,
+                                     const float *scalars,
+                                     const vec3i gridDims,
+                                     const size_t channelID,
+                                     const size_t numChannels)
+  {
+    static_assert(TF_DIM <= 2, "rasterMacrocellsND: add the range of the new TF axis");
+    const uint64_t primIdx = (uint64_t(blockIdx.x) + uint64_t(blockIdx.y) * MAX_GRID_SIZE) * blockDim.x + threadIdx.x;
+    if (primIdx >= uint64_t(gridDims.x) * uint64_t(gridDims.y) * uint64_t(gridDims.z))
+      return;
+    box4f primBounds4 = box4f();
+    box3f gradientBounds; // per-component bounds of the neighbourhood's voxel gradients
+
+    // Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
+    // length in each dimension of the voxels in world space
+    vec3f boxLenghts = (worldBounds.size()) / vec3f(gridDims);
+
+    // 3D index of the voxel in the grid
+    vec3i primIdx3D = vec3i(primIdx % gridDims.x,
+                            (primIdx / gridDims.x) % gridDims.y,
+                            primIdx / (gridDims.x * gridDims.y));
+
+    // World space coordinates of the voxel corners
+    vec3f vxlLower = worldBounds.lower + vec3f(primIdx3D) * boxLenghts;
+
+    // Initialize bounds with current voxel
+    primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
+    primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
+
+    // Extend bounds to include neighboring voxels for proper scalar range
+    for (int64_t iz = -1; iz <= 1; iz++)
+      for (int64_t iy = -1; iy <= 1; iy++)
+        for (int64_t ix = -1; ix <= 1; ix++)
+        {
+          int64_t nx = (int64_t)primIdx3D.x + ix;
+          int64_t ny = (int64_t)primIdx3D.y + iy;
+          int64_t nz = (int64_t)primIdx3D.z + iz;
+
+          if (nx < 0 || nx >= gridDims.x)
+            continue;
+          if (ny < 0 || ny >= gridDims.y)
+            continue;
+          if (nz < 0 || nz >= gridDims.z)
+            continue;
+
+          const uint64_t neighborIdx = (uint64_t)nx + (uint64_t)ny * (uint64_t)gridDims.x + (uint64_t)nz * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
+
+          vec3f neighborLower = worldBounds.lower + vec3f(nx, ny, nz) * boxLenghts;
+          primBounds4.extend({neighborLower.x, neighborLower.y, neighborLower.z, scalars[neighborIdx]});
+          if constexpr (TF_DIM > 1)
+          {
+            const vec3i neighbor = vec3i(int(nx), int(ny), int(nz));
+            vec3f gradient = voxelGradient(scalars, gridDims, neighbor);
+            gradientBounds.extend(gradient);
+            // samples within half a voxel of a face see down to half an edge voxel's gradient
+            for (int i = 0; i < 3; i++)
+              if (neighbor[i] == 0 || neighbor[i] == gridDims[i] - 1)
+                gradient[i] *= 0.5f;
+            gradientBounds.extend(gradient);
+          }
+        }
+    MacrocellND<TF_DIM> ranges;
+    ranges.range[0] = make_float2(primBounds4.lower.w, primBounds4.upper.w);
+    if constexpr (TF_DIM > 1) // samples blend neighbouring gradient vectors, which can cancel out
+      ranges.range[1] = lengthRange(gradientBounds);
+    rasterBox(d_mcGrid, mcDims, worldBounds, box3f(vec3f(primBounds4.lower), vec3f(primBounds4.upper)),
+              ranges, channelID, numChannels);
+  }
+
+  // texels a bilinear lookup inside data range r can touch, plus one for the hardware's 8-bit filter weights
+  inline __device__ int2 texelRange(const float2 r, const float2 domain, const int numTexels)
+  {
+    const float a = normalizeToDomain(r.x, domain) * numTexels - 0.5f;
+    const float b = normalizeToDomain(r.y, domain) * numTexels - 0.5f;
+    if (!isfinite(a) || !isfinite(b))
+      return make_int2(0, numTexels - 1);
+    const float last = float(numTexels - 1);
+    return make_int2(int(fminf(fmaxf(floorf(fminf(a, b)) - 1.f, 0.f), last)),
+                     int(fminf(fmaxf(floorf(fmaxf(a, b)) + 2.f, 0.f), last)));
+  }
+
+  // opacity of texel idx of a TF_DIM-D lookup texture, read at its center
+  template <int TF_DIM>
+  inline __device__ float texelOpacity(const TransferFunctionND &tf, const int (&idx)[TF_DIM])
+  {
+    float coord[TF_DIM];
+    for (int a = 0; a < TF_DIM; a++)
+      coord[a] = (idx[a] + 0.5f) / tf.numTexels[a];
+    if constexpr (TF_DIM == 2)
+      return tex2D<float4>(tf.xf, coord[0], coord[1]).w;
+    else
+    {
+      static_assert(TF_DIM == 3, "texelOpacity: no lookup texture of this dimensionality");
+      return tex3D<float4>(tf.xf, coord[0], coord[1], coord[2]).w;
+    }
+  }
+
+  // max opacity each channel's transfer function can return inside a macrocell's range box,
+  // one warp per macrocell whose lanes split the sweep of the texel box
+  template <int TF_DIM>
+  __global__ void computeMajorantsND(const uint64_t numCells,
+                                     const MacrocellND<TF_DIM> *macrocells,
+                                     const TransferFunctionND *tfs,
+                                     const size_t numChannels,
+                                     const bool perChannel,
+                                     float *majorants)
+  {
+    const uint64_t cellID = (uint64_t(blockIdx.x) * blockDim.x + threadIdx.x) / warpSize;
+    const int lane = threadIdx.x % warpSize;
+    if (cellID >= numCells) // the whole warp leaves together
+      return;
+
+    float sum = 0.f;
+    for (size_t c = 0; c < numChannels; c++)
+    {
+      const MacrocellND<TF_DIM> &cell = macrocells[cellID * numChannels + c];
+      const TransferFunctionND &tf = tfs[c];
+
+      bool empty = false; // no data of channel c in the cell
+      int first[TF_DIM], extent[TF_DIM];
+      int numTexels = 1;
+      for (int a = 0; a < TF_DIM; a++)
+      {
+        empty |= cell.range[a].x > cell.range[a].y;
+        const int2 texels = texelRange(cell.range[a], tf.domain[a], tf.numTexels[a]);
+        first[a] = texels.x;
+        extent[a] = texels.y - texels.x + 1;
+        numTexels *= extent[a];
+      }
+
+      float majorant = 0.f;
+      for (int k = lane; !empty && k < numTexels; k += warpSize) // sweep the texel box, axis 0 fastest
+      {
+        int idx[TF_DIM];
+        int rest = k;
+        for (int a = 0; a < TF_DIM; a++)
+        {
+          idx[a] = first[a] + rest % extent[a];
+          rest /= extent[a];
+        }
+        majorant = fmaxf(majorant, texelOpacity<TF_DIM>(tf, idx));
+      }
+      for (int offset = warpSize / 2; offset > 0; offset /= 2)
+        majorant = fmaxf(majorant, __shfl_down_sync(0xffffffff, majorant, offset));
+      majorant = __shfl_sync(0xffffffff, majorant, 0) * tf.opacityScale;
+
+      if (perChannel && lane == 0)
+        majorants[cellID * numChannels + c] = majorant;
+      sum += majorant;
+    }
+    if (!perChannel && lane == 0)
+      majorants[cellID] = sum;
+  }
+
+  template <int TF_DIM>
+  static OWLBuffer buildSpatialMacrocellsT(Renderer &r, const vec3i &dims, const box3f &bounds)
+  {
+    if (r.meshType != MeshType::RAW)
+      throw std::runtime_error("Spatial macrocells can only be built for structured (RAW) volumes");
+    const uint64_t numMacrocells = uint64_t(dims.x) * uint64_t(dims.y) * uint64_t(dims.z);
+    const size_t numChannels = r.rawPtrs.size();
+    if (numChannels == 0)
+      throw std::runtime_error("No mesh data found");
+
+    const uint64_t numEntries = numMacrocells * numChannels;
+    OWLBuffer macrocellBuffer = owlDeviceBufferCreate(r.context, OWL_USER_TYPE(MacrocellND<TF_DIM>),
+                                                      numEntries, nullptr);
+    MacrocellND<TF_DIM> *d_mcGrid = (MacrocellND<TF_DIM> *)owlBufferGetPointer(macrocellBuffer, 0);
+
+    const uint64_t clearBlockSize = 256;
+    clearMacrocellsND<TF_DIM><<<unsigned(divRoundUp(numEntries, clearBlockSize)), unsigned(clearBlockSize)>>>(
+        d_mcGrid, numEntries);
+    CUDA_SYNC_CHECK();
+
+    printf("Building %dD Spatial Macrocells\n", TF_DIM);
+    for (size_t i = 0; i < numChannels; i++)
+    {
+      const float *d_scalars = (const float *)owlBufferGetPointer(r.scalarData[i], 0);
+      const uint64_t blockSize = 32;
+      const vec3i vxlGridDims = {static_cast<int>(r.rawPtrs[i]->getDims().x),
+                                 static_cast<int>(r.rawPtrs[i]->getDims().y),
+                                 static_cast<int>(r.rawPtrs[i]->getDims().z)};
+      const uint64_t voxelCount = uint64_t(vxlGridDims.x) * uint64_t(vxlGridDims.y) * uint64_t(vxlGridDims.z);
+      const uint64_t numBlocks = divRoundUp(voxelCount, blockSize);
+      const vec3i grid(int(min(numBlocks, (uint64_t)MAX_GRID_SIZE)),
+                       int(divRoundUp(numBlocks, (uint64_t)MAX_GRID_SIZE)), 1);
+      if (grid.y > MAX_GRID_SIZE)
+        throw std::runtime_error("Volume too large for the macrocell raster launch");
+
+      rasterMacrocellsND<TF_DIM><<<to_dims(grid), unsigned(blockSize)>>>(
+          d_mcGrid, dims, bounds, d_scalars, vxlGridDims, i, numChannels);
+      CUDA_SYNC_CHECK();
+    }
+    return macrocellBuffer;
+  }
+
+  template <int TF_DIM>
+  static void recalculateMajorantsT(Renderer &r)
+  {
+    const size_t numChannels = r.rawPtrs.size();
+    // wait until every channel has its lookup table; the viewer uploads them one by one
+    if (numChannels == 0 || r.tfdatasND.size() < numChannels)
+      return;
+    std::vector<TransferFunctionND> tfs(numChannels);
+    for (size_t c = 0; c < numChannels; ++c)
+    {
+      if (r.tfdatasND[c].colorMapTexture == 0)
+        return;
+      tfs[c] = r.tfdatasND[c].toDevice();
+    }
+
+    const bool perChannel = r.mode <= Mode::MULTI_ALT;
+    const uint64_t numCells = uint64_t(r.macrocellDims.x) * uint64_t(r.macrocellDims.y) * uint64_t(r.macrocellDims.z);
+    const uint64_t numMajorants = perChannel ? numCells * numChannels : numCells;
+
+    OWLBuffer tfBuffer = owlDeviceBufferCreate(r.context, OWL_USER_TYPE(TransferFunctionND),
+                                               numChannels, tfs.data());
+    const MacrocellND<TF_DIM> *d_macrocells = (const MacrocellND<TF_DIM> *)owlBufferGetPointer(r.macrocellsBuffer, 0);
+    const TransferFunctionND *d_tfs = (const TransferFunctionND *)owlBufferGetPointer(tfBuffer, 0);
+    float *d_majorants = (float *)owlBufferGetPointer(r.gridMaximaBuffer, 0);
+
+    // zeroed so cells the kernel leaves untouched are skipped instead of read as garbage
+    cudaMemset(d_majorants, 0, numMajorants * sizeof(float));
+    const uint64_t blockSize = 256;
+    computeMajorantsND<TF_DIM><<<unsigned(divRoundUp(numCells * 32, blockSize)), unsigned(blockSize)>>>(
+        numCells, d_macrocells, d_tfs, numChannels, perChannel, d_majorants);
+    CUDA_SYNC_CHECK();
+    owlBufferDestroy(tfBuffer);
+  }
+
+  __global__ void voxelGradientMagnitudes(const float *scalars, const vec3i dims, const uint64_t stride,
+                                          const uint64_t count, float *magnitudes)
+  {
+    const uint64_t k = uint64_t(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (k >= count)
+      return;
+    const uint64_t voxel = k * stride;
+    const vec3i idx = vec3i(int(voxel % dims.x), int(voxel / dims.x % dims.y),
+                            int(voxel / (uint64_t(dims.x) * uint64_t(dims.y))));
+    magnitudes[k] = length(voxelGradient(scalars, dims, idx));
+  }
+
+  std::vector<float> Renderer::VoxelGradientMagnitudes(size_t channelID, size_t stride) const
+  {
+    const raw::RawR &raw = *rawPtrs[channelID];
+    const std::vector<float> data = raw.getDataVector();
+    const vec3i dims = vec3i(int(raw.getDims().x), int(raw.getDims().y), int(raw.getDims().z));
+    stride = std::max<size_t>(stride, 1);
+    const uint64_t count = divRoundUp(uint64_t(data.size()), uint64_t(stride));
+    std::vector<float> magnitudes(count);
+    if (count == 0)
+      return magnitudes;
+
+    float *d_scalars = nullptr, *d_magnitudes = nullptr;
+    if (cudaMalloc(&d_scalars, data.size() * sizeof(float)) != cudaSuccess ||
+        cudaMalloc(&d_magnitudes, count * sizeof(float)) != cudaSuccess)
+    {
+      cudaFree(d_scalars);
+      throw std::runtime_error("Not enough device memory for the gradient magnitudes");
+    }
+    cudaMemcpy(d_scalars, data.data(), data.size() * sizeof(float), cudaMemcpyHostToDevice);
+    const uint64_t blockSize = 256;
+    voxelGradientMagnitudes<<<unsigned(divRoundUp(count, blockSize)), unsigned(blockSize)>>>(
+        d_scalars, dims, uint64_t(stride), count, d_magnitudes);
+    CUDA_SYNC_CHECK();
+    cudaMemcpy(magnitudes.data(), d_magnitudes, count * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaFree(d_scalars);
+    cudaFree(d_magnitudes);
+    return magnitudes;
+  }
+
+  OWLBuffer Renderer::buildSpatialMacrocellsND(const vec3i &dims, const box3f &bounds)
+  {
+    switch (tfDim)
+    {
+    case 2:
+      return buildSpatialMacrocellsT<2>(*this, dims, bounds);
+    default:
+      throw std::runtime_error("No macrocell builder for a " + std::to_string(tfDim) + "D transfer function");
+    }
+  }
+
+  void Renderer::RecalculateDensityRangesND()
+  {
+    switch (tfDim)
+    {
+    case 2:
+      recalculateMajorantsT<2>(*this);
+      break;
+    default:
+      throw std::runtime_error("No majorant kernel for a " + std::to_string(tfDim) + "D transfer function");
+    }
   }
 
   static const char *humanSize(uint64_t bytes)

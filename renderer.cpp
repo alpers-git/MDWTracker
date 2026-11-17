@@ -184,7 +184,9 @@ OWLVarDecl launchParamVars[] = {
     {"transferFunction[11].volumeDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].volumeDomain)},
     {"transferFunction[11].opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, transferFunction[11].opacityScale)},
     {"transferFunction[11].xfDomain", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams, transferFunction[11].xfDomain)},
-    
+    // N-D transfer functions, all channels at once (see Renderer::UploadTFParamsND)
+    {"transferFunctionND", OWL_USER_TYPE(TransferFunctionND[MAX_CHANNELS]), OWL_OFFSETOF(LaunchParams, transferFunctionND)},
+
     // Material properties for all channels
     {"material[0].diffuse", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[0].diffuse)},
     {"material[0].specular", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, material[0].specular)},
@@ -329,6 +331,10 @@ namespace dtracker
       return;
     }
     this->mode = (Mode)mode;
+    if (tfDim < 1 || tfDim > MAX_TF_DIM)
+      throw std::runtime_error("Unsupported transfer function dimensionality " + std::to_string(tfDim));
+    if (tfDim > 1 && (umeshPtrs.size() > 0 || this->mode >= Mode::MARCHER_MULTI))
+      throw std::runtime_error("N-D transfer functions need raw data and a Woodcock tracking mode (0-5)");
     // Init owl
     LOG("Initializing owl...");
     context = owlContextCreate(nullptr, 1);
@@ -336,7 +342,7 @@ namespace dtracker
     owlContextSetRayTypeCount(context, 1);
 
     LOG("Creating programs...");
-      rayGen = owlRayGenCreate(context, module, "mainRG",
+      rayGen = owlRayGenCreate(context, module, TFProgramName("mainRG").c_str(),
                               sizeof(RayGenData),
                               rayGenVars, -1);
 
@@ -669,16 +675,17 @@ namespace dtracker
       owlGeomTypeSetBoundsProg(macrocellType, module, "macrocellBounds");
 
       owlGeomTypeSetClosestHit(triangleType, /*ray type */ 0, module, "triangleCH");
+      // the Woodcock tracking programs exist once per TF dimensionality, see TFProgramName
       if(mode == Mode::BASELINE)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "baseLineDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, TFProgramName("baseLineDTCH").c_str());
       else if(mode == Mode::MULTI)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "multiMajDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, TFProgramName("multiMajDTCH").c_str());
       else if(mode == Mode::MULTI_ALT)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "altMultiMajDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, TFProgramName("altMultiMajDTCH").c_str());
       else if(mode == Mode::CUMMULATIVE)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "cummilativeDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, TFProgramName("cummilativeDTCH").c_str());
       else if(mode <= Mode::MIX)
-        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "blendDTCH");
+        owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, TFProgramName("blendDTCH").c_str());
       else if(mode == Mode::MARCHER_COMP)
         owlGeomTypeSetClosestHit(macrocellType, /*ray type*/ 0, module, "compRayMarcherCH");
       else
@@ -725,9 +732,9 @@ namespace dtracker
               bounds.upper.x, bounds.upper.y, bounds.upper.z);
       if(mode < Mode::MARCHER_MULTI)
       {
-        macrocellsBuffer = buildSpatialMacrocells(
-            {int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)},
-            bounds);
+        const vec3i mcDims = {int(macrocellDims.x), int(macrocellDims.y), int(macrocellDims.z)};
+        macrocellsBuffer = tfDim == 1 ? buildSpatialMacrocells(mcDims, bounds)
+                                      : buildSpatialMacrocellsND(mcDims, bounds);
         //macrocellsBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(float2), macrocellsPerSide*macrocellsPerSide*macrocellsPerSide, nullptr);
         owlParamsSetBuffer(lp, "volume.macrocells", macrocellsBuffer);
         //const uint3 macrocellDims = {macrocellDims, macrocellDims, macrocellDims};
@@ -744,7 +751,15 @@ namespace dtracker
         tfdatas.push_back(TFData());// push one empty transfer function
         tfdatas[i].volDomain = interval<float>({rawPtrs[i]->getBounds4f().lower.w, rawPtrs[i]->getBounds4f().upper.w});
         printf("volume domain: %f %f\n", tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper);
-        
+        if (tfDim > 1)
+        {
+          // value axis spans the data range, the viewer sets the others (SetXFDomainND)
+          tfdatasND.push_back(TFDataND());
+          tfdatasND[i].domain[0] = tfdatas[i].volDomain;
+          for (int a = 1; a < MAX_TF_DIM; ++a)
+            tfdatasND[i].domain[a] = interval<float>({0.f, 1.f});
+        }
+
         // Initialize materials with default values
         materials.push_back(MaterialData());
         owlParamsSet4f(lp, "volume.globalBoundsLo",
@@ -929,6 +944,7 @@ namespace dtracker
     for(size_t i = 0; i < tfdatas.size(); ++i)
       owlParamsSet2f(lp, std::string("transferFunction[" + std::to_string(i) + "].volumeDomain").c_str(),
           owl2f{tfdatas[i].volDomain.lower, tfdatas[i].volDomain.upper});
+    UploadTFParamsND();
 
     owlParamsSet1i(lp, "mode", this->mode);
 
@@ -1190,6 +1206,103 @@ namespace dtracker
     ResetAccumulation();
     if(mode < Mode::MARCHER_MULTI)
       RecalculateDensityRanges();
+  }
+
+  void Renderer::SetXFColormapND(const std::vector<vec4f> &texels,
+                                 const std::array<int, MAX_TF_DIM> &numTexels, size_t tfID)
+  {
+    if (tfID >= tfdatasND.size())
+      return; // safely return if this does not exist
+    if (tfDim != 2)
+    {
+      LOG_ERROR("SetXFColormapND: only 2D lookup textures are implemented");
+      return;
+    }
+    const int width = numTexels[0], height = numTexels[1];
+    if (width <= 0 || height <= 0 || texels.size() != size_t(width) * size_t(height))
+    {
+      LOG_ERROR("SetXFColormapND: texel count does not match the resolution");
+      return;
+    }
+
+    TFDataND &tf = tfdatasND[tfID];
+    // a different resolution needs a new array (and a texture object bound to it)
+    if (tf.colorMapArray && (tf.numTexels[0] != width || tf.numTexels[1] != height))
+    {
+      if (tf.colorMapTexture)
+        cudaDestroyTextureObject(tf.colorMapTexture);
+      cudaFreeArray(tf.colorMapArray);
+      tf.colorMapTexture = 0;
+      tf.colorMapArray = 0;
+    }
+    tf.colorMap = texels;
+    tf.numTexels[0] = width;
+    tf.numTexels[1] = height;
+
+    if (!tf.colorMapArray)
+    {
+      cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+      cudaMallocArray(&tf.colorMapArray, &channelDesc, width, height);
+    }
+    const size_t pitch = width * sizeof(vec4f);
+    cudaMemcpy2DToArray(tf.colorMapArray, 0, 0, tf.colorMap.data(),
+                        pitch, pitch, height, cudaMemcpyHostToDevice);
+
+    if (!tf.colorMapTexture)
+    {
+      cudaResourceDesc resDesc = {};
+      resDesc.resType = cudaResourceTypeArray;
+      resDesc.res.array.array = tf.colorMapArray;
+
+      cudaTextureDesc texDesc = {};
+      texDesc.addressMode[0] = cudaAddressModeClamp;
+      texDesc.addressMode[1] = cudaAddressModeClamp;
+      texDesc.filterMode = cudaFilterModeLinear;
+      texDesc.readMode = cudaReadModeElementType;
+      texDesc.normalizedCoords = 1;
+      cudaCreateTextureObject(&tf.colorMapTexture, &resDesc, &texDesc, nullptr);
+    }
+    OWL_CUDA_SYNC_CHECK();
+
+    UploadTFParamsND();
+    ResetAccumulation();
+    if(mode < Mode::MARCHER_MULTI)
+      RecalculateDensityRanges();
+  }
+
+  void Renderer::SetXFDomainND(int axis, vec2f domain, size_t tfID)
+  {
+    if (tfID >= tfdatasND.size() || axis < 0 || axis >= tfDim)
+      return; // safely return if this does not exist
+    tfdatasND[tfID].domain[axis] = interval<float>(domain.x, domain.y);
+    UploadTFParamsND();
+    ResetAccumulation();
+    if(mode < Mode::MARCHER_MULTI)
+      RecalculateDensityRanges();
+  }
+
+  void Renderer::SetXFOpacityScaleND(float opacityScale, size_t tfID)
+  {
+    if (tfID >= tfdatasND.size())
+      return; // safely return if this does not exist
+    tfdatasND[tfID].opacityScale = opacityScale;
+    UploadTFParamsND();
+    ResetAccumulation();
+    if(mode < Mode::MARCHER_MULTI)
+      RecalculateDensityRanges();
+  }
+
+  void Renderer::UploadTFParamsND()
+  {
+    TransferFunctionND params[MAX_CHANNELS] = {};
+    for (size_t i = 0; i < tfdatasND.size() && i < MAX_CHANNELS; ++i)
+      params[i] = tfdatasND[i].toDevice();
+    owlParamsSetRaw(lp, "transferFunctionND", params);
+  }
+
+  std::string Renderer::TFProgramName(const std::string &name) const
+  {
+    return tfDim == 1 ? name : name + "_tf" + std::to_string(tfDim);
   }
 
   void Renderer::SetMaterialDiffuse(float diffuse, size_t channelID)

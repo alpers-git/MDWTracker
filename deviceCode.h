@@ -11,6 +11,7 @@ using namespace owl;
 
 #define NUM_BINS 32
 #define MAX_CHANNELS 12
+#define MAX_TF_DIM 2 // highest --tf-dim, each needs its <name>_tf<N> programs in deviceCode.cu
 
 /* variables for the triangle mesh geometry */
 struct TriangleData
@@ -51,11 +52,21 @@ struct UnstructuredElementData
 };
 
 struct MacrocellData {
-    float* maxima;        
+    float* maxima;
     box4f* bboxes;
     int offset; // for pre-split geom
 };
 
+/* transfer function of one channel for --tf-dim N > 1: axis 0 = value, axis 1 = gradient magnitude */
+struct TransferFunctionND
+{
+  cudaTextureObject_t xf; // RGBA, normalized coords, linear filtering, clamped; v = 0 is zero gradient
+  // data-space [lo, hi] of each axis, mapped to texture coordinate [0, 1]
+  float2 domain[MAX_TF_DIM];
+  // texture resolution along each axis
+  int numTexels[MAX_TF_DIM];
+  float opacityScale;
+};
 
 /* [min, max] (x, y) of every TF axis over a cell, stored at cellID * numChannels + channelID */
 template <int TF_DIM>
@@ -63,6 +74,7 @@ struct MacrocellND
 {
   float2 range[TF_DIM];
 };
+
 
 /* variables for the ray generation program */
 struct LaunchParams
@@ -123,6 +135,9 @@ struct LaunchParams
     float2 xfDomain;
     float opacityScale;
   } transferFunction[MAX_CHANNELS];
+
+  // N-D transfer functions, read by the *_tf<N> programs only (--tf-dim N > 1)
+  TransferFunctionND transferFunctionND[MAX_CHANNELS];
 
   struct
   {
