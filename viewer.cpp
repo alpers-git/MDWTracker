@@ -17,6 +17,42 @@
 #include "stb_image_write.h"
 
 #include "renderer.h"
+#include "deviceUtils.h"
+
+#if !OFFLINE_VIEWER
+// color bar of the log-scaled count heatmap from 0 to maxCount, labelled at its ends and middle
+static void DrawHeatmapLegend(const char *quantity, float maxCount)
+{
+    const float width = ImGui::GetContentRegionAvail().x, height = 12.f;
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    auto color = [](float t)
+    {
+        const vec3f c = dtracker::viridis(t);
+        return ImGui::ColorConvertFloat4ToU32(ImVec4(c.x, c.y, c.z, 1.f));
+    };
+    const int segments = 64;
+    for (int i = 0; i < segments; i++)
+    {
+        const float x0 = origin.x + width * i / segments, x1 = origin.x + width * (i + 1) / segments;
+        const ImU32 left = color(float(i) / segments), right = color(float(i + 1) / segments);
+        drawList->AddRectFilledMultiColor(ImVec2(x0, origin.y), ImVec2(x1, origin.y + height), left, right, right, left);
+    }
+    ImGui::Dummy(ImVec2(width, height));
+
+    maxCount = std::max(maxCount, 1.f);
+    char mid[32], top[32];
+    snprintf(mid, sizeof(mid), "%.3g", expm1f(0.5f * log1pf(maxCount)));
+    snprintf(top, sizeof(top), "%.3g", maxCount);
+    const float startX = ImGui::GetCursorPosX();
+    ImGui::TextUnformatted("0");
+    ImGui::SameLine(startX + 0.5f * (width - ImGui::CalcTextSize(mid).x));
+    ImGui::TextUnformatted(mid);
+    ImGui::SameLine(startX + width - ImGui::CalcTextSize(top).x);
+    ImGui::TextUnformatted(top);
+    ImGui::TextDisabled("%s per path (log scale)", quantity);
+}
+#endif
 
 struct Viewer
 {
@@ -832,14 +868,20 @@ void Viewer::Run()
         if(ImGui::RadioButton("samples", (int*)&heatMapMode, 1))
             renderer->ResetAccumulation();
         ImGui::SameLine();
-        if(ImGui::RadioButton("rejects", (int*)&heatMapMode, 2))
+        if(ImGui::RadioButton("null collisions", (int*)&heatMapMode, 2))
             renderer->ResetAccumulation();
         ImGui::SameLine();
         if(ImGui::RadioButton("timing", (int*)&heatMapMode, 3))
             renderer->ResetAccumulation();
         ImGui::EndGroup();
 
-        if(heatMapMode > 0 && ImGui::DragFloat("HeatMap Scale", &(renderer->heatMapScale), 0.01f, 0.0f))
+        if (heatMapMode == 1 || heatMapMode == 2)
+        {
+            // the count at the top of the colormap; the accumulated counts are kept, so no reset
+            ImGui::DragFloat("Max per path", &(renderer->heatMapScale), 0.5f, 1.0f, 1e6f, "%.0f");
+            DrawHeatmapLegend(heatMapMode == 1 ? "TF lookups" : "null collisions", renderer->heatMapScale);
+        }
+        else if(heatMapMode == 3 && ImGui::DragFloat("HeatMap Scale", &(renderer->heatMapScale), 0.01f, 0.0f))
             renderer->ResetAccumulation();
 
         if(ImGui::Checkbox("Accumulation", &(renderer->enableAccumulation)))

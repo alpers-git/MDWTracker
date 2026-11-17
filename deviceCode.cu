@@ -459,17 +459,18 @@ inline __device__ void mainRGImpl()
         finalColor += over(color, vec4f(lp.bgColor,1.f));
     }
     finalColor /= float(lp.spp);
-    // if (lp.heatMapMode == 1) // samples heatmap
-    // {
-    //     int samples = volumePrd.samples * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
-    //     lp.fbPtr[fbOfs] = make_rgba(vec4f(samples / lp.heatMapScale, samples / lp.heatMapScale, samples / lp.heatMapScale, 1.f));
-    // }
-    // else if (lp.heatMapMode == 2) // rejections heatmap
-    // {
-    //     int rejections = volumePrd.rejections * (lp.volume.meshType == 0 ? 1 : 10 / lp.volume.numChannels);
-    //     lp.fbPtr[fbOfs] = make_rgba(vec4f(rejections / lp.heatMapScale, rejections / lp.heatMapScale, rejections / lp.heatMapScale, 1.f));
-    // }
-    // else if (lp.heatMapMode == 3) // timers heatmap
+    if (lp.heatMapMode == 1 || lp.heatMapMode == 2) // TF lookups or null collisions per path, shadow rays included
+    {
+        float count = float(lp.heatMapMode == 1 ? volumePrd.samples : volumePrd.rejections) / float(lp.spp);
+        if (lp.enableAccumulation) // mean over the accumulated frames
+        {
+            count = (count + float(lp.accumID) * lp.accumBuffer[fbOfs].x) / float(lp.accumID + 1);
+            lp.accumBuffer[fbOfs] = vec4f(count, 0.f, 0.f, 1.f);
+        }
+        lp.fbPtr[fbOfs] = make_rgba(vec4f(heatmapColor(count, lp.heatMapScale), 1.f));
+        return;
+    }
+    // if (lp.heatMapMode == 3) // timers heatmap
     // {
     //     float time = (end - start) / lp.heatMapScale;
     //     const vec4f heatColor = vec4f(time, time, time, 1.f);
@@ -589,7 +590,6 @@ inline __device__ void cummilativeDT()
             if (tWorld >= prd.t1)
             {
                 //event = NULL_COLLISION;
-                prd.rejections++;
                 return false; // terminate traversal
             }
             
@@ -709,7 +709,6 @@ inline __device__ void multiMajDT()
             if (tWorld >= prd.t1)
             {
                 //event = NULL_COLLISION;
-                prd.rejections++;
                 return false; // terminate traversal
             }
             
@@ -801,7 +800,6 @@ inline __device__ void altMultiMajDT()
                 if (tWorld >= prd.t1)
                 {
                     //event = NULL_COLLISION;
-                    prd.rejections++;
                     if(channelID == lp.volume.numChannels -1)
                         return false; // terminate traversal
                     else
@@ -901,7 +899,6 @@ inline __device__ void baseLineDT()
             if (tWorld >= prd.t1)
             {
                 //event = NULL_COLLISION;
-                prd.rejections++;
                 return false; // terminate traversal
             }
             
@@ -995,7 +992,6 @@ inline __device__ void blendDT()
             if (tWorld >= prd.t1)
             {
                 //event = NULL_COLLISION;
-                prd.rejections++;
                 return false; // terminate traversal
             }
             

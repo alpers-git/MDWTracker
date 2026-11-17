@@ -142,7 +142,7 @@ public:
     float avgTime = 0.0f;
     float minTime = std::numeric_limits<float>::max();
     float totalTime = 0.0f;
-    float heatMapScale = 1.0f;
+    float heatMapScale = 100.0f; // count heatmaps: the per-path count at the top of the colormap
 
     /* scene */
     float dt = 0.05f;

@@ -136,6 +136,29 @@ struct GradientMagnitudeBounds
     }
 };
 
+// viridis colormap at t in [0, 1], polynomial fit
+inline __both__ vec3f viridis(float t)
+{
+    t = fminf(fmaxf(t, 0.f), 1.f);
+    const vec3f c[7] = {vec3f(0.2777273272f, 0.0054073445f, 0.3340998053f),
+                        vec3f(0.1050930431f, 1.4046135299f, 1.3845901626f),
+                        vec3f(-0.3308618287f, 0.2148475595f, 0.0950951630f),
+                        vec3f(-4.6342304990f, -5.7991009734f, -19.3324409563f),
+                        vec3f(6.2282699363f, 14.1799333668f, 56.6905526007f),
+                        vec3f(4.7763849977f, -13.7451453777f, -65.3530326334f),
+                        vec3f(-5.4354558559f, 4.6458526122f, 26.3124352496f)};
+    vec3f color = c[6];
+    for (int k = 5; k >= 0; k--)
+        color = c[k] + t * color;
+    return color;
+}
+
+// heatmap color of a per-path count, log scaled so that maxCount maps to the top of the colormap
+inline __both__ vec3f heatmapColor(float count, float maxCount)
+{
+    return viridis(log1pf(fmaxf(count, 0.f)) / log1pf(fmaxf(maxCount, 1.f)));
+}
+
 // a world-space ray in the cell coordinates of a mcDim macrocell grid spanning bounds, for dda::dda3
 struct MacrocellGridRay
 {
