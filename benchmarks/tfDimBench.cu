@@ -240,9 +240,10 @@ namespace tfbench
         else
           maxDensityForVolume = max(maxDensityForVolume, density);
       }
-      float density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr1) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+      // the TF is linear between texel centers, so its maximum over the range is at a center inside it or at an end
+      float density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMin, 0.5f).w * tf[tfID].opacityScale;
       maxDensityForVolume = max(maxDensityForVolume, density);
-      density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr2) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+      density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMax, 0.5f).w * tf[tfID].opacityScale;
       maxDensityForVolume = max(maxDensityForVolume, density);
       maxima[nodeID * numChannels + tfID] = maxDensityForVolume;
     }

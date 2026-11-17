@@ -59,12 +59,17 @@ __global__ void _recalculateDensityRanges(
     float maxDensityForVolume;
     for (int i = addrMin; i <= addrMax; ++i)
     {
-      float density = tex2D<float4>(tf[tfID].colorMapTexture, float(i) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+      float density = tex2D<float4>(tf[tfID].colorMapTexture, (float(i) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
       if (i == addrMin)
         maxDensityForVolume = density;
       else
         maxDensityForVolume = max(maxDensityForVolume, density);
     }
+    // the TF is linear between texel centers, so its maximum over the range is at a center inside it or at an end
+    float density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMin, 0.5f).w * tf[tfID].opacityScale;
+    maxDensityForVolume = max(maxDensityForVolume, density);
+    density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMax, 0.5f).w * tf[tfID].opacityScale;
+    maxDensityForVolume = max(maxDensityForVolume, density);
     maxDensity += maxDensityForVolume;
   }
   maxima[primID] = maxDensity / (float)numChannels;
@@ -112,9 +117,10 @@ __global__ void _recalculateDensityRanges(
       else
         maxDensityForVolume = max(maxDensityForVolume, density);
     }
-    float density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr1) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+    // the TF is linear between texel centers, so its maximum over the range is at a center inside it or at an end
+    float density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMin, 0.5f).w * tf[tfID].opacityScale;
     maxDensityForVolume = max(maxDensityForVolume, density);
-    density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr2) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+    density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMax, 0.5f).w * tf[tfID].opacityScale;
     maxDensityForVolume = max(maxDensityForVolume, density);
     maxDensity += maxDensityForVolume;
   }
@@ -162,9 +168,10 @@ __global__ void _recalculateDensityRangesMM(
       else
         maxDensityForVolume = max(maxDensityForVolume, density);
     }
-    float density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr1) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+    // the TF is linear between texel centers, so its maximum over the range is at a center inside it or at an end
+    float density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMin, 0.5f).w * tf[tfID].opacityScale;
     maxDensityForVolume = max(maxDensityForVolume, density);
-    density = tex2D<float4>(tf[tfID].colorMapTexture, (float(addr2) + 0.5f) / tf[tfID].numTexels, 0.5f).w * tf[tfID].opacityScale;
+    density = tex2D<float4>(tf[tfID].colorMapTexture, remappedMax, 0.5f).w * tf[tfID].opacityScale;
     maxDensityForVolume = max(maxDensityForVolume, density);
     maxima[nodeID * numChannels + tfID] = maxDensityForVolume;
   }
