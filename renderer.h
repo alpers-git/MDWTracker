@@ -196,28 +196,10 @@ public:
     /*!estimate best mcgrid sizes given the mesh*/
     vec3ui CalculateMCGridDims(int estimatedElementPerMc);
 
-    // For umeshes, use this to generate some object oriented macrocells.
-    // idea, rasterize elements into a grid, expand or shrink bounding boxes to contain elements,
-    // avoid making macrocells in empty regions. Empty macrocells will have negative volume.
-    OWLBuffer buildObjectOrientedMacrocells(const vec3i &dims, const box3f &bounds);
-
-    // For umeshes, use this to generate some non-overlapping macrocells.
-    // idea, rasterize elements into a grid, fixing the size of the macrocells to the grid,
-    // potentially generating macrocells in empty regions
+    // For structured (RAW) volumes, generates non-overlapping macrocells.
+    // idea, rasterize voxels into a grid, fixing the size of the macrocells to the grid,
+    // storing a per-channel scalar range in each cell.
     OWLBuffer buildSpatialMacrocells(const vec3i &dims, const box3f &bounds);
-
-    void computeRanges(OWLBuffer &ranges);
-    void sortElements(uint64_t* &codesSorted, uint32_t* &elementIdsSorted);
-    void buildClusters(const uint64_t* codesSorted, const uint32_t* elementIDsSorted,
-      uint32_t clusterPrecision, uint32_t &numClusters, OWLBuffer &clusters, 
-      bool returnSortedIndexToCluster = false, uint32_t* sortedIndexToCluster = nullptr); 
-    void buildClusters(
-      uint32_t maxNumClusters, uint32_t &numClusters, OWLBuffer &clusters);
-    void buildClusters(
-      uint32_t coarseClusterPrecision, uint32_t mediumClusterPrecision, uint32_t fineClusterPrecision, 
-      uint32_t &numCoarseClusters, OWLBuffer &coarseClusters, 
-      uint32_t &numMediumClusters, OWLBuffer &mediumClusters, 
-      uint32_t &numFineClusters, OWLBuffer &fineClusters);
 
 };
 
