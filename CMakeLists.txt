@@ -157,11 +157,23 @@ target_link_libraries(mdwtOffline
   ImGuiTFN)
  target_compile_definitions(mdwtOffline PRIVATE OFFLINE_VIEWER=true)
 #----------------------------------------------------
+#-------- TF dimensionality benchmark ---------------
+add_executable(mdwtTFBench
+  benchmarks/tfDimBench.cu
+  rawFile.cpp)
+
+find_package(CUDAToolkit REQUIRED)
+target_link_libraries(mdwtTFBench
+  PRIVATE
+  argparse
+  owl::owl
+  CUDA::nvml)
+#----------------------------------------------------
 
 # if windows copy owl.dll to the current build/<build_type> folder
  # Find the directory where owl.dll is located
  if(WIN32)
- foreach(target mdwtViewer mdwtOffline)
+ foreach(target mdwtViewer mdwtOffline mdwtTFBench)
    add_custom_command(TARGET ${target} POST_BUILD
      COMMAND ${CMAKE_COMMAND} -E copy_if_different
        $<TARGET_FILE:owl::owl>
