@@ -340,16 +340,33 @@ namespace dtracker
                  project(pos.z, {bounds.lower.z, bounds.upper.z}, dims.z));
   }
 
-  inline __device__ void rasterBox(float2 *d_mcGrid,
+  // atomically widens a macrocell by a [min, max] range per TF axis; float2 is the 1D macrocell
+  inline __device__ void widenMacrocell(float2 &cell, const MacrocellND<1> &ranges)
+  {
+    atomicMin(&cell.x, ranges.range[0].x);
+    atomicMax(&cell.y, ranges.range[0].y);
+  }
+
+  template <int TF_DIM>
+  inline __device__ void widenMacrocell(MacrocellND<TF_DIM> &cell, const MacrocellND<TF_DIM> &ranges)
+  {
+    for (int a = 0; a < TF_DIM; a++)
+    {
+      atomicMin(&cell.range[a].x, ranges.range[a].x);
+      atomicMax(&cell.range[a].y, ranges.range[a].y);
+    }
+  }
+
+  // widens every macrocell the world-space box pb overlaps by ranges
+  template <typename Macrocell, int TF_DIM>
+  inline __device__ void rasterBox(Macrocell *d_mcGrid,
                                    const vec3i dims,
                                    const box3f worldBounds,
-                                   const box4f primBounds4,
+                                   const box3f pb,
+                                   const MacrocellND<TF_DIM> &ranges,
                                    const size_t meshIndex = 0,
-                                   const size_t numChannels = 1,
-                                   bool dbg = false)
+                                   const size_t numChannels = 1)
   {
-    box3f pb = box3f(vec3f(primBounds4.lower),
-                     vec3f(primBounds4.upper));
     if (pb.lower.x >= pb.upper.x)
       return;
     if (pb.lower.y >= pb.upper.y)
@@ -368,9 +385,7 @@ namespace dtracker
         for (uint64_t ix = lo.x; ix <= hi.x; ix++)
         {
           const uint64_t cellID = (ix + iy * dims.x + iz * dims.x * dims.y) * numChannels + meshIndex;
-
-          atomicMin(&d_mcGrid[cellID].x, primBounds4.lower.w);
-          atomicMax(&d_mcGrid[cellID].y, primBounds4.upper.w);
+          widenMacrocell(d_mcGrid[cellID], ranges);
         }
   }
 
@@ -429,7 +444,9 @@ namespace dtracker
           primBounds4.extend({neighborLower.x, neighborLower.y, neighborLower.z, scalars[neighborIdx]});
         }
     // __syncthreads();
-    rasterBox(d_mcGrid, mcDims, worldBounds, primBounds4, meshIndex, numChannels);
+    const MacrocellND<1> ranges = {{make_float2(primBounds4.lower.w, primBounds4.upper.w)}};
+    rasterBox(d_mcGrid, mcDims, worldBounds, box3f(vec3f(primBounds4.lower), vec3f(primBounds4.upper)),
+              ranges, meshIndex, numChannels);
   }
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds)

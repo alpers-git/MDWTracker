@@ -57,6 +57,13 @@ struct MacrocellData {
 };
 
 
+/* [min, max] (x, y) of every TF axis over a cell, stored at cellID * numChannels + channelID */
+template <int TF_DIM>
+struct MacrocellND
+{
+  float2 range[TF_DIM];
+};
+
 /* variables for the ray generation program */
 struct LaunchParams
 {
