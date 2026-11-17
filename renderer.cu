@@ -328,24 +328,6 @@ namespace dtracker
     return __int_as_float(ret);
   }
 
-  inline __device__ int project(float f,
-                                const interval<float> range,
-                                int dim)
-  {
-    return max(0, min(dim - 1, int(dim * (f - range.lower) / (range.upper - range.lower))));
-  }
-
-  inline __device__
-      vec3i
-      project(const vec3f &pos,
-              const box3f &bounds,
-              const vec3i &dims)
-  {
-    return vec3i(project(pos.x, {bounds.lower.x, bounds.upper.x}, dims.x),
-                 project(pos.y, {bounds.lower.y, bounds.upper.y}, dims.y),
-                 project(pos.z, {bounds.lower.z, bounds.upper.z}, dims.z));
-  }
-
   // atomically widens a macrocell by a [min, max] range per TF axis; float2 is the 1D macrocell
   inline __device__ void widenMacrocell(float2 &cell, const MacrocellND<1> &ranges)
   {
@@ -363,32 +345,18 @@ namespace dtracker
     }
   }
 
-  // widens every macrocell the world-space box pb overlaps by ranges
+  // widens macrocells cells.lower to cells.upper (inclusive) by ranges
   template <typename Macrocell, int TF_DIM>
   inline __device__ void rasterBox(Macrocell *d_mcGrid,
                                    const vec3i dims,
-                                   const box3f worldBounds,
-                                   const box3f pb,
+                                   const box3i cells,
                                    const MacrocellND<TF_DIM> &ranges,
                                    const size_t meshIndex = 0,
                                    const size_t numChannels = 1)
   {
-    if (pb.lower.x >= pb.upper.x)
-      return;
-    if (pb.lower.y >= pb.upper.y)
-      return;
-    if (pb.lower.z >= pb.upper.z)
-      return;
-
-    vec3i lo = project(pb.lower, worldBounds, dims);
-    vec3i hi = project(pb.upper, worldBounds, dims);
-    hi.x = min(hi.x, dims.x - 1);
-    hi.y = min(hi.y, dims.y - 1);
-    hi.z = min(hi.z, dims.z - 1);
-
-    for (uint64_t iz = lo.z; iz <= hi.z; iz++)
-      for (uint64_t iy = lo.y; iy <= hi.y; iy++)
-        for (uint64_t ix = lo.x; ix <= hi.x; ix++)
+    for (uint64_t iz = cells.lower.z; iz <= cells.upper.z; iz++)
+      for (uint64_t iy = cells.lower.y; iy <= cells.upper.y; iy++)
+        for (uint64_t ix = cells.lower.x; ix <= cells.upper.x; ix++)
         {
           const uint64_t cellID = (ix + iy * dims.x + iz * dims.x * dims.y) * numChannels + meshIndex;
           widenMacrocell(d_mcGrid[cellID], ranges);
@@ -397,7 +365,6 @@ namespace dtracker
 
   __global__ void rasterElements(float2 *d_mcGrid,
                                  const vec3i mcDims,
-                                 const box3f worldBounds,
                                  const float *scalars,
                                  const vec3i gridDims,
                                  const size_t meshIndex = 0,
@@ -411,24 +378,14 @@ namespace dtracker
       // printf("blockId %ld limit %ld\n", primIdx, totalElements);
       return;
     }
-    box4f primBounds4 = box4f();
-    // Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
-    // length in each dimension of the voxels in world space
-    vec3f boxLenghts = (worldBounds.size()) / vec3f(gridDims);
 
     // 3D index of the voxel in the grid
     vec3i primIdx3D = vec3i(primIdx % gridDims.x,
                             (primIdx / gridDims.x) % gridDims.y,
                             primIdx / (gridDims.x * gridDims.y));
 
-    // World space coordinates of the voxel corners
-    vec3f vxlLower = worldBounds.lower + vec3f(primIdx3D) * boxLenghts;
-
-    // Initialize bounds with current voxel
-    primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
-    primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
-
-    // Extend bounds to include neighboring voxels for proper scalar range
+    // samples inside the voxel blend voxels of its neighbourhood only
+    float2 valueRange = make_float2(scalars[primIdx], scalars[primIdx]);
     for (int64_t iz = -1; iz <= 1; iz++)
       for (int64_t iy = -1; iy <= 1; iy++)
         for (int64_t ix = -1; ix <= 1; ix++)
@@ -445,14 +402,12 @@ namespace dtracker
             continue;
 
           const uint64_t neighborIdx = (uint64_t)nx + (uint64_t)ny * (uint64_t)gridDims.x + (uint64_t)nz * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
-
-          vec3f neighborLower = worldBounds.lower + vec3f(nx, ny, nz) * boxLenghts;
-          primBounds4.extend({neighborLower.x, neighborLower.y, neighborLower.z, scalars[neighborIdx]});
+          valueRange.x = fminf(valueRange.x, scalars[neighborIdx]);
+          valueRange.y = fmaxf(valueRange.y, scalars[neighborIdx]);
         }
     // __syncthreads();
-    const MacrocellND<1> ranges = {{make_float2(primBounds4.lower.w, primBounds4.upper.w)}};
-    rasterBox(d_mcGrid, mcDims, worldBounds, box3f(vec3f(primBounds4.lower), vec3f(primBounds4.upper)),
-              ranges, meshIndex, numChannels);
+    const MacrocellND<1> ranges = {{valueRange}};
+    rasterBox(d_mcGrid, mcDims, voxelCells(primIdx3D, gridDims, mcDims), ranges, meshIndex, numChannels);
   }
 
   OWLBuffer Renderer::buildSpatialMacrocells(const vec3i &dims, const box3f &bounds)
@@ -492,7 +447,7 @@ namespace dtracker
       }
       printf("Rastering channel %d with %ldx%ldx%ld blocks with %ld threads\n",
              i, grid.x, grid.y, grid.z, blockSize);
-      rasterElements<<<to_dims(grid), blockSize>>>(d_mcGrid, dims, bounds, d_scalars, vxlGridDims, i, numChannels);
+      rasterElements<<<to_dims(grid), blockSize>>>(d_mcGrid, dims, d_scalars, vxlGridDims, i, numChannels);
       CUDA_SYNC_CHECK();
     }
     CUDA_SYNC_CHECK();
@@ -516,7 +471,6 @@ namespace dtracker
   template <int TF_DIM>
   __global__ void rasterMacrocellsND(MacrocellND<TF_DIM> *d_mcGrid,
                                      const vec3i mcDims,
-                                     const box3f worldBounds,
                                      const float *scalars,
                                      const vec3i gridDims,
                                      const size_t channelID,
@@ -526,26 +480,15 @@ namespace dtracker
     const uint64_t primIdx = (uint64_t(blockIdx.x) + uint64_t(blockIdx.y) * MAX_GRID_SIZE) * blockDim.x + threadIdx.x;
     if (primIdx >= uint64_t(gridDims.x) * uint64_t(gridDims.y) * uint64_t(gridDims.z))
       return;
-    box4f primBounds4 = box4f();
-    box3f gradientBounds; // per-component bounds of the neighbourhood's voxel gradients
-
-    // Calculate the bounds of the voxel in world space and fetch the right scalar values for each 8 corners
-    // length in each dimension of the voxels in world space
-    vec3f boxLenghts = (worldBounds.size()) / vec3f(gridDims);
+    GradientMagnitudeBounds gradientBounds;
 
     // 3D index of the voxel in the grid
     vec3i primIdx3D = vec3i(primIdx % gridDims.x,
                             (primIdx / gridDims.x) % gridDims.y,
                             primIdx / (gridDims.x * gridDims.y));
 
-    // World space coordinates of the voxel corners
-    vec3f vxlLower = worldBounds.lower + vec3f(primIdx3D) * boxLenghts;
-
-    // Initialize bounds with current voxel
-    primBounds4.lower = vec4f(vxlLower, scalars[primIdx]);
-    primBounds4.upper = vec4f(vxlLower + boxLenghts, scalars[primIdx]);
-
-    // Extend bounds to include neighboring voxels for proper scalar range
+    // samples inside the voxel blend voxels (and voxel gradients) of its neighbourhood only
+    float2 valueRange = make_float2(scalars[primIdx], scalars[primIdx]);
     for (int64_t iz = -1; iz <= 1; iz++)
       for (int64_t iy = -1; iy <= 1; iy++)
         for (int64_t ix = -1; ix <= 1; ix++)
@@ -562,27 +505,19 @@ namespace dtracker
             continue;
 
           const uint64_t neighborIdx = (uint64_t)nx + (uint64_t)ny * (uint64_t)gridDims.x + (uint64_t)nz * (uint64_t)gridDims.x * (uint64_t)gridDims.y;
-
-          vec3f neighborLower = worldBounds.lower + vec3f(nx, ny, nz) * boxLenghts;
-          primBounds4.extend({neighborLower.x, neighborLower.y, neighborLower.z, scalars[neighborIdx]});
+          valueRange.x = fminf(valueRange.x, scalars[neighborIdx]);
+          valueRange.y = fmaxf(valueRange.y, scalars[neighborIdx]);
           if constexpr (TF_DIM > 1)
           {
             const vec3i neighbor = vec3i(int(nx), int(ny), int(nz));
-            vec3f gradient = voxelGradient(scalars, gridDims, neighbor);
-            gradientBounds.extend(gradient);
-            // samples within half a voxel of a face see down to half an edge voxel's gradient
-            for (int i = 0; i < 3; i++)
-              if (neighbor[i] == 0 || neighbor[i] == gridDims[i] - 1)
-                gradient[i] *= 0.5f;
-            gradientBounds.extend(gradient);
+            gradientBounds.extend(voxelGradient(scalars, gridDims, neighbor), neighbor, gridDims);
           }
         }
     MacrocellND<TF_DIM> ranges;
-    ranges.range[0] = make_float2(primBounds4.lower.w, primBounds4.upper.w);
-    if constexpr (TF_DIM > 1) // samples blend neighbouring gradient vectors, which can cancel out
-      ranges.range[1] = lengthRange(gradientBounds);
-    rasterBox(d_mcGrid, mcDims, worldBounds, box3f(vec3f(primBounds4.lower), vec3f(primBounds4.upper)),
-              ranges, channelID, numChannels);
+    ranges.range[0] = valueRange;
+    if constexpr (TF_DIM > 1)
+      ranges.range[1] = gradientBounds.range();
+    rasterBox(d_mcGrid, mcDims, voxelCells(primIdx3D, gridDims, mcDims), ranges, channelID, numChannels);
   }
 
   // texels a bilinear lookup inside data range r can touch, plus one for the hardware's 8-bit filter weights
@@ -706,7 +641,7 @@ namespace dtracker
         throw std::runtime_error("Volume too large for the macrocell raster launch");
 
       rasterMacrocellsND<TF_DIM><<<to_dims(grid), unsigned(blockSize)>>>(
-          d_mcGrid, dims, bounds, d_scalars, vxlGridDims, i, numChannels);
+          d_mcGrid, dims, d_scalars, vxlGridDims, i, numChannels);
       CUDA_SYNC_CHECK();
     }
     return macrocellBuffer;

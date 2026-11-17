@@ -90,6 +90,52 @@ inline __both__ float2 lengthRange(const box3f &b)
     return make_float2(length(nearest), length(farthest));
 }
 
+// macrocells (inclusive index box) whose interior overlaps voxel idx's, voxels and cells tiling the same bounds
+inline __both__ box3i voxelCells(const vec3i &idx, const vec3i &gridDims, const vec3i &mcDims)
+{
+    box3i cells;
+    for (int i = 0; i < 3; i++)
+    {
+        cells.lower[i] = int(uint64_t(idx[i]) * uint64_t(mcDims[i]) / uint64_t(gridDims[i]));
+        cells.upper[i] = int((uint64_t(idx[i] + 1) * uint64_t(mcDims[i]) + uint64_t(gridDims[i]) - 1) /
+                             uint64_t(gridDims[i])) - 1;
+    }
+    return cells;
+}
+
+// how much longer than all voxel gradients a sample's can get from 8-bit texture filter weights (2x headroom)
+constexpr float FILTER_WEIGHT_SLACK = 1.f + 8.f / 256.f;
+
+// [min, max] gradient magnitude of samples blending the voxel gradients of a neighbourhood
+struct GradientMagnitudeBounds
+{
+    box3f components;    // per-component bounds
+    float longest = 0.f; // longest voxel gradient
+    bool atFace = false; // a voxel on a volume face
+
+    inline __device__ void extend(vec3f gradient, const vec3i &voxel, const vec3i &dims)
+    {
+        components.extend(gradient);
+        longest = fmaxf(longest, length(gradient));
+        // samples within half a voxel of a face see down to half an edge voxel's gradient
+        for (int i = 0; i < 3; i++)
+            if (voxel[i] == 0 || voxel[i] == dims[i] - 1)
+            {
+                gradient[i] *= 0.5f;
+                atFace = true;
+            }
+        components.extend(gradient);
+    }
+
+    inline __device__ float2 range() const
+    {
+        float2 r = lengthRange(components); // blended gradients can cancel out
+        if (!atFace) // and not outgrow the longest, except where one-sided differences weight components differently
+            r.y = fminf(r.y, longest * FILTER_WEIGHT_SLACK);
+        return r;
+    }
+};
+
 // a world-space ray in the cell coordinates of a mcDim macrocell grid spanning bounds, for dda::dda3
 struct MacrocellGridRay
 {
