@@ -1,4 +1,5 @@
 #include "deviceCode.h"
+#include "deviceUtils.h"
 #include "dda.h"
 #include <optix_device.h>
 #include "renderer.h"
@@ -32,30 +33,13 @@ inline __both__ float4 transferFunction(float f, size_t tfID = 0)
     {
         return make_float4(1.f, 0.f, 1.f, 0.0f);
     }
-    float remapped1 = (f - lp.transferFunction[tfID].volumeDomain.x) / (lp.transferFunction[tfID].volumeDomain.y - lp.transferFunction[tfID].volumeDomain.x);
-    float remapped2 = (remapped1 - lp.transferFunction[tfID].xfDomain.x) / (lp.transferFunction[tfID].xfDomain.y - lp.transferFunction[tfID].xfDomain.x);
+    float remapped1 = normalizeToDomain(f, lp.transferFunction[tfID].volumeDomain);
+    float remapped2 = normalizeToDomain(remapped1, lp.transferFunction[tfID].xfDomain);
     
     float4 xf = tex2D<float4>(lp.transferFunction[tfID].xf, remapped2, 0.5f);
     xf.w *= lp.transferFunction[tfID].opacityScale;
 
     return xf;
-}
-
-inline __device__ vec3f over(vec3f Cin, vec3f Cx, float Ain, float Ax)
-{
-  return Cin + Cx * Ax * (1.f - Ain);
-}
-
-inline __device__ float over(const float Ain, const float Ax)
-{
-  return Ain + (1.f - Ain) * Ax;
-}
-
-inline __device__ vec4f over(const vec4f &in, const vec4f &x)
-{
-  auto c = over(vec3f(in), vec3f(x), in.w, x.w);
-  auto a = over(in.w, x.w);
-  return vec4f(c, a);
 }
 
 inline __device__ void generateRay(const vec2f screen, owl::Ray &ray)
@@ -243,41 +227,8 @@ vec4f blendChannels(const vec3f texSpacePos)
 __device__
 vec3f calculateGradient(const vec3f& texSpacePos, const float epsilon, size_t tfID = 0)
 {
-    auto &lp = optixLaunchParams;
-    vec3f gradient = vec3f(0.0f, 0.0f, 0.0f);
-    
-    for(int i = 0; i < 3; i++)
-    {
-        vec3f pos1 = texSpacePos;
-        vec3f pos2 = texSpacePos;
-        pos1[i] -= epsilon;
-        pos2[i] += epsilon;
-        
-        // Handle boundary conditions - use forward/backward differences at boundaries
-        float val1, val2;
-        if (pos1[i] < 0.0f) {
-            // Use forward difference at lower boundary
-            pos1 = texSpacePos;
-            pos2[i] = texSpacePos[i] + epsilon;
-            val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
-            val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
-            gradient[i] = (val2 - val1) / epsilon;
-        } else if (pos2[i] > 1.0f) {
-            // Use backward difference at upper boundary
-            pos1[i] = texSpacePos[i] - epsilon;
-            pos2 = texSpacePos;
-            val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
-            val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
-            gradient[i] = (val2 - val1) / epsilon;
-        } else {
-            // Use central difference in the interior
-            val1 = transferFunction(sampleVolumeTexture(pos1, tfID), tfID).w;
-            val2 = transferFunction(sampleVolumeTexture(pos2, tfID), tfID).w;
-            gradient[i] = (val2 - val1) / (2.0f * epsilon);
-        }
-    }
-    
-    return gradient;
+    return finiteDifferenceGradient(texSpacePos, vec3f(epsilon),
+        [&](const vec3f &p) { return transferFunction(sampleVolumeTexture(p, tfID), tfID).w; });
 }
 
 OPTIX_RAYGEN_PROGRAM(mainRG)
@@ -332,8 +283,7 @@ OPTIX_RAYGEN_PROGRAM(mainRG)
             if(calculateShading)
             {
                 // assuming ray is already in voxel space
-                box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                                {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+                const box3f worlddim = volumeBounds(lp);
 
                 const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
                 const vec3f texSpacePos = (ray.origin + volumePrd.tHit * ray.direction) * worldToUnit;
@@ -521,30 +471,16 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
 
     float unit = lp.volume.dt;
 
-    vec3f worldOrg = optixGetWorldRayOrigin();
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f worldDir = optixGetWorldRayDirection();
-
+    const vec3f worldOrg = optixGetWorldRayOrigin();
+    const vec3f worldDir = optixGetWorldRayDirection();
+    const vec3ui mcDim = lp.volume.macrocellDims;
     // assuming ray is already in voxel space
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
-    vec3ui mcDim = lp.volume.macrocellDims;
-
-    org = org - worlddim.lower;
-
-    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
-    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    
-    org = unitToGrid *worldToUnit * org;
-    vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float worldToGridT = length(dir);
-    const float gridToWorldT = 1.f / worldToGridT;
-    dir = normalize(dir);
+    const MacrocellGridRay grid(worldOrg, worldDir, volumeBounds(lp), mcDim);
 
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
-        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        const int cellID = linearCellIndex(cellIdx, mcDim);
         float majorant = lp.volume.majorants[cellID];
 
         if(prd.debug)
@@ -561,7 +497,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
             // more/less probable by altering the length of the woodcock step size
-            t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit * grid.worldToGridT;
 
             // A cell boundary has been hit
             if (t >= t1){
@@ -570,8 +506,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
             }
 
             // Update current position
-            const float tWorld = t * gridToWorldT;
-            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+            const float tWorld = t * grid.gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * grid.worldToUnit;
             // A world boundary has been hit
             if (tWorld >= prd.t1)
             {
@@ -613,7 +549,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(cummilativeDTCH)
 
         return true;
     };
-    dda::dda3(org,dir,1e20f,mcDim,lambda,false);
+    dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
@@ -627,32 +563,18 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
 
     float unit = lp.volume.dt;
 
-    vec3f worldOrg = optixGetWorldRayOrigin();
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f worldDir = optixGetWorldRayDirection();
-
+    const vec3f worldOrg = optixGetWorldRayOrigin();
+    const vec3f worldDir = optixGetWorldRayDirection();
+    const vec3ui mcDim = lp.volume.macrocellDims;
     // assuming ray is already in voxel space
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
-    vec3ui mcDim = lp.volume.macrocellDims;
-
-    org = org - worlddim.lower;
-
-    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
-    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    
-    org = unitToGrid *worldToUnit * org;
-    vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float worldToGridT = length(dir);
-    const float gridToWorldT = 1.f / worldToGridT;
-    dir = normalize(dir);
+    const MacrocellGridRay grid(worldOrg, worldDir, volumeBounds(lp), mcDim);
 
     float majorants[MAX_CHANNELS];
     float ts[MAX_CHANNELS];
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
-        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        const int cellID = linearCellIndex(cellIdx, mcDim);
 
         float majorantSum = 0.0f;
 
@@ -673,7 +595,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
         for (int i = 0; i < lp.volume.numChannels; i++)
         {
             if(majorants[i] > 0.0f)
-                ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * worldToGridT;
+                ts[i] = ts[i] - (log(1.0f - prd.rng()) / majorants[i]) * unit * grid.worldToGridT;
             else
                 ts[i] = 1e20f;
         }
@@ -703,8 +625,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             }
 
             // Update current position
-            const float tWorld = minT * gridToWorldT;
-            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+            const float tWorld = minT * grid.gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * grid.worldToUnit;
             // A world boundary has been hit
             if (tWorld >= prd.t1)
             {
@@ -736,12 +658,12 @@ OPTIX_CLOSEST_HIT_PROGRAM(multiMajDTCH)
             //if the process survies all meshes, it is a null collision, keep going
             //event = NULL_COLLISION;
             prd.rejections++;
-            ts[selectedChannel] = ts[selectedChannel] - (log(1.0f - rand) / majorants[selectedChannel]) * unit * worldToGridT;
+            ts[selectedChannel] = ts[selectedChannel] - (log(1.0f - rand) / majorants[selectedChannel]) * unit * grid.worldToGridT;
         }
 
         return true;
     };
-    dda::dda3(org,dir,1e20f,mcDim,lambda,false);
+    dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
@@ -755,32 +677,18 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
 
     float unit = lp.volume.dt;
 
-    vec3f worldOrg = optixGetWorldRayOrigin();
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f worldDir = optixGetWorldRayDirection();
-
+    const vec3f worldOrg = optixGetWorldRayOrigin();
+    const vec3f worldDir = optixGetWorldRayDirection();
+    const vec3ui mcDim = lp.volume.macrocellDims;
     // assuming ray is already in voxel space
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
-    vec3ui mcDim = lp.volume.macrocellDims;
-
-    org = org - worlddim.lower;
-
-    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
-    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    
-    org = unitToGrid *worldToUnit * org;
-    vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float worldToGridT = length(dir);
-    const float gridToWorldT = 1.f / worldToGridT;
-    dir = normalize(dir);
+    const MacrocellGridRay grid(worldOrg, worldDir, volumeBounds(lp), mcDim);
 
     float majorant;
     float t;
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
-        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        const int cellID = linearCellIndex(cellIdx, mcDim);
         float minT = t1; // distance to the closest cell boundary
 
         for (int channelID = 0; channelID < lp.volume.numChannels; channelID++)
@@ -802,14 +710,14 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
                 //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
                 //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
                 // more/less probable by altering the length of the woodcock step size
-                t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
+                t = t - (log(1.0f - prd.rng()) / majorant) * unit * grid.worldToGridT;
 
                 if(t >= minT)
                     break; //this channel is not the closest sample
 
                 // Update current position
-                const float tWorld = t * gridToWorldT;
-                const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+                const float tWorld = t * grid.gridToWorldT;
+                const vec3f xTexture = (worldOrg + tWorld * worldDir) * grid.worldToUnit;
                 // A world boundary has been hit
                 if (tWorld >= prd.t1)
                 {
@@ -852,7 +760,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(altMultiMajDTCH)
         else
             return false; // terminate traversal
     };
-    dda::dda3(org,dir,1e20f,mcDim,lambda,false);
+    dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
@@ -866,26 +774,11 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
 
     float unit = lp.volume.dt;
 
-    vec3f worldOrg = optixGetWorldRayOrigin();
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f worldDir = optixGetWorldRayDirection();
-
+    const vec3f worldOrg = optixGetWorldRayOrigin();
+    const vec3f worldDir = optixGetWorldRayDirection();
+    const vec3ui mcDim = lp.volume.macrocellDims;
     // assuming ray is already in voxel space
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
-    vec3ui mcDim = lp.volume.macrocellDims;
-
-    org = org - worlddim.lower;
-
-    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
-    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    
-    org = unitToGrid *worldToUnit * org;
-    vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float worldToGridT = length(dir);
-    const float gridToWorldT = 1.f / worldToGridT;
-    //const float worldToUnitT = owl::length(mcDim) / length(worlddim.upper - worlddim.lower);
-    dir = normalize(dir);
+    const MacrocellGridRay grid(worldOrg, worldDir, volumeBounds(lp), mcDim);
 
     int curMesh = 0;
     float tMax = 1e20f;
@@ -893,7 +786,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
-        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        const int cellID = linearCellIndex(cellIdx, mcDim);
         float majorant = lp.volume.majorants[cellID * lp.volume.numChannels + curMesh];
 
         if(prd.debug)
@@ -910,7 +803,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
             // more/less probable by altering the length of the woodcock step size
-            t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit * grid.worldToGridT;
 
             // A cell boundary has been hit
             if (t >= t1){
@@ -922,8 +815,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
                 return false;
 
             // Update current position
-            const float tWorld = t * gridToWorldT;
-            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+            const float tWorld = t * grid.gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * grid.worldToUnit;
             // A world boundary has been hit
             if (tWorld >= prd.t1)
             {
@@ -965,7 +858,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(baseLineDTCH)
     for (int i = 0; i < lp.volume.numChannels; i++)
     {
         curMesh = i;
-        dda::dda3(org,dir,1e20,mcDim,lambda,false);
+        dda::dda3(grid.org, grid.dir, 1e20,mcDim,lambda,false);
     }
 }
 
@@ -980,30 +873,16 @@ OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
 
     float unit = lp.volume.dt;
 
-    vec3f worldOrg = optixGetWorldRayOrigin();
-    vec3f org = optixGetWorldRayOrigin();
-    vec3f worldDir = optixGetWorldRayDirection();
-
+    const vec3f worldOrg = optixGetWorldRayOrigin();
+    const vec3f worldDir = optixGetWorldRayDirection();
+    const vec3ui mcDim = lp.volume.macrocellDims;
     // assuming ray is already in voxel space
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
-    vec3ui mcDim = lp.volume.macrocellDims;
-
-    org = org - worlddim.lower;
-
-    const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
-    const vec3f unitToGrid = vec3f(mcDim.x, mcDim.y, mcDim.z);
-    
-    org = unitToGrid *worldToUnit * org;
-    vec3f dir = worldToUnit * unitToGrid * worldDir;
-    const float worldToGridT = length(dir);
-    const float gridToWorldT = 1.f / worldToGridT;
-    dir = normalize(dir);
+    const MacrocellGridRay grid(worldOrg, worldDir, volumeBounds(lp), mcDim);
 
     //VolumeEvent event = NULL_COLLISION;
     auto lambda = [&](const vec3i &cellIdx, float t0, float t1) -> bool
     {
-        const int cellID = cellIdx.x + cellIdx.y * mcDim.x + cellIdx.z * mcDim.x * mcDim.y;
+        const int cellID = linearCellIndex(cellIdx, mcDim);
         float majorant = lp.volume.majorants[cellID];
 
         if(prd.debug)
@@ -1020,7 +899,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
             //t_{i} = t_{i-1} - ln(1-rand())/mu_{t,max}
             //NOTE: this "unit" can be considered as a global opacity scale ass it makes sampling a point
             // more/less probable by altering the length of the woodcock step size
-            t = t - (log(1.0f - prd.rng()) / majorant) * unit * worldToGridT;
+            t = t - (log(1.0f - prd.rng()) / majorant) * unit * grid.worldToGridT;
 
             // A cell boundary has been hit
             if (t >= t1){
@@ -1029,8 +908,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
             }
 
             // Update current position
-            const float tWorld = t * gridToWorldT;
-            const vec3f xTexture = (worldOrg + tWorld * worldDir) * worldToUnit;
+            const float tWorld = t * grid.gridToWorldT;
+            const vec3f xTexture = (worldOrg + tWorld * worldDir) * grid.worldToUnit;
             // A world boundary has been hit
             if (tWorld >= prd.t1)
             {
@@ -1061,7 +940,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(blendDTCH)
 
         return true;
     };
-    dda::dda3(org,dir,1e20f,mcDim,lambda,false);
+    dda::dda3(grid.org, grid.dir, 1e20f,mcDim,lambda,false);
 }
 
 OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
@@ -1074,8 +953,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
 
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+    const box3f worlddim = volumeBounds(lp);
     const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
 
     float dt = lp.volume.dt;
@@ -1123,20 +1001,8 @@ OPTIX_CLOSEST_HIT_PROGRAM(rayMarcherCH)
         float alphaSh = 0.f;
         vec3f posSh = orgSh + dirSh;
 
-        // typical ray AABB intersection test
-        vec3f dirfrac = 1.f/dirSh;
-
-        // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
-        // origin is origin of ray
-        const float t1 = (worlddim.lower.x - orgSh.x)*dirfrac.x;
-        const float t2 = (worlddim.upper.x - orgSh.x)*dirfrac.x;
-        const float t3 = (worlddim.lower.y - orgSh.y)*dirfrac.y;
-        const float t4 = (worlddim.upper.y - orgSh.y)*dirfrac.y;
-        const float t5 = (worlddim.lower.z - orgSh.z)*dirfrac.z;
-        const float t6 = (worlddim.upper.z - orgSh.z)*dirfrac.z;
-
-        float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-        const float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+        float thit0, thit1;
+        intersectBox(orgSh, dirSh, worlddim, thit0, thit1);
 
         if( (thit1 >= 0) && ((thit0 < thit1)) )
         {
@@ -1166,8 +1032,7 @@ OPTIX_CLOSEST_HIT_PROGRAM(compRayMarcherCH)
     prd.rgba = vec4f(0.0f, 0.0f, 0.0f, 0.0f);
 
 
-    box3f worlddim = {{lp.volume.globalBoundsLo.x, lp.volume.globalBoundsLo.y, lp.volume.globalBoundsLo.z},
-                      {lp.volume.globalBoundsHi.x, lp.volume.globalBoundsHi.y, lp.volume.globalBoundsHi.z}};
+    const box3f worlddim = volumeBounds(lp);
     const vec3f worldToUnit = 1.f / (worlddim.upper - worlddim.lower);
 
     float dt = lp.volume.dt;
@@ -1679,35 +1544,13 @@ OPTIX_INTERSECT_PROGRAM(hexahedraPointQuery)
     const auto &self = owl::getProgramData<MacrocellData>();
     const int primID = optixGetPrimitiveIndex() + self.offset;
 
-    box4f bbox = self.bboxes[primID];
-    float3 lb = make_float3(bbox.lower.x, bbox.lower.y, bbox.lower.z);
-    float3 rt = make_float3(bbox.upper.x, bbox.upper.y, bbox.upper.z);
-    float3 origin = optixGetObjectRayOrigin();
+    const box4f bbox = self.bboxes[primID];
+    const box3f box(vec3f(bbox.lower.x, bbox.lower.y, bbox.lower.z),
+                    vec3f(bbox.upper.x, bbox.upper.y, bbox.upper.z));
 
-    // note, this is _not_ normalized. Useful for computing world space tmin/mmax
-    float3 direction = optixGetObjectRayDirection();
-
-    // float3 rt = make_float3(mx.x(), mx.y(), mx.z() + 1.f);
-
-    // typical ray AABB intersection test
-    float3 dirfrac;
-
-    // direction is unit direction vector of ray
-    dirfrac.x = 1.0f / direction.x;
-    dirfrac.y = 1.0f / direction.y;
-    dirfrac.z = 1.0f / direction.z;
-
-    // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
-    // origin is origin of ray
-    float t1 = (lb.x - origin.x)*dirfrac.x;
-    float t2 = (rt.x - origin.x)*dirfrac.x;
-    float t3 = (lb.y - origin.y)*dirfrac.y;
-    float t4 = (rt.y - origin.y)*dirfrac.y;
-    float t5 = (lb.z - origin.z)*dirfrac.z;
-    float t6 = (rt.z - origin.z)*dirfrac.z;
-
-    float thit0 = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-    float thit1 = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+    // note, the direction is _not_ normalized. Useful for computing world space tmin/mmax
+    float thit0, thit1;
+    intersectBox(optixGetObjectRayOrigin(), optixGetObjectRayDirection(), box, thit0, thit1);
 
     // if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
     if (thit1 < 0) { return; }
