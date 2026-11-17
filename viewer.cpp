@@ -1,8 +1,11 @@
 #include <iostream>
+#include <algorithm>
 #include <chrono>
+#include <memory>
 
 #define TFN_WIDGET_NO_STB_IMAGE_IMPL
 #include "transfer_function_widget.h"
+#include "transfer_function_widget_2d.h"
 
 #include "glfwHandler.h"
 #include "rawFile.h"
@@ -32,7 +35,10 @@ public:
 private:
     std::shared_ptr<dtracker::Renderer> renderer;
     std::shared_ptr<camera::Manipulator> manipulator;
-    std::vector<ImTF::TransferFunctionWidget> tfnWidgets;
+    std::vector<ImTF::TransferFunctionWidget> tfnWidgets;     // --tf-dim 1, one per channel
+    std::vector<std::unique_ptr<ImTF::TransferFunctionWidget2D>> tfnWidgets2D; // --tf-dim 2, one per channel
+    std::vector<float> maxGradient2D; // per channel, upper end of the |f'| range control
+    int tfDim = 1;
     size_t numFiles = 0;
     size_t selectedTF = 0;
 
@@ -40,6 +46,9 @@ private:
     void InitImGui();
     void RequestImGuiFrame();
     void RenderImGuiFrame();
+
+    // pushes the 2D widget of a channel to the renderer: everything if `force`, otherwise what changed
+    void Sync2DTF(size_t channelID, bool force);
 
     const float kbd_rotate_degrees = 100.f;
     const float degrees_per_drag_fraction = 250;
@@ -128,6 +137,11 @@ Viewer::Viewer(int argc, char *argv[])
     program.add_argument("--mirror-frame", "-mf")
         .help("Flip frame buffer vertically")
         .default_value(false)
+        .scan<'i', int>();
+    program.add_argument("-tfd", "--tf-dim")
+        .help("transfer function dimensionality. 1 = value (default),\n"
+              "2 = value x gradient magnitude (raw data and modes 0-5 only)")
+        .default_value(1)
         .scan<'i', int>();
 
 #if OFFLINE_VIEWER
@@ -268,6 +282,27 @@ Viewer::Viewer(int argc, char *argv[])
         modeString = "COMP"; //composite
         break;
     }
+    tfDim = program.get<int>("--tf-dim");
+    if (tfDim < 1 || tfDim > MAX_TF_DIM)
+    {
+        std::cerr << "--tf-dim must be between 1 and " << MAX_TF_DIM << std::endl;
+        std::exit(1);
+    }
+    if (tfDim > 1)
+    {
+        if (rendererMode >= dtracker::Mode::MARCHER_MULTI)
+        {
+            std::cerr << "--tf-dim " << tfDim << " supports the Woodcock tracking modes 0-5 only" << std::endl;
+            std::exit(1);
+        }
+        if (program.is_used("-fu"))
+        {
+            std::cerr << "--tf-dim " << tfDim << " needs raw data (-fr)" << std::endl;
+            std::exit(1);
+        }
+        modeString += "_TF" + std::to_string(tfDim) + "D";
+    }
+    renderer->tfDim = tfDim;
     if(program.is_used("-l"))
     {
         auto sh = program.get<std::vector<float>>("-l");
@@ -338,15 +373,42 @@ Viewer::Viewer(int argc, char *argv[])
     }
     
     // init transfer function widgets
-    tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles, OFFLINE_VIEWER);
-    // if tf argument is given, load it
-    if (program.is_used("-t"))
+    if (tfDim == 1)
     {
-        auto tfStates = program.get<std::vector<std::string>>("-t");
-        for (int i = 0; i < tfStates.size(); i++)
+        tfnWidgets = std::vector<ImTF::TransferFunctionWidget>(numFiles, OFFLINE_VIEWER);
+        // if tf argument is given, load it
+        if (program.is_used("-t"))
         {
-            tfnWidgets[i].LoadState(tfStates[i]);
+            auto tfStates = program.get<std::vector<std::string>>("-t");
+            for (int i = 0; i < tfStates.size(); i++)
+            {
+                tfnWidgets[i].LoadState(tfStates[i]);
+            }
         }
+    }
+    else
+    {
+        for (size_t i = 0; i < numFiles; i++)
+        {
+            tfnWidgets2D.push_back(std::make_unique<ImTF::TransferFunctionWidget2D>(OFFLINE_VIEWER));
+            const auto bounds = renderer->rawPtrs[i]->getBounds4f();
+            tfnWidgets2D[i]->SetValueRange(bounds.lower.w, bounds.upper.w);
+
+            // (value, gradient magnitude) samples for the histogram, at most 2^24 per channel; the
+            // widget's derivative range follows from them
+            const std::vector<float> data = renderer->rawPtrs[i]->getDataVector();
+            const size_t stride = std::max<size_t>(1, (data.size() + (size_t(1) << 24) - 1) >> 24);
+            std::vector<float> values;
+            values.reserve(data.size() / stride + 1);
+            for (size_t v = 0; v < data.size(); v += stride)
+                values.push_back(data[v]);
+            const std::vector<float> gradients = renderer->VoxelGradientMagnitudes(i, stride);
+            maxGradient2D.push_back(gradients.empty() ? 0.f : *std::max_element(gradients.begin(), gradients.end()));
+            tfnWidgets2D[i]->SetValues(values);
+            tfnWidgets2D[i]->SetDerivatives(gradients);
+        }
+        if (program.is_used("-t"))
+            std::cerr << "-t is ignored with --tf-dim " << tfDim << std::endl;
     }
     if(program.is_used("-dt"))
     {
@@ -368,8 +430,8 @@ void Viewer::TakeSnapshot(std::string filename, bool overlayColormap)
     std::vector<uint32_t> modifiedFb(renderer->fbSize.x * renderer->fbSize.y);
     std::copy(fb, fb + renderer->fbSize.x * renderer->fbSize.y, modifiedFb.begin());
 
-    // Add colormap overlays using the transfer function widget utility
-    if (numFiles > 0 && overlayColormap) {
+    // Add colormap overlays using the transfer function widget utility (1D transfer functions only)
+    if (numFiles > 0 && overlayColormap && tfDim == 1) {
         const float scale = 1.1f; // Default scale
         const int marginBottom = renderer->fbSize.y - 250;
         const int barSpacing = 85; // Spacing between bars
@@ -496,6 +558,28 @@ void Viewer::RenderImGuiFrame()
     }
 }
 
+void Viewer::Sync2DTF(size_t channelID, bool force)
+{
+    auto &widget = *tfnWidgets2D[channelID];
+    // ranges first: majorants are only computed once every channel has its lookup table
+    if (force || widget.RangeChanged())
+    {
+        const ImVec2 valueRange = widget.GetValueRange();
+        const ImVec2 derivativeRange = widget.GetDerivativeRange();
+        renderer->SetXFDomainND(0, vec2f(valueRange.x, valueRange.y), channelID);
+        renderer->SetXFDomainND(1, vec2f(derivativeRange.x, derivativeRange.y), channelID);
+    }
+    if (force || widget.ColorMapChanged())
+    {
+        const auto cm = widget.GetColormapf(); // RGBA, value axis fastest, row 0 = zero derivative
+        std::vector<owl::vec4f> texels(cm.size() / 4);
+        for (size_t i = 0; i < texels.size(); i++)
+            texels[i] = owl::vec4f(cm[4 * i], cm[4 * i + 1], cm[4 * i + 2], cm[4 * i + 3]);
+        const int res = widget.GetResolution();
+        renderer->SetXFColormapND(texels, {res, res}, channelID);
+    }
+}
+
 const ImVec4 red = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 const ImVec4 orange = ImVec4(1.0f, 0.65f, 0.0f, 1.0f);
 const ImVec4 green = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
@@ -512,8 +596,37 @@ void Viewer::Run()
     if(dt > 0.f)
         renderer->Setdt(dt);
     renderer->UpdateCamera();
+#if !OFFLINE_VIEWER
+    // 2D transfer function editor of the open tab; Sync2DTF pushes its changes after the frame
+    auto drawTFGizmo2D = [&](size_t channelID, ImTF::TransferFunctionWidget2D &widget)
+    {
+        widget.DrawColorMap(false);
+
+        // shows the ranges the renderer holds: the widget's getters would clear the change flag Sync2DTF reads
+        const auto &domain = renderer->tfdatasND[channelID].domain;
+        const auto bounds = renderer->rawPtrs[channelID]->getBounds4f();
+        const float valueSpan = bounds.upper.w - bounds.lower.w;
+        float values[2] = {domain[0].lower, domain[0].upper};
+        if (ImGui::DragFloatRange2("Value range", &values[0], &values[1], 0.002f * valueSpan,
+                                   bounds.lower.w, bounds.upper.w, "%.4g") && values[0] < values[1])
+            widget.SetValueRange(values[0], values[1]);
+        // gradient magnitudes have a long tail, a lower maximum spreads the boundary arches out
+        const float maxGradient = maxGradient2D[channelID];
+        float derivatives[2] = {domain[1].lower, domain[1].upper};
+        if (ImGui::DragFloatRange2("|f'| range", &derivatives[0], &derivatives[1], 0.002f * maxGradient,
+                                   0.f, maxGradient, "%.4g") && derivatives[0] < derivatives[1])
+            widget.SetDerivativeRange(derivatives[0], derivatives[1]);
+        if (ImGui::Button("Full ranges"))
+        {
+            widget.SetValueRange(bounds.lower.w, bounds.upper.w);
+            widget.SetDerivativeRange(0.f, 0.f); // automatic, from the data
+        }
+    };
+#endif
     //loop over all transfer functions and set them
-    for (int i = 0; i < numFiles; i++)
+    for (int i = 0; i < numFiles && tfDim > 1; i++)
+        Sync2DTF(i, true);
+    for (int i = 0; i < numFiles && tfDim == 1; i++)
     {
         auto cm = tfnWidgets[i].GetColormapf();
         std::vector<owl::vec4f> colorMapVec;
@@ -578,11 +691,21 @@ void Viewer::Run()
                     
                     if (ImGui::BeginTabItem("Transfer Function"))
                     {
-                        tfnWidgets[i].DrawColorMap(false);
-                        tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getBounds4f().lower.w,
-                                                renderer->rawPtrs[i]->getBounds4f().upper.w});
-                        tfnWidgets[i].DrawOpacityScale();
-                        tfnWidgets[i].DrawRanges();
+                        if (tfDim == 1)
+                        {
+                            tfnWidgets[i].DrawColorMap(false);
+                            tfnWidgets[i].DrawRuler({renderer->rawPtrs[i]->getBounds4f().lower.w,
+                                                    renderer->rawPtrs[i]->getBounds4f().upper.w});
+                            tfnWidgets[i].DrawOpacityScale();
+                            tfnWidgets[i].DrawRanges();
+                        }
+                        else
+                        {
+                            drawTFGizmo2D(i, *tfnWidgets2D[i]);
+                            float opacityScale = renderer->tfdatasND[i].opacityScale;
+                            if (ImGui::DragFloat("Opacity scale", &opacityScale, 0.01f, 0.0f, 1e20f))
+                                renderer->SetXFOpacityScaleND(opacityScale, i);
+                        }
                         ImGui::EndTabItem();
                     }
                     
@@ -720,25 +843,30 @@ void Viewer::Run()
         ImGui::End();
         RenderImGuiFrame();
 
-        if(tfnWidgets[selectedTF].ColorMapChanged())
+        if (tfDim > 1)
+            Sync2DTF(selectedTF, false);
+        else
         {
-            auto cm = tfnWidgets[selectedTF].GetColormapf();
-
-            std::vector<owl::vec4f> colorMapVec;
-            for (int i = 0; i < cm.size(); i += 4)
+            if(tfnWidgets[selectedTF].ColorMapChanged())
             {
-                colorMapVec.push_back(owl::vec4f(cm[i],
-                        cm[i + 1], cm[i + 2], cm[i + 3]));
-            }
-            renderer->SetXFColormap(colorMapVec, selectedTF);
-        }
+                auto cm = tfnWidgets[selectedTF].GetColormapf();
 
-        if(tfnWidgets[selectedTF].OpacityScaleChanged())
-            renderer->SetXFOpacityScale(tfnWidgets[selectedTF].GetOpacityScale(), selectedTF);
-            
-        if(tfnWidgets[selectedTF].RangeChanged())
-            renderer->SetXFRange(vec2f(tfnWidgets[selectedTF].GetRange().x,
-                    tfnWidgets[selectedTF].GetRange().y), selectedTF);
+                std::vector<owl::vec4f> colorMapVec;
+                for (int i = 0; i < cm.size(); i += 4)
+                {
+                    colorMapVec.push_back(owl::vec4f(cm[i],
+                            cm[i + 1], cm[i + 2], cm[i + 3]));
+                }
+                renderer->SetXFColormap(colorMapVec, selectedTF);
+            }
+
+            if(tfnWidgets[selectedTF].OpacityScaleChanged())
+                renderer->SetXFOpacityScale(tfnWidgets[selectedTF].GetOpacityScale(), selectedTF);
+
+            if(tfnWidgets[selectedTF].RangeChanged())
+                renderer->SetXFRange(vec2f(tfnWidgets[selectedTF].GetRange().x,
+                        tfnWidgets[selectedTF].GetRange().y), selectedTF);
+        }
 
         glfw->swapBuffers();
 
@@ -763,7 +891,7 @@ void Viewer::Run()
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"-"
             renderer->Setdt(renderer->dt - 0.04f);
 
-        if(glfw->key.isPressed(GLFW_KEY_T) && 
+        if(tfDim == 1 && glfw->key.isPressed(GLFW_KEY_T) &&
             glfw->key.isDown(GLFW_KEY_RIGHT_SHIFT)) //"T"
             tfnWidgets[selectedTF].SaveState("tfn_state_" + std::to_string(selectedTF) + ".tf");
         if(glfw->key.isPressed(GLFW_KEY_C) && 
